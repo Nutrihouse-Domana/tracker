@@ -142,7 +142,16 @@ export function AppShell() {
 
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexShrink: 0 }}>
             {usuarioAdm && (
-              <Typography variant="body2" noWrap sx={{ display: { xs: 'none', lg: 'block' } }}>
+              <Typography
+                variant="body2"
+                noWrap
+                sx={{
+                  display: { xs: 'none', lg: 'block' },
+                  fontWeight: 700,
+                  pb: 0.5,
+                  borderBottom: '2px solid transparent',
+                }}
+              >
                 Olá, {usuarioAdm.nome}
               </Typography>
             )}
