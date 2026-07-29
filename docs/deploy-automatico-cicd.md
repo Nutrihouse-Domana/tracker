@@ -1,19 +1,24 @@
 # Deploy automático (CI/CD) para produção
 
 Automatiza a publicação do Tracker em produção quando você cria uma **tag de versão** (ex.: `v1.2.0`).
-Usa **GitHub Actions** com dois estágios:
+Usa **GitHub Actions** rodando num **self-hosted runner** dentro da rede (no próprio servidor
+`192.168.0.254`):
 
 ```
-Você cria a tag v1.2.0  ->  GitHub Actions
-                              ├── Estágio 1 (nuvem):  build + dotnet test + gera o pacote
-                              └── Estágio 2 (on-prem): baixa o pacote e publica no IIS do servidor
+Você cria a tag v1.2.0  ->  GitHub Actions (self-hosted runner on-prem)
+                              build  ->  dotnet test  ->  gera pacote  ->  publica no IIS
 ```
 
-- **Estágio 1** roda num runner da nuvem (`windows-latest`). Compila, roda os testes (se algum
-  falhar, o deploy **não acontece**) e gera o pacote site + API. Nunca toca em produção.
-- **Estágio 2** roda num **self-hosted runner** dentro da rede (no próprio servidor `192.168.0.254`).
-  Só faz a troca dos arquivos e reinicia o site — **não compila e não roda testes**, então nunca
-  executa nada contra o banco real.
+> **Por que tudo no runner on-prem?** O repositório é **privado** e o org está no plano **free**,
+> então runners GitHub-hosted (`windows-latest`) não ficam disponíveis. O `setup-dotnet` e o
+> `setup-node` **baixam** o .NET 8 SDK e o Node no próprio runner — não precisam estar pré-instalados.
+
+- **Build + testes:** se algum teste falhar, o deploy **não acontece**. Os testes rodam contra um
+  **banco fake** (instância inexistente): como a migração no start está em `try/catch`
+  ([Program.cs](../src/Tracker.Api/Program.cs)), a API sobe mesmo sem banco e o `/health` passa —
+  logo os testes **nunca tocam o banco de produção** configurado na máquina.
+- **Publish + deploy:** gera o pacote site + API e troca os arquivos no IIS (backup, para, copia,
+  reinicia, health check).
 
 Arquivos: [`.github/workflows/deploy-producao.yml`](../.github/workflows/deploy-producao.yml) e
 [`deploy/atualizar-servidor.ps1`](../deploy/atualizar-servidor.ps1).
@@ -61,8 +66,9 @@ No servidor `192.168.0.254`, como **Administrador**:
    (Services.msc → propriedades do serviço → aba Logon), ou uma conta com direito de
    parar/iniciar sites do IIS e escrever em `C:\Tracker` e `C:\TrackerBackups`.
 
-> O servidor **não precisa** de .NET SDK nem Node.js — o pacote já vem pronto da nuvem.
-> Continua precisando apenas do **.NET 8 Hosting Bundle** (que já é requisito do site).
+> O `setup-dotnet`/`setup-node` baixam .NET 8 SDK e Node no runner sob demanda — não precisa
+> instalá-los na mão. O servidor continua precisando do **.NET 8 Hosting Bundle** (requisito do site)
+> e de **acesso à internet** para o runner baixar as ferramentas e falar com o GitHub.
 
 ---
 
