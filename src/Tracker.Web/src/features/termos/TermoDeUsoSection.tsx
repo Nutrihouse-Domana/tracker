@@ -1,0 +1,110 @@
+import { useRef, useState } from 'react'
+import { Button, Stack, Typography, List, ListItem, ListItemText, Alert, Divider, IconButton } from '@mui/material'
+import VisibilityIcon from '@mui/icons-material/VisibilityOutlined'
+import type { Dispositivo } from '../../api/types'
+import { useGerarPdfTermo, useTermosPorDispositivo, useUploadTermo, useVisualizarTermo } from './hooks'
+import { abrirPdfEmNovaAba, baixarPdfComoArquivo } from './api'
+import { useMe } from '../auth/useAuth'
+
+interface Props {
+  dispositivo: Dispositivo
+}
+
+export function TermoDeUsoSection({ dispositivo }: Props) {
+  const [arquivo, setArquivo] = useState<File | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const { data: adm } = useMe()
+  const { data: termos } = useTermosPorDispositivo(dispositivo.id)
+  const gerarPdf = useGerarPdfTermo()
+  const upload = useUploadTermo()
+  const visualizar = useVisualizarTermo()
+
+  const usuarioId = dispositivo.usuarioAtualId
+  const versaoTermo = '1.0'
+
+  const handleGerar = () => {
+    if (!usuarioId) return
+    gerarPdf.mutate(
+      { dispositivoId: dispositivo.id, usuarioId, versaoTermo },
+      { onSuccess: (blob) => baixarPdfComoArquivo(blob, `termo-uso-${dispositivo.numeroSerie}.pdf`) },
+    )
+  }
+
+  const handleUpload = () => {
+    if (!usuarioId || !arquivo || !adm) return
+    upload.mutate(
+      { dispositivoId: dispositivo.id, usuarioId, versaoTermo, registradoPorAdmId: adm.id, arquivo },
+      {
+        onSuccess: () => {
+          setArquivo(null)
+          if (inputRef.current) inputRef.current.value = ''
+        },
+      },
+    )
+  }
+
+  return (
+    <Stack spacing={2} sx={{ mt: 1 }}>
+      {!usuarioId && (
+        <Alert severity="warning">
+          Este dispositivo ainda não foi atribuído a um usuário — atribua antes de gerar o termo.
+        </Alert>
+      )}
+
+      <Typography variant="subtitle2">1. Gerar termo para impressão</Typography>
+      <Button variant="outlined" disabled={!usuarioId || gerarPdf.isPending} onClick={handleGerar} sx={{ alignSelf: 'flex-start' }}>
+        {gerarPdf.isPending ? 'Gerando...' : 'Gerar e baixar PDF'}
+      </Button>
+
+      <Divider />
+
+      <Typography variant="subtitle2">2. Anexar termo assinado (escaneado)</Typography>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf"
+        onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+      />
+      {upload.isError && <Alert severity="error">Falha ao enviar o arquivo. Confirme que é um PDF.</Alert>}
+      <Button
+        variant="contained"
+        disabled={!usuarioId || !arquivo || upload.isPending}
+        onClick={handleUpload}
+        sx={{ alignSelf: 'flex-start' }}
+      >
+        {upload.isPending ? 'Enviando...' : 'Enviar termo assinado'}
+      </Button>
+
+      <Divider />
+
+      <Typography variant="subtitle2">Termos já anexados</Typography>
+      <List dense>
+        {termos?.map((t) => (
+          <ListItem
+            key={t.id}
+            secondaryAction={
+              <IconButton
+                edge="end"
+                title="Visualizar PDF"
+                onClick={() => visualizar.mutate(t.id, { onSuccess: abrirPdfEmNovaAba })}
+              >
+                <VisibilityIcon fontSize="small" />
+              </IconButton>
+            }
+          >
+            <ListItemText
+              primary={`${t.usuarioNome} — v${t.versaoTermo}`}
+              secondary={new Date(t.dataAceite).toLocaleString('pt-BR')}
+            />
+          </ListItem>
+        ))}
+        {termos?.length === 0 && (
+          <ListItem>
+            <ListItemText secondary="Nenhum termo anexado ainda." />
+          </ListItem>
+        )}
+      </List>
+    </Stack>
+  )
+}

@@ -1,0 +1,33 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+
+# Node / React
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Artefatos gerados (site compilado + pacote de publicacao)
+src/Tracker.Api/wwwroot/
+publish/
+
+# Dados de runtime / uploads
+src/Tracker.Api/App_Data/
+**/token.dat
+**/agent.log
+
+# Secrets (nunca versionar)
+appsettings.*.local.json
+*.pfx
+
+# Ferramentas locais
+.claude/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

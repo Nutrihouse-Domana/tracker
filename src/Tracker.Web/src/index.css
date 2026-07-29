@@ -1,0 +1,21 @@
+/* Reset mínimo — o resto do estilo vem do MUI (theme + CssBaseline).
+   O template padrão do Vite fixava largura e bordas no #root, o que causava
+   as linhas verticais cortando nas laterais; aqui deixamos tudo full-width. */
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Segue o tema claro do app; evita que o SO force esquema escuro nos inputs nativos. */
+:root {
+  color-scheme: light;
+}

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputType>exe</OutputType>
+    <UseWindowsForms>true</UseWindowsForms>
+    <UserSecretsId>dotnet-Tracker.Agent.Windows-68e07416-0158-4183-9dda-56655d7f579e</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="8.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+  <!-- Copia os scripts de instalação para a saída do build/publish, para ficarem junto do .exe -->
+  <ItemGroup>
+    <Content Include="..\..\deploy\instalar-agente.ps1" Link="instalar-agente.ps1" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\deploy\desinstalar-agente.ps1" Link="desinstalar-agente.ps1" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
