@@ -47,12 +47,16 @@ if (-not (Test-Path (Join-Path $Origem "Tracker.Api.dll"))) {
     throw "Pacote invalido em '$Origem' (Tracker.Api.dll nao encontrado). Gere com publicar-servidor.ps1."
 }
 
-$site = Get-Item "IIS:\Sites\$Site"
-$pool = $site.applicationPool
+# OBS: usa Get-Website (retorna physicalPath/applicationPool como STRING).
+# Nao usar uma variavel chamada $site: o PowerShell nao diferencia maiuscula/minuscula,
+# entao $site colidiria com o parametro $Site.
+$siteObj = Get-Website -Name $Site
+if (-not $siteObj) { throw "Site '$Site' nao encontrado no IIS." }
+$pool = [string]$siteObj.applicationPool
 
 # Descobre a pasta real que o site serve (evita publicar na pasta errada).
 if ([string]::IsNullOrWhiteSpace($Destino)) {
-    $Destino = [Environment]::ExpandEnvironmentVariables($site.PhysicalPath)
+    $Destino = [Environment]::ExpandEnvironmentVariables([string]$siteObj.physicalPath)
     Write-Host "Destino resolvido do IIS (PhysicalPath do site '$Site'): $Destino"
 }
 if ([string]::IsNullOrWhiteSpace($Destino)) {
