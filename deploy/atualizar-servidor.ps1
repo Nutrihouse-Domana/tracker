@@ -31,9 +31,11 @@
 #>
 param(
     [string]$Origem = "C:\publish\Tracker",
-    [string]$Destino = "C:\Tracker",
+    # Vazio = descobre a pasta real do site pelo IIS (PhysicalPath). Recomendado.
+    [string]$Destino = "",
     [string]$Site = "Tracker",
-    [string]$HealthUrl = "https://localhost/health",
+    # Vazio = monta a partir do host do binding https do site.
+    [string]$HealthUrl = "",
     [string]$PastaBackups = "C:\TrackerBackups"
 )
 
@@ -45,7 +47,17 @@ if (-not (Test-Path (Join-Path $Origem "Tracker.Api.dll"))) {
     throw "Pacote invalido em '$Origem' (Tracker.Api.dll nao encontrado). Gere com publicar-servidor.ps1."
 }
 
-$pool = (Get-Item "IIS:\Sites\$Site").applicationPool
+$site = Get-Item "IIS:\Sites\$Site"
+$pool = $site.applicationPool
+
+# Descobre a pasta real que o site serve (evita publicar na pasta errada).
+if ([string]::IsNullOrWhiteSpace($Destino)) {
+    $Destino = [Environment]::ExpandEnvironmentVariables($site.PhysicalPath)
+    Write-Host "Destino resolvido do IIS (PhysicalPath do site '$Site'): $Destino"
+}
+if ([string]::IsNullOrWhiteSpace($Destino)) {
+    throw "Nao foi possivel resolver a pasta do site '$Site' no IIS."
+}
 
 Write-Host "1/5 - Backup da instalacao atual..."
 if (Test-Path $Destino) {
@@ -77,6 +89,15 @@ Write-Host "4/5 - Iniciando o app pool e o site..."
 Start-WebAppPool -Name $pool
 Start-Website -Name $Site
 
+# Monta a URL de health a partir do host do binding https, se nao foi informada.
+if ([string]::IsNullOrWhiteSpace($HealthUrl)) {
+    $bindHttps = Get-WebBinding -Name $Site -Protocol https -ErrorAction SilentlyContinue | Select-Object -First 1
+    $hostname = $null
+    if ($bindHttps) { $hostname = ($bindHttps.bindingInformation -split ':')[-1] }
+    if ([string]::IsNullOrWhiteSpace($hostname)) { $HealthUrl = "https://localhost/health" }
+    else { $HealthUrl = "https://$hostname/health" }
+}
+
 Write-Host "5/5 - Health check em '$HealthUrl'..."
 # Ignora a validacao de certificado no loopback (compativel com Windows PowerShell 5.1).
 Add-Type @"
@@ -100,9 +121,12 @@ for ($i = 1; $i -le 12; $i++) {
     }
 }
 
-if (-not $ok) {
-    throw "Health check FALHOU apos o deploy. Verifique o Visualizador de Eventos (origem 'IIS AspNetCore Module'). Backups em '$PastaBackups'."
-}
-
 Write-Host ""
-Write-Host "Deploy concluido com sucesso em '$Destino'."
+if ($ok) {
+    Write-Host "Deploy concluido e health check OK em '$Destino'."
+} else {
+    # Nao-fatal: SNI/loopback pode impedir o health local mesmo com o app saudavel.
+    # Os arquivos ja foram trocados; verifique manualmente na URL publica.
+    Write-Warning "Deploy aplicado em '$Destino', mas o health check local em '$HealthUrl' nao respondeu 'ok'."
+    Write-Warning "Verifique manualmente: abra a URL do site /health. Se estiver fora, veja o Visualizador de Eventos ('IIS AspNetCore Module') e os backups em '$PastaBackups'."
+}
