@@ -31,15 +31,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      # O egress da rede bloqueia o CDN de download da Microsoft/Node, entao NAO usamos
+      # setup-dotnet/setup-node. O .NET 8 SDK e o Node ficam PRE-INSTALADOS no servidor.
+      # (Apos instalar, reinicie o servico do runner para ele enxergar as novas ferramentas.)
+      - name: Preflight (ferramentas instaladas no runner)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) { throw "Falta o .NET 8 SDK no runner. Instale-o e reinicie o servico do runner." }
+          if (-not (Get-Command node   -ErrorAction SilentlyContinue)) { throw "Falta o Node.js no runner. Instale-o e reinicie o servico do runner." }
+          Write-Host ("dotnet: " + (dotnet --version))
+          Write-Host ("node:   " + (node --version))
+          Write-Host ("npm:    " + (npm --version))
 
       - name: Restore
         run: dotnet restore Tracker.sln
