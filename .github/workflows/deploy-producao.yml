@@ -14,12 +14,19 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Estagio 1 (NUVEM): compila, roda os testes e gera o pacote site + API.
-  # Nunca toca em producao. Sem SQL real, a migracao no start cai no catch e o
-  # /health passa; a chave de criptografia abaixo e descartavel, so para o teste.
+  # Pipeline completo NO RUNNER SELF-HOSTED on-premises (o repo e privado em plano
+  # free, entao runners GitHub-hosted nao estao disponiveis). O setup-dotnet /
+  # setup-node baixam as ferramentas no proprio runner (nao precisam estar pre-instaladas).
+  #
+  # Os testes rodam contra um banco FAKE (ConnectionStrings abaixo aponta para uma
+  # instancia inexistente). Como a migracao no start esta em try/catch (Program.cs),
+  # a API sobe mesmo sem banco e o /health passa -> os testes NUNCA tocam producao.
   # ---------------------------------------------------------------------------
-  build-e-teste:
-    runs-on: windows-latest
+  build-teste-deploy:
+    runs-on: [self-hosted, windows, tracker-prod]
+    defaults:
+      run:
+        shell: powershell
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,42 +48,16 @@ jobs:
         run: dotnet build Tracker.sln -c Release --no-restore
 
       - name: Testes (bloqueia o deploy se algum falhar)
-        shell: pwsh
         env:
           # Chave AES-256 DESCARTAVEL, exclusiva do CI. Nao e um segredo de producao.
           Encryption__CpfKeyBase64: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+          # Banco FAKE: instancia inexistente + timeout curto. Garante que o teste
+          # jamais alcance o banco de producao configurado na maquina.
+          ConnectionStrings__TrackerDb: 'Server=localhost\CI_INEXISTENTE;Database=Tracker_CI_DUMMY;Trusted_Connection=True;Connect Timeout=2;TrustServerCertificate=True'
         run: dotnet test Tracker.sln -c Release --no-build --logger "trx;LogFileName=testes.trx"
 
       - name: Gerar pacote (site + API)
-        shell: pwsh
-        run: ./deploy/publicar-servidor.ps1 -Saida "${{ github.workspace }}/publish"
-
-      - name: Publicar artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: pacote-tracker
-          path: publish/
-          retention-days: 7
-
-  # ---------------------------------------------------------------------------
-  # Estagio 2 (ON-PREMISES): so publica. Roda no self-hosted runner do servidor.
-  # Nao compila e nao roda testes -> nunca executa nada contra o banco real.
-  # ---------------------------------------------------------------------------
-  deploy:
-    needs: build-e-teste
-    runs-on: [self-hosted, windows, tracker-prod]
-    steps:
-      - name: Checkout (traz os scripts de deploy)
-        uses: actions/checkout@v4
-
-      - name: Baixar o pacote
-        uses: actions/download-artifact@v4
-        with:
-          name: pacote-tracker
-          path: publish
+        run: .\deploy\publicar-servidor.ps1 -Saida "$env:GITHUB_WORKSPACE\publish"
 
       - name: Publicar no IIS (producao)
-        shell: powershell
-        run: |
-          $origem = Resolve-Path "publish"
-          & "$env:GITHUB_WORKSPACE\deploy\atualizar-servidor.ps1" -Origem $origem -Destino "C:\Tracker" -Site "Tracker"
+        run: .\deploy\atualizar-servidor.ps1 -Origem "$env:GITHUB_WORKSPACE\publish" -Destino "C:\Tracker" -Site "Tracker"
