@@ -62,4 +62,5 @@ jobs:
         run: .\deploy\publicar-servidor.ps1 -Saida "$env:GITHUB_WORKSPACE\publish"
 
       - name: Publicar no IIS (producao)
-        run: .\deploy\atualizar-servidor.ps1 -Origem "$env:GITHUB_WORKSPACE\publish" -Destino "C:\Tracker" -Site "Tracker"
+        # Sem -Destino: o script publica na pasta real que o site 'Tracker' serve (PhysicalPath do IIS).
+        run: .\deploy\atualizar-servidor.ps1 -Origem "$env:GITHUB_WORKSPACE\publish" -Site "Tracker"
