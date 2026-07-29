@@ -1,0 +1,82 @@
+name: Deploy Producao
+
+# Dispara SOMENTE ao criar uma tag de versao (ex.: v1.2.0) ou manualmente pela aba Actions.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Impede dois deploys simultaneos (o segundo espera o primeiro terminar).
+concurrency:
+  group: deploy-producao
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Estagio 1 (NUVEM): compila, roda os testes e gera o pacote site + API.
+  # Nunca toca em producao. Sem SQL real, a migracao no start cai no catch e o
+  # /health passa; a chave de criptografia abaixo e descartavel, so para o teste.
+  # ---------------------------------------------------------------------------
+  build-e-teste:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Restore
+        run: dotnet restore Tracker.sln
+
+      - name: Build (Release)
+        run: dotnet build Tracker.sln -c Release --no-restore
+
+      - name: Testes (bloqueia o deploy se algum falhar)
+        shell: pwsh
+        env:
+          # Chave AES-256 DESCARTAVEL, exclusiva do CI. Nao e um segredo de producao.
+          Encryption__CpfKeyBase64: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+        run: dotnet test Tracker.sln -c Release --no-build --logger "trx;LogFileName=testes.trx"
+
+      - name: Gerar pacote (site + API)
+        shell: pwsh
+        run: ./deploy/publicar-servidor.ps1 -Saida "${{ github.workspace }}/publish"
+
+      - name: Publicar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pacote-tracker
+          path: publish/
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Estagio 2 (ON-PREMISES): so publica. Roda no self-hosted runner do servidor.
+  # Nao compila e nao roda testes -> nunca executa nada contra o banco real.
+  # ---------------------------------------------------------------------------
+  deploy:
+    needs: build-e-teste
+    runs-on: [self-hosted, windows, tracker-prod]
+    steps:
+      - name: Checkout (traz os scripts de deploy)
+        uses: actions/checkout@v4
+
+      - name: Baixar o pacote
+        uses: actions/download-artifact@v4
+        with:
+          name: pacote-tracker
+          path: publish
+
+      - name: Publicar no IIS (producao)
+        shell: powershell
+        run: |
+          $origem = Resolve-Path "publish"
+          & "$env:GITHUB_WORKSPACE\deploy\atualizar-servidor.ps1" -Origem $origem -Destino "C:\Tracker" -Site "Tracker"
