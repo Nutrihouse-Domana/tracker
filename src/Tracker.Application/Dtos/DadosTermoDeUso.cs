@@ -11,4 +11,5 @@ public record DadosTermoDeUso(
     string NumeroSerie,
     string AssetTag,
     string? Hostname,
+    string EstadoDispositivo,
     DateTime DataGeracao);

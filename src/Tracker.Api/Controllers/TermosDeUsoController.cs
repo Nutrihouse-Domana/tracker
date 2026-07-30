@@ -56,6 +56,7 @@ public class TermosDeUsoController : ControllerBase
             dispositivo.NumeroSerie,
             dispositivo.AssetTag,
             (dispositivo as DispositivoComAgente)?.Hostname,
+            request.EstadoDispositivo ?? string.Empty,
             DateTime.UtcNow);
 
         var pdfBytes = _pdfService.Gerar(dados);

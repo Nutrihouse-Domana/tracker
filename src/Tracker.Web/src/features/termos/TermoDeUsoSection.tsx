@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Button, Stack, Typography, List, ListItem, ListItemText, Alert, Divider, IconButton } from '@mui/material'
+import { Button, Stack, Typography, List, ListItem, ListItemText, Alert, Divider, IconButton, TextField } from '@mui/material'
 import VisibilityIcon from '@mui/icons-material/VisibilityOutlined'
 import type { Dispositivo } from '../../api/types'
 import { useGerarPdfTermo, useTermosPorDispositivo, useUploadTermo, useVisualizarTermo } from './hooks'
@@ -12,6 +12,7 @@ interface Props {
 
 export function TermoDeUsoSection({ dispositivo }: Props) {
   const [arquivo, setArquivo] = useState<File | null>(null)
+  const [estadoDispositivo, setEstadoDispositivo] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
   const { data: adm } = useMe()
@@ -26,7 +27,7 @@ export function TermoDeUsoSection({ dispositivo }: Props) {
   const handleGerar = () => {
     if (!usuarioId) return
     gerarPdf.mutate(
-      { dispositivoId: dispositivo.id, usuarioId, versaoTermo },
+      { dispositivoId: dispositivo.id, usuarioId, versaoTermo, estadoDispositivo: estadoDispositivo.trim() || undefined },
       { onSuccess: (blob) => baixarPdfComoArquivo(blob, `termo-uso-${dispositivo.numeroSerie}.pdf`) },
     )
   }
@@ -53,6 +54,17 @@ export function TermoDeUsoSection({ dispositivo }: Props) {
       )}
 
       <Typography variant="subtitle2">1. Gerar termo para impressão</Typography>
+      <TextField
+        label="Estado do dispositivo"
+        placeholder="Ex.: Novo, sem avarias; ou: usado, risco na tampa."
+        value={estadoDispositivo}
+        onChange={(e) => setEstadoDispositivo(e.target.value)}
+        multiline
+        minRows={2}
+        fullWidth
+        disabled={!usuarioId}
+        slotProps={{ htmlInput: { maxLength: 500 } }}
+      />
       <Button variant="outlined" disabled={!usuarioId || gerarPdf.isPending} onClick={handleGerar} sx={{ alignSelf: 'flex-start' }}>
         {gerarPdf.isPending ? 'Gerando...' : 'Gerar e baixar PDF'}
       </Button>

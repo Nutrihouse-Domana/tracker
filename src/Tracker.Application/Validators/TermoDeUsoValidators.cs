@@ -10,5 +10,6 @@ public class GerarTermoDeUsoRequestValidator : AbstractValidator<GerarTermoDeUso
         RuleFor(x => x.DispositivoId).NotEmpty();
         RuleFor(x => x.UsuarioId).NotEmpty();
         RuleFor(x => x.VersaoTermo).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.EstadoDispositivo).MaximumLength(500);
     }
 }

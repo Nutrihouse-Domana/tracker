@@ -2,7 +2,12 @@ import { apiClient } from '../../api/client'
 import type { TermoDeUso } from '../../api/types'
 
 export const termosApi = {
-  gerarPdf: (data: { dispositivoId: string; usuarioId: string; versaoTermo: string }) =>
+  gerarPdf: (data: {
+    dispositivoId: string
+    usuarioId: string
+    versaoTermo: string
+    estadoDispositivo?: string
+  }) =>
     apiClient
       .post('/api/termosdeuso/gerar-pdf', data, { responseType: 'blob' })
       .then((r) => r.data as Blob),
