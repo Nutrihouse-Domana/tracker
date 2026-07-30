@@ -49,8 +49,9 @@ public class TermosDeUsoController : ControllerBase
         var dados = new DadosTermoDeUso(
             request.VersaoTermo,
             usuario.Nome,
-            MascararCpf(usuario.Cpf),
+            FormatarCpf(usuario.Cpf),
             usuario.Email,
+            usuario.Telefone,
             dispositivo.Tipo.ToString(),
             dispositivo.NumeroSerie,
             dispositivo.AssetTag,
@@ -143,9 +144,12 @@ public class TermosDeUsoController : ControllerBase
         return File(stream, "application/pdf");
     }
 
-    private static string MascararCpf(string cpf)
+    /// <summary>Formata o CPF completo (XXX.XXX.XXX-XX) para o termo de responsabilidade.</summary>
+    private static string FormatarCpf(string cpf)
     {
         var digitos = new string(cpf.Where(char.IsDigit).ToArray());
-        return digitos.Length == 11 ? $"***.***.{digitos[6..9]}-{digitos[9..]}" : "***.***.***-**";
+        return digitos.Length == 11
+            ? $"{digitos[..3]}.{digitos[3..6]}.{digitos[6..9]}-{digitos[9..]}"
+            : cpf;
     }
 }

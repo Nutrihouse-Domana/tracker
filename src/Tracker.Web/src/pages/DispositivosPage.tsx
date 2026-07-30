@@ -17,8 +17,10 @@ import {
   Tabs,
   Tab,
   Alert,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material'
-import type { Dispositivo, TipoDispositivo } from '../api/types'
+import type { Dispositivo, StatusDispositivo, TipoDispositivo } from '../api/types'
 import { useDispositivos } from '../features/dispositivos/hooks'
 import { DispositivoFormDialog } from '../features/dispositivos/DispositivoFormDialog'
 import { AtribuirDialog } from '../features/dispositivos/AtribuirDialog'
@@ -38,16 +40,28 @@ const corStatus: Record<string, 'success' | 'default' | 'warning' | 'error'> = {
   Baixado: 'default',
 }
 
+const filtrosStatus: { label: string; status: StatusDispositivo | undefined }[] = [
+  { label: 'Todos', status: undefined },
+  { label: 'Em uso', status: 'EmUso' },
+  { label: 'Em estoque', status: 'EmEstoque' },
+  { label: 'Em manutenção', status: 'EmManutencao' },
+  { label: 'Bloqueado', status: 'Bloqueado' },
+  { label: 'Baixado', status: 'Baixado' },
+]
+
 export function DispositivosPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const termoBusca = searchParams.get('q') ?? ''
   const tipoInicial = abas.findIndex((a) => a.tipo === searchParams.get('tipo'))
   const [aba, setAba] = useState(tipoInicial > 0 ? tipoInicial : 0)
+  const [status, setStatus] = useState<StatusDispositivo | undefined>(
+    (searchParams.get('status') as StatusDispositivo | null) ?? undefined,
+  )
   const [dialogAberto, setDialogAberto] = useState(false)
   const [dispositivoParaAtribuir, setDispositivoParaAtribuir] = useState<Dispositivo | null>(null)
 
-  const { data: dispositivosCarregados, isLoading } = useDispositivos({ tipo: abas[aba].tipo })
+  const { data: dispositivosCarregados, isLoading } = useDispositivos({ tipo: abas[aba].tipo, status })
 
   const dispositivos = useMemo(() => {
     if (!termoBusca.trim()) return dispositivosCarregados
@@ -80,6 +94,20 @@ export function DispositivosPage() {
         ))}
       </Tabs>
 
+      <ToggleButtonGroup
+        value={status ?? 'Todos'}
+        exclusive
+        size="small"
+        onChange={(_, v) => setStatus(v && v !== 'Todos' ? (v as StatusDispositivo) : undefined)}
+        sx={{ mb: 2, flexWrap: 'wrap' }}
+      >
+        {filtrosStatus.map((f) => (
+          <ToggleButton key={f.label} value={f.status ?? 'Todos'}>
+            {f.label}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
+
       {isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
           <CircularProgress />
@@ -91,7 +119,7 @@ export function DispositivosPage() {
               <TableRow>
                 <TableCell>Tipo</TableCell>
                 <TableCell>Identificação</TableCell>
-                <TableCell>Patrimônio</TableCell>
+                <TableCell>Nº de série</TableCell>
                 <TableCell>Usuário atual</TableCell>
                 <TableCell align="center">Status</TableCell>
                 <TableCell align="right">Ações</TableCell>
