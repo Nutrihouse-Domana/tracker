@@ -66,13 +66,19 @@ public class TermoDeUsoPdfService : ITermoDeUsoPdfService
         corpo.Format.SpaceAfter = "0.7cm";
         corpo.Format.LineSpacingRule = LineSpacingRule.OnePtFive;
 
-        // Identificação do equipamento: "Estado do dispositivo" é preenchido à mão na entrega.
-        AdicionarCampo(section, "Estado do dispositivo:", string.Empty);
-        AdicionarCampo(section, "Tombo:", dados.AssetTag);
+        // Identificação do equipamento. Tombo = sufixo do hostname (ex.: NHL-36360 -> 36360);
+        // S/N = número de série; o estado do dispositivo é informado no sistema ao gerar o termo.
+        AdicionarCampo(section, "Estado do dispositivo:", dados.EstadoDispositivo);
+        AdicionarCampo(section, "Tombo:", ExtrairTombo(dados.Hostname));
         AdicionarCampo(section, "S/N:", dados.NumeroSerie);
 
+        var dataLinha = section.AddParagraph();
+        dataLinha.Format.SpaceBefore = "1cm";
+        dataLinha.AddFormattedText("Local e data: ", TextFormat.Bold);
+        dataLinha.AddText($"Jaboatão dos Guararapes, {dados.DataGeracao:dd/MM/yyyy}");
+
         var assinatura = section.AddParagraph();
-        assinatura.Format.SpaceBefore = "1.5cm";
+        assinatura.Format.SpaceBefore = "1cm";
         assinatura.AddText("Assinatura ______________________________________________________");
 
         // Bloco de devolução: preenchido à mão no momento em que o bem retorna.
@@ -115,5 +121,16 @@ public class TermoDeUsoPdfService : ITermoDeUsoPdfService
         paragrafo.AddText(string.IsNullOrWhiteSpace(valor)
             ? "______________________________________________"
             : valor);
+    }
+
+    /// <summary>
+    /// Deriva o Tombo do hostname: o número após o prefixo. Ex.: "NHL-36360" -> "36360",
+    /// "NHD-1235" -> "1235". Sem hífen, devolve o próprio hostname; sem hostname, vazio.
+    /// </summary>
+    private static string ExtrairTombo(string? hostname)
+    {
+        if (string.IsNullOrWhiteSpace(hostname)) return string.Empty;
+        var idx = hostname.IndexOf('-');
+        return idx >= 0 && idx < hostname.Length - 1 ? hostname[(idx + 1)..].Trim() : hostname.Trim();
     }
 }

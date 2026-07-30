@@ -3,7 +3,8 @@ namespace Tracker.Application.Dtos;
 public record GerarTermoDeUsoRequest(
     Guid DispositivoId,
     Guid UsuarioId,
-    string VersaoTermo);
+    string VersaoTermo,
+    string? EstadoDispositivo = null);
 
 public record TermoDeUsoDto(
     Guid Id,
