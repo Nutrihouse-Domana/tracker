@@ -1,11 +1,13 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tracker.Application.Dtos;
 using Tracker.Domain.Entities;
 using Tracker.Domain.Enums;
 using Tracker.Infrastructure.Data;
+using Tracker.Infrastructure.Identity;
 
 namespace Tracker.Api.Controllers;
 
@@ -15,6 +17,7 @@ namespace Tracker.Api.Controllers;
 public class DispositivosController : ControllerBase
 {
     private readonly TrackerDbContext _db;
+    private readonly UserManager<UsuarioADM> _userManager;
     private readonly IValidator<CriarNotebookRequest> _notebookValidator;
     private readonly IValidator<CriarTelefoneRequest> _telefoneValidator;
     private readonly IValidator<CriarPerifericoRequest> _perifericoValidator;
@@ -24,6 +27,7 @@ public class DispositivosController : ControllerBase
 
     public DispositivosController(
         TrackerDbContext db,
+        UserManager<UsuarioADM> userManager,
         IValidator<CriarNotebookRequest> notebookValidator,
         IValidator<CriarTelefoneRequest> telefoneValidator,
         IValidator<CriarPerifericoRequest> perifericoValidator,
@@ -32,6 +36,7 @@ public class DispositivosController : ControllerBase
         IValidator<CriarComentarioRequest> comentarioValidator)
     {
         _db = db;
+        _userManager = userManager;
         _notebookValidator = notebookValidator;
         _telefoneValidator = telefoneValidator;
         _perifericoValidator = perifericoValidator;
@@ -163,6 +168,25 @@ public class DispositivosController : ControllerBase
         if (dispositivo is null) return NotFound();
 
         dispositivo.Status = request.Status;
+
+        // Dispositivo em estoque ou baixado nao pertence a ninguem: libera o usuario atual
+        // e registra a movimentacao de retorno (usuario -> estoque) no historico.
+        if (request.Status is StatusDispositivo.EmEstoque or StatusDispositivo.Baixado)
+        {
+            if (dispositivo.UsuarioAtualId is not null)
+            {
+                _db.HistoricoMovimentacoes.Add(new HistoricoMovimentacao
+                {
+                    DispositivoId = dispositivo.Id,
+                    UsuarioOrigemId = dispositivo.UsuarioAtualId,
+                    UsuarioDestinoId = null, // destino nulo = estoque
+                    Motivo = request.Status == StatusDispositivo.Baixado ? "Baixa do dispositivo" : "Devolucao ao estoque",
+                    RegistradoPorAdmId = Guid.Parse(_userManager.GetUserId(User)!),
+                });
+            }
+            dispositivo.UsuarioAtualId = null;
+        }
+
         await _db.SaveChangesAsync();
         return NoContent();
     }

@@ -4,8 +4,9 @@ namespace Tracker.Application.Dtos;
 public record DadosTermoDeUso(
     string VersaoTermo,
     string NomeUsuario,
-    string CpfUsuarioMascarado,
+    string CpfUsuario,
     string EmailUsuario,
+    string TelefoneUsuario,
     string TipoDispositivo,
     string NumeroSerie,
     string AssetTag,

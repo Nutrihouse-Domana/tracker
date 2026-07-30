@@ -113,12 +113,12 @@ export function DashboardPage() {
     { titulo: 'Periféricos', valor: data?.totalPerifericos, cor: nutrihouseColors.dourado, Icone: MouseIcon, legenda: 'Ver todos', tipo: 'Periferico' },
   ]
 
-  const porStatus: Omit<CartaoProps, 'onClick'>[] = [
-    { titulo: 'Em uso', valor: data?.emUso, cor: '#5B8C5A', Icone: CheckCircleIcon, compacto: true },
-    { titulo: 'Em estoque', valor: data?.emEstoque, cor: '#C9A24B', Icone: Inventory2Icon, compacto: true },
-    { titulo: 'Em manutenção', valor: data?.emManutencao, cor: nutrihouseColors.dourado, Icone: BuildIcon, compacto: true },
-    { titulo: 'Bloqueados', valor: data?.bloqueados, cor: '#8B3A3A', Icone: BlockIcon, compacto: true },
-    { titulo: 'Baixados', valor: data?.baixados, cor: '#6E6E6E', Icone: ArchiveIcon, compacto: true },
+  const porStatus: (Omit<CartaoProps, 'onClick'> & { status: string })[] = [
+    { titulo: 'Em uso', valor: data?.emUso, cor: '#5B8C5A', Icone: CheckCircleIcon, compacto: true, status: 'EmUso' },
+    { titulo: 'Em estoque', valor: data?.emEstoque, cor: '#C9A24B', Icone: Inventory2Icon, compacto: true, status: 'EmEstoque' },
+    { titulo: 'Em manutenção', valor: data?.emManutencao, cor: nutrihouseColors.dourado, Icone: BuildIcon, compacto: true, status: 'EmManutencao' },
+    { titulo: 'Bloqueados', valor: data?.bloqueados, cor: '#8B3A3A', Icone: BlockIcon, compacto: true, status: 'Bloqueado' },
+    { titulo: 'Baixados', valor: data?.baixados, cor: '#6E6E6E', Icone: ArchiveIcon, compacto: true, status: 'Baixado' },
   ]
 
   return (
@@ -144,7 +144,7 @@ export function DashboardPage() {
       <Grid container spacing={2}>
         {porStatus.map((c) => (
           <Grid key={c.titulo} size={{ xs: 6, sm: 4, md: 12 / 5 }}>
-            <Cartao {...c} />
+            <Cartao {...c} onClick={() => navigate(`/dispositivos?status=${c.status}`)} />
           </Grid>
         ))}
       </Grid>

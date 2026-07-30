@@ -4,7 +4,6 @@ import {
   Typography,
   Paper,
   Box,
-  Chip,
   Stack,
   Tabs,
   Tab,
@@ -14,20 +13,13 @@ import {
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBackOutlined'
 import { useDispositivo } from '../features/dispositivos/hooks'
+import { StatusDispositivoAcoes } from '../features/dispositivos/StatusDispositivoAcoes'
 import { MovimentacaoSection } from '../features/dispositivos/MovimentacaoSection'
 import { ReparosSection } from '../features/dispositivos/ReparosSection'
 import { ComentariosSection } from '../features/dispositivos/ComentariosSection'
 import { AgenteSection } from '../features/dispositivos/AgenteSection'
 import { LocalizacaoSection } from '../features/dispositivos/LocalizacaoSection'
 import { TermoDeUsoSection } from '../features/termos/TermoDeUsoSection'
-
-const corStatus: Record<string, 'success' | 'default' | 'warning' | 'error'> = {
-  EmUso: 'success',
-  EmEstoque: 'default',
-  EmManutencao: 'warning',
-  Bloqueado: 'error',
-  Baixado: 'default',
-}
 
 export function DispositivoDetalhePage() {
   const { id } = useParams<{ id: string }>()
@@ -84,7 +76,7 @@ export function DispositivoDetalhePage() {
               {dispositivo.tipo} — {dispositivo.assetTag}
             </Typography>
           </Box>
-          <Chip label={dispositivo.status} color={corStatus[dispositivo.status] ?? 'default'} />
+          <StatusDispositivoAcoes dispositivoId={dispositivo.id} status={dispositivo.status} />
         </Stack>
 
         <Grid container spacing={2}>
