@@ -24,6 +24,7 @@ import type { Dispositivo, StatusDispositivo, TipoDispositivo } from '../api/typ
 import { useDispositivos } from '../features/dispositivos/hooks'
 import { DispositivoFormDialog } from '../features/dispositivos/DispositivoFormDialog'
 import { AtribuirDialog } from '../features/dispositivos/AtribuirDialog'
+import { corStatus, rotuloStatus } from '../features/dispositivos/status'
 
 const abas: { label: string; tipo: TipoDispositivo | undefined }[] = [
   { label: 'Todos', tipo: undefined },
@@ -31,14 +32,6 @@ const abas: { label: string; tipo: TipoDispositivo | undefined }[] = [
   { label: 'Telefones', tipo: 'Telefone' },
   { label: 'Periféricos', tipo: 'Periferico' },
 ]
-
-const corStatus: Record<string, 'success' | 'default' | 'warning' | 'error'> = {
-  EmUso: 'success',
-  EmEstoque: 'default',
-  EmManutencao: 'warning',
-  Bloqueado: 'error',
-  Baixado: 'default',
-}
 
 const filtrosStatus: { label: string; status: StatusDispositivo | undefined }[] = [
   { label: 'Todos', status: undefined },
@@ -133,7 +126,7 @@ export function DispositivosPage() {
                   <TableCell>{d.assetTag}</TableCell>
                   <TableCell>{d.usuarioAtualNome ?? '—'}</TableCell>
                   <TableCell align="center">
-                    <Chip size="small" label={d.status} color={corStatus[d.status] ?? 'default'} />
+                    <Chip size="small" label={rotuloStatus[d.status] ?? d.status} color={corStatus[d.status] ?? 'default'} />
                   </TableCell>
                   <TableCell align="right" onClick={(e) => e.stopPropagation()}>
                     <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
