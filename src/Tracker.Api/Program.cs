@@ -42,6 +42,23 @@ builder.Services
     .AddEntityFrameworkStores<TrackerDbContext>()
     .AddDefaultTokenProviders();
 
+// A API é consumida por um SPA: chamadas não autenticadas devem retornar 401/403 (JSON),
+// e não redirecionar para a tela de login do Identity (/Account/Login). Sem isso, o redirect
+// 302 cai no fallback do SPA (index.html com 200) e o front acha que está autenticado.
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Events.OnRedirectToLogin = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        return Task.CompletedTask;
+    };
+});
+
 builder.Services.AddScoped<ITermoDeUsoPdfService, TermoDeUsoPdfService>();
 builder.Services.AddSingleton<AgentTokenService>();
 builder.Services.AddScoped<AgentAuth>();
