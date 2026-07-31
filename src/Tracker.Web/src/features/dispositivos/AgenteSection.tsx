@@ -16,6 +16,7 @@ import LockIcon from '@mui/icons-material/LockOutlined'
 import LockOpenIcon from '@mui/icons-material/LockOpenOutlined'
 import type { Dispositivo, StatusComandoRemoto } from '../../api/types'
 import { useComandos, useEmitirComando, useGerarEnrollment } from './hooks'
+import { rotuloStatus } from './status'
 
 interface Props {
   dispositivo: Dispositivo
@@ -45,7 +46,7 @@ export function AgenteSection({ dispositivo }: Props) {
           Status do agente
         </Typography>
         <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-          <Chip label={dispositivo.status} color={dispositivo.status === 'Bloqueado' ? 'error' : 'default'} />
+          <Chip label={rotuloStatus[dispositivo.status] ?? dispositivo.status} color={dispositivo.status === 'Bloqueado' ? 'error' : 'default'} />
           <Typography variant="body2" color="text.secondary">
             Último heartbeat:{' '}
             {dispositivo.ultimoHeartbeatEm

@@ -15,14 +15,7 @@ import {
 import EditIcon from '@mui/icons-material/EditOutlined'
 import type { StatusDispositivo } from '../../api/types'
 import { useAtualizarStatusDispositivo } from './hooks'
-
-const corStatus: Record<string, 'success' | 'default' | 'warning' | 'error'> = {
-  EmUso: 'success',
-  EmEstoque: 'default',
-  EmManutencao: 'warning',
-  Bloqueado: 'error',
-  Baixado: 'default',
-}
+import { corStatus, rotuloStatus } from './status'
 
 /** Transições de status que a TI pode aplicar manualmente (rótulo pt-BR por destino). */
 const acoesStatus: { destino: StatusDispositivo; label: string; confirmar?: boolean }[] = [
@@ -52,7 +45,7 @@ export function StatusDispositivoAcoes({ dispositivoId, status }: Props) {
   return (
     <>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-        <Chip label={status} color={corStatus[status] ?? 'default'} />
+        <Chip label={rotuloStatus[status] ?? status} color={corStatus[status] ?? 'default'} />
         <IconButton
           size="small"
           aria-label="Alterar status"
