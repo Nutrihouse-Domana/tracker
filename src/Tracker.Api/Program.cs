@@ -2,6 +2,7 @@ using FluentValidation;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Tracker.Api.Agente;
+using Tracker.Api.Json;
 using Tracker.Application.Validators;
 using Tracker.Infrastructure.Data;
 using Tracker.Infrastructure.Identity;
@@ -15,7 +16,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
-        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
+    {
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        // Emite todo DateTime como UTC com 'Z' (senão o front lê UTC como hora local: horário 3h adiantado).
+        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter());
+    });
 builder.Services.AddSignalR();
 builder.Services.AddValidatorsFromAssemblyContaining<CriarUsuarioRequestValidator>();
 
