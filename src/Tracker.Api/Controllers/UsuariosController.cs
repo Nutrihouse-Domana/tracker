@@ -84,6 +84,9 @@ public class UsuariosController : ControllerBase
         var usuario = await _db.Usuarios.FindAsync(id);
         if (usuario is null) return NotFound();
 
+        if (await _db.Usuarios.AnyAsync(u => u.Email == request.Email && u.Id != id))
+            return Conflict(new { message = "Já existe outro usuário com este email." });
+
         usuario.Nome = request.Nome;
         usuario.Email = request.Email;
         usuario.Telefone = request.Telefone;
