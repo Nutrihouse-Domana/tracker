@@ -31,7 +31,6 @@ public class CriarPerifericoRequestValidator : AbstractValidator<CriarPeriferico
     public CriarPerifericoRequestValidator()
     {
         RuleFor(x => x.NumeroSerie).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.AssetTag).NotEmpty().MaximumLength(50);
         RuleFor(x => x.TipoPeriferico).IsInEnum();
     }
 }

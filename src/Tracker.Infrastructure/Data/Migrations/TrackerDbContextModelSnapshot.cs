@@ -220,7 +220,6 @@ namespace Tracker.Infrastructure.Data.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("AssetTag")
-                        .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<DateTime>("CriadoEm")
@@ -248,7 +247,8 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AssetTag")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[AssetTag] IS NOT NULL");
 
                     b.HasIndex("NumeroSerie")
                         .IsUnique();

@@ -6,7 +6,7 @@ public record DispositivoDto(
     Guid Id,
     TipoDispositivo Tipo,
     string NumeroSerie,
-    string AssetTag,
+    string? AssetTag,
     StatusDispositivo Status,
     DateTime DataAquisicao,
     string? Observacoes,
@@ -43,7 +43,6 @@ public record CriarTelefoneRequest(
 
 public record CriarPerifericoRequest(
     string NumeroSerie,
-    string AssetTag,
     TipoPeriferico TipoPeriferico,
     DateTime DataAquisicao,
     string? Observacoes);

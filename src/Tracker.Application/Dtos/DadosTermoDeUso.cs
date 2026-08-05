@@ -9,7 +9,7 @@ public record DadosTermoDeUso(
     string TelefoneUsuario,
     string TipoDispositivo,
     string NumeroSerie,
-    string AssetTag,
+    string? AssetTag,
     string? Hostname,
     string EstadoDispositivo,
     DateTime DataGeracao);

@@ -73,7 +73,7 @@ export function DispositivoDetalhePage() {
           <Box>
             <Typography variant="h5">{dispositivo.hostname ?? dispositivo.numeroSerie}</Typography>
             <Typography variant="body2" color="text.secondary">
-              {dispositivo.tipo} — {dispositivo.assetTag}
+              {dispositivo.tipo} — {dispositivo.assetTag ?? dispositivo.numeroSerie}
             </Typography>
           </Box>
           <StatusDispositivoAcoes dispositivoId={dispositivo.id} status={dispositivo.status} />

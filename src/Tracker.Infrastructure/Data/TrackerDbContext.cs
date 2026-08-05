@@ -54,7 +54,8 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
                 .HasValue<Periferico>(Domain.Enums.TipoDispositivo.Periferico);
 
             entity.HasIndex(d => d.NumeroSerie).IsUnique();
-            entity.HasIndex(d => d.AssetTag).IsUnique();
+            // Filtrado: periféricos não têm patrimônio, e vários nulos quebrariam o índice único.
+            entity.HasIndex(d => d.AssetTag).IsUnique().HasFilter("[AssetTag] IS NOT NULL");
 
             entity.HasOne(d => d.UsuarioAtual)
                 .WithMany(u => u.Dispositivos)

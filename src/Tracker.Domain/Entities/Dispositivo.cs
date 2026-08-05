@@ -11,7 +11,8 @@ public abstract class Dispositivo : EntidadeBase
 {
     public TipoDispositivo Tipo { get; protected set; }
     public string NumeroSerie { get; set; } = string.Empty;
-    public string AssetTag { get; set; } = string.Empty;
+    /// <summary>Patrimônio. Nulo em periféricos, que não recebem etiqueta.</summary>
+    public string? AssetTag { get; set; }
     public StatusDispositivo Status { get; set; } = StatusDispositivo.EmEstoque;
     public DateTime DataAquisicao { get; set; }
     public string? Observacoes { get; set; }
