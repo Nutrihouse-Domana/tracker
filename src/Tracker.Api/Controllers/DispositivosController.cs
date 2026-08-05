@@ -144,13 +144,13 @@ public class DispositivosController : ControllerBase
         var validation = await _perifericoValidator.ValidateAsync(request);
         if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
 
-        if (await _db.Dispositivos.AnyAsync(d => d.NumeroSerie == request.NumeroSerie || d.AssetTag == request.AssetTag))
-            return Conflict(new { message = "Já existe um dispositivo com este número de série ou patrimônio." });
+        if (await _db.Dispositivos.AnyAsync(d => d.NumeroSerie == request.NumeroSerie))
+            return Conflict(new { message = "Já existe um dispositivo com este número de série." });
 
+        // Periférico não tem patrimônio: AssetTag fica nulo.
         var periferico = new Periferico
         {
             NumeroSerie = request.NumeroSerie,
-            AssetTag = request.AssetTag,
             TipoPeriferico = request.TipoPeriferico,
             DataAquisicao = request.DataAquisicao,
             Observacoes = request.Observacoes,
@@ -166,6 +166,10 @@ public class DispositivosController : ControllerBase
     {
         var dispositivo = await _db.Dispositivos.FindAsync(id);
         if (dispositivo is null) return NotFound();
+
+        // "Em uso" exige detentor: marcar sem usuário deixaria a lista mentindo.
+        if (request.Status == StatusDispositivo.EmUso && dispositivo.UsuarioAtualId is null)
+            return BadRequest(new { message = "Atribua o dispositivo a um usuário para marcá-lo como em uso." });
 
         dispositivo.Status = request.Status;
 
@@ -204,6 +208,16 @@ public class DispositivosController : ControllerBase
         var usuarioDestino = await _db.Usuarios.FindAsync(request.UsuarioId);
         if (usuarioDestino is null) return NotFound(new { message = "Usuário destino não encontrado." });
 
+        // Baixado/em manutenção não pode ganhar dono: senão o dispositivo ficaria com usuário
+        // atribuído e status incoerente (ex.: "Baixado" com detentor).
+        if (dispositivo.Status is StatusDispositivo.Baixado or StatusDispositivo.EmManutencao)
+            return BadRequest(new
+            {
+                message = dispositivo.Status == StatusDispositivo.Baixado
+                    ? "Dispositivo baixado. Devolva-o ao estoque antes de atribuir."
+                    : "Dispositivo em manutenção. Conclua o reparo antes de atribuir.",
+            });
+
         var movimentacao = new HistoricoMovimentacao
         {
             DispositivoId = dispositivo.Id,
@@ -215,7 +229,9 @@ public class DispositivosController : ControllerBase
         };
 
         dispositivo.UsuarioAtualId = usuarioDestino.Id;
-        if (dispositivo.Status == StatusDispositivo.EmEstoque)
+        // Ao ganhar dono, passa a "Em uso" — exceto se estiver bloqueado, estado de segurança
+        // que só sai pelo comando remoto de desbloqueio.
+        if (dispositivo.Status != StatusDispositivo.Bloqueado)
             dispositivo.Status = StatusDispositivo.EmUso;
 
         _db.HistoricoMovimentacoes.Add(movimentacao);

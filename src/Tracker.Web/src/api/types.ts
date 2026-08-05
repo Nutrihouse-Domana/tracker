@@ -41,7 +41,8 @@ export interface Dispositivo {
   id: string
   tipo: TipoDispositivo
   numeroSerie: string
-  assetTag: string
+  /** Patrimônio. Nulo em periféricos, que não recebem etiqueta. */
+  assetTag: string | null
   status: StatusDispositivo
   dataAquisicao: string
   observacoes: string | null
@@ -81,7 +82,6 @@ export interface CriarTelefoneRequest {
 
 export interface CriarPerifericoRequest {
   numeroSerie: string
-  assetTag: string
   tipoPeriferico: TipoPeriferico
   dataAquisicao: string
   observacoes?: string | null
@@ -187,4 +187,30 @@ export interface HistoricoLocalizacao {
   origem: OrigemLocalizacao
   precisaoMetros: number | null
   capturadoEm: string
+}
+
+export interface BuscaDispositivo {
+  id: string
+  tipo: TipoDispositivo
+  status: StatusDispositivo
+  numeroSerie: string
+  assetTag: string | null
+  hostname: string | null
+  imei: string | null
+  usuarioAtualNome: string | null
+}
+
+export interface BuscaUsuario {
+  id: string
+  nome: string
+  email: string
+  telefone: string
+  ativo: boolean
+  quantidadeDispositivos: number
+}
+
+export interface BuscaGlobal {
+  termo: string
+  dispositivos: BuscaDispositivo[]
+  usuarios: BuscaUsuario[]
 }

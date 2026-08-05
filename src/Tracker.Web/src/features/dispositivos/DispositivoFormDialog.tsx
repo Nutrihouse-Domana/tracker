@@ -67,7 +67,7 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
       )
     } else {
       criarPeriferico.mutate(
-        { numeroSerie, assetTag, tipoPeriferico, dataAquisicao, observacoes },
+        { numeroSerie, tipoPeriferico, dataAquisicao, observacoes },
         { onSuccess: handleClose },
       )
     }
@@ -81,7 +81,7 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
           <Stack spacing={2} sx={{ mt: 1 }}>
             {mutacaoAtiva.isError && (
               <Alert severity="error">
-                Não foi possível criar o dispositivo. Verifique se o número de série/patrimônio já existem.
+                Não foi possível criar o dispositivo. Verifique se o número de série ou o patrimônio já existem.
               </Alert>
             )}
 
@@ -104,16 +104,16 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
               required
               fullWidth
             />
-            <TextField
-              label="Patrimônio"
-              value={assetTag}
-              onChange={(e) => setAssetTag(e.target.value)}
-              required
-              fullWidth
-            />
-
+            {/* Periférico não recebe etiqueta de patrimônio. */}
             {(tipo === 'Notebook' || tipo === 'Telefone') && (
               <>
+                <TextField
+                  label="Patrimônio"
+                  value={assetTag}
+                  onChange={(e) => setAssetTag(e.target.value)}
+                  required
+                  fullWidth
+                />
                 <TextField
                   label="Hostname"
                   value={hostname}

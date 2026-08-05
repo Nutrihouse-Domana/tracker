@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Typography,
@@ -56,11 +56,19 @@ export function DispositivosPage() {
 
   const { data: dispositivosCarregados, isLoading } = useDispositivos({ tipo: abas[aba].tipo, status })
 
+  // Uma nova busca zera aba e filtro de status: senão o termo "não acha nada" só porque
+  // havia um filtro ativo que exclui o dispositivo procurado.
+  useEffect(() => {
+    if (!termoBusca.trim()) return
+    setAba(0)
+    setStatus(undefined)
+  }, [termoBusca])
+
   const dispositivos = useMemo(() => {
     if (!termoBusca.trim()) return dispositivosCarregados
     const termo = termoBusca.trim().toLowerCase()
     return dispositivosCarregados?.filter((d) =>
-      [d.numeroSerie, d.assetTag, d.hostname, d.imei, d.usuarioAtualNome]
+      [d.numeroSerie, d.assetTag, d.hostname, d.imei, d.usuarioAtualNome, d.sistemaOperacional, d.observacoes]
         .filter(Boolean)
         .some((campo) => campo!.toLowerCase().includes(termo)),
     )
@@ -77,7 +85,7 @@ export function DispositivosPage() {
 
       {termoBusca && (
         <Alert severity="info" sx={{ mb: 2 }} onClose={() => setSearchParams({})}>
-          Mostrando resultados para "{termoBusca}"
+          Mostrando resultados para "{termoBusca}" ({dispositivos?.length ?? 0})
         </Alert>
       )}
 
@@ -112,7 +120,7 @@ export function DispositivosPage() {
               <TableRow>
                 <TableCell>Tipo</TableCell>
                 <TableCell>Identificação</TableCell>
-                <TableCell>Nº de série</TableCell>
+                <TableCell>Patrimônio</TableCell>
                 <TableCell>Usuário atual</TableCell>
                 <TableCell align="center">Status</TableCell>
                 <TableCell align="right">Ações</TableCell>
@@ -123,7 +131,7 @@ export function DispositivosPage() {
                 <TableRow key={d.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/dispositivos/${d.id}`)}>
                   <TableCell>{d.tipo}</TableCell>
                   <TableCell>{d.hostname ?? d.numeroSerie}</TableCell>
-                  <TableCell>{d.assetTag}</TableCell>
+                  <TableCell>{d.assetTag ?? '—'}</TableCell>
                   <TableCell>{d.usuarioAtualNome ?? '—'}</TableCell>
                   <TableCell align="center">
                     <Chip size="small" label={rotuloStatus[d.status] ?? d.status} color={corStatus[d.status] ?? 'default'} />
@@ -143,7 +151,9 @@ export function DispositivosPage() {
               {dispositivos?.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} align="center">
-                    Nenhum dispositivo cadastrado.
+                    {termoBusca
+                      ? `Nenhum dispositivo encontrado para "${termoBusca}".`
+                      : 'Nenhum dispositivo cadastrado.'}
                   </TableCell>
                 </TableRow>
               )}
