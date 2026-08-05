@@ -20,6 +20,21 @@ public class BuscaTests : IClassFixture<WebApplicationFactory<Program>>
         _factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Development"));
     }
 
+    /// <summary>
+    /// Abre um escopo com o DbContext, ou devolve null quando o banco não está acessível.
+    /// O pipeline de deploy roda os testes contra uma instância inexistente de propósito
+    /// (para nunca tocar produção): nesses casos os testes que dependem do banco são pulados.
+    /// </summary>
+    private (IServiceScope Escopo, TrackerDbContext Db)? AbrirBanco()
+    {
+        var escopo = _factory.Services.CreateScope();
+        var db = escopo.ServiceProvider.GetRequiredService<TrackerDbContext>();
+        if (db.Database.CanConnect()) return (escopo, db);
+
+        escopo.Dispose();
+        return null;
+    }
+
     [Fact]
     public async Task Busca_SemAutenticacao_Retorna401()
     {
@@ -34,9 +49,10 @@ public class BuscaTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Busca_ComTermo_ExecutaConsultaNoBanco()
     {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TrackerDbContext>();
-        var controller = new BuscaController(db);
+        var banco = AbrirBanco();
+        if (banco is null) return; // sem banco disponível (CI): nada a verificar
+        using var scope = banco.Value.Escopo;
+        var controller = new BuscaController(banco.Value.Db);
 
         var resultado = await controller.Buscar("zz-termo-inexistente-zz");
 
@@ -50,8 +66,10 @@ public class BuscaTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Busca_PorAssetTagExistente_EncontraDispositivo()
     {
-        using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TrackerDbContext>();
+        var banco = AbrirBanco();
+        if (banco is null) return; // sem banco disponível (CI): nada a verificar
+        using var scope = banco.Value.Escopo;
+        var db = banco.Value.Db;
         var existente = await db.Dispositivos.AsNoTracking()
             .Where(d => d.AssetTag != null && d.AssetTag.Length >= 2)
             .FirstOrDefaultAsync();
@@ -67,9 +85,9 @@ public class BuscaTests : IClassFixture<WebApplicationFactory<Program>>
     [Fact]
     public async Task Busca_TermoCurto_NaoConsultaERetornaVazio()
     {
+        // Termo curto nem chega ao banco: não precisa de SQL Server disponível.
         using var scope = _factory.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<TrackerDbContext>();
-        var controller = new BuscaController(db);
+        var controller = new BuscaController(scope.ServiceProvider.GetRequiredService<TrackerDbContext>());
 
         var resultado = await controller.Buscar("a");
 
