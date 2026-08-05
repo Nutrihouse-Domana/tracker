@@ -5,7 +5,6 @@ import {
   Typography,
   Box,
   Button,
-  InputBase,
   Avatar,
   Stack,
   IconButton,
@@ -15,12 +14,12 @@ import {
   ListItemText,
   Divider,
 } from '@mui/material'
-import SearchIcon from '@mui/icons-material/SearchOutlined'
 import InventoryIcon from '@mui/icons-material/Inventory2Outlined'
 import MenuIcon from '@mui/icons-material/MenuOutlined'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useMe, useLogout } from '../features/auth/useAuth'
 import { WaveFooter } from './WaveFooter'
+import { BarraDeBusca } from '../features/busca/BarraDeBusca'
 import { nutrihouseColors } from '../theme'
 
 const navItems = [
@@ -34,17 +33,10 @@ export function AppShell() {
   const location = useLocation()
   const { data: usuarioAdm } = useMe()
   const logout = useLogout()
-  const [busca, setBusca] = useState('')
   const [menuAberto, setMenuAberto] = useState(false)
 
   const handleLogout = () => {
     logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) })
-  }
-
-  const handleBuscar = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!busca.trim()) return
-    navigate(`/dispositivos?q=${encodeURIComponent(busca.trim())}`)
   }
 
   const irPara = (path: string) => {
@@ -90,28 +82,7 @@ export function AppShell() {
             </Typography>
           </Stack>
 
-          <Box
-            component="form"
-            onSubmit={handleBuscar}
-            sx={{
-              display: { xs: 'flex', md: 'flex' },
-              alignItems: 'center',
-              bgcolor: 'grey.100',
-              borderRadius: 999,
-              px: 2,
-              py: 0.5,
-              flexGrow: 1,
-              maxWidth: { xs: 'none', md: 360 },
-            }}
-          >
-            <InputBase
-              placeholder="Buscar dispositivos..."
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              sx={{ flexGrow: 1, fontSize: 14 }}
-            />
-            <SearchIcon fontSize="small" color="action" />
-          </Box>
+          <BarraDeBusca />
 
           <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'block' } }} />
 
