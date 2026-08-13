@@ -40,7 +40,7 @@ public class DashboardController : ControllerBase
 
         var dto = new EstatisticasDashboardDto(
             TotalNotebooks: Qtd(tipos, TipoDispositivo.Notebook),
-            TotalTelefones: Qtd(tipos, TipoDispositivo.Telefone),
+            TotalMobiles: Qtd(tipos, TipoDispositivo.Mobile),
             TotalPerifericos: Qtd(tipos, TipoDispositivo.Periferico),
             EmUso: Qtd(status, StatusDispositivo.EmUso),
             EmEstoque: Qtd(status, StatusDispositivo.EmEstoque),

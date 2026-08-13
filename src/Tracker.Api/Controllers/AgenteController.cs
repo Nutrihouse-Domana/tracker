@@ -57,8 +57,8 @@ public class AgenteController : ControllerBase
             return Unauthorized(new { message = "Chave de instalação inválida." });
         }
 
-        if (request.Tipo is not (TipoDispositivo.Notebook or TipoDispositivo.Telefone))
-            return BadRequest(new { message = "Auto-cadastro só vale para notebook ou telefone." });
+        if (request.Tipo is not (TipoDispositivo.Notebook or TipoDispositivo.Mobile))
+            return BadRequest(new { message = "Auto-cadastro só vale para notebook ou mobile." });
 
         var existente = await _db.Dispositivos.FirstOrDefaultAsync(d => d.NumeroSerie == request.NumeroSerie);
         if (existente is not null && existente is not DispositivoComAgente)
@@ -67,8 +67,8 @@ public class AgenteController : ControllerBase
         var dispositivo = existente as DispositivoComAgente;
         if (dispositivo is null)
         {
-            dispositivo = request.Tipo == TipoDispositivo.Telefone
-                ? new Telefone { Imei = request.Imei ?? string.Empty }
+            dispositivo = request.Tipo == TipoDispositivo.Mobile
+                ? new Mobile { Imei = request.Imei }
                 : new Notebook();
             dispositivo.NumeroSerie = request.NumeroSerie;
             // Patrimônio provisório — a TI ajusta depois no cadastro.
@@ -82,12 +82,15 @@ public class AgenteController : ControllerBase
         dispositivo.SistemaOperacional = request.SistemaOperacional;
         dispositivo.VersaoSO = request.VersaoSO;
         dispositivo.MacAddress = request.MacAddress;
+        dispositivo.Fabricante = request.Fabricante ?? dispositivo.Fabricante;
+        dispositivo.Modelo = request.Modelo ?? dispositivo.Modelo;
+        dispositivo.NivelProtecao = request.NivelProtecao ?? dispositivo.NivelProtecao;
 
         var (token, hash) = _tokenService.Gerar();
         dispositivo.TokenAgenteHash = hash;
 
         await _db.SaveChangesAsync();
-        return Ok(new EnrollmentResponse(dispositivo.Id, token));
+        return Ok(new EnrollmentResponse(dispositivo.Id, token, dispositivo.AssetTag));
     }
 
     [HttpPost("heartbeat")]
@@ -99,6 +102,23 @@ public class AgenteController : ControllerBase
         dispositivo.UltimoHeartbeatEm = DateTime.UtcNow;
         if (!string.IsNullOrWhiteSpace(request.AgenteVersao)) dispositivo.AgenteVersao = request.AgenteVersao;
         if (!string.IsNullOrWhiteSpace(request.Hostname)) dispositivo.Hostname = request.Hostname;
+        if (request.BateriaPercentual is { } bateria) dispositivo.BateriaPercentual = bateria;
+
+        // Queda de proteção (usuário desativou o admin no Android) vira alerta: sem isso a TI
+        // continuaria vendo o aparelho como protegido.
+        if (request.NivelProtecao is { } nivel)
+        {
+            if (dispositivo.NivelProtecao is { } anterior && nivel < anterior)
+            {
+                _db.AlertasDispositivo.Add(new AlertaDispositivo
+                {
+                    DispositivoId = dispositivo.Id,
+                    Tipo = TipoAlertaDispositivo.ProtecaoRebaixada,
+                    Detalhe = $"Proteção caiu de {anterior} para {nivel}.",
+                });
+            }
+            dispositivo.NivelProtecao = nivel;
+        }
 
         if (request.Latitude is { } lat && request.Longitude is { } lon)
         {
@@ -109,7 +129,8 @@ public class AgenteController : ControllerBase
                 Longitude = lon,
                 EnderecoAproximado = request.EnderecoAproximado,
                 PrecisaoMetros = request.PrecisaoMetros,
-                Origem = OrigemLocalizacao.IpGeolocationWindows,
+                // O agente Windows não informa a origem; mantém o valor histórico dele.
+                Origem = request.Origem ?? OrigemLocalizacao.IpGeolocationWindows,
             });
         }
 
@@ -126,9 +147,41 @@ public class AgenteController : ControllerBase
 
         await _db.SaveChangesAsync();
 
+        // Estado desejado: bloqueado, a menos que exista um desbloqueio esperando entrega — senão
+        // o agente reaplicaria a trava no mesmo ciclo em que deveria removê-la.
+        var desbloqueioPendente = pendentes.Any(c => c.TipoComando == TipoComandoRemoto.Desbloquear);
+        var deveEstarBloqueado = dispositivo.Status == StatusDispositivo.Bloqueado && !desbloqueioPendente;
+
         var dto = new HeartbeatResponse(
-            pendentes.Select(c => new ComandoPendenteDto(c.Id, c.TipoComando)).ToList());
+            pendentes.Select(c => new ComandoPendenteDto(c.Id, c.TipoComando)).ToList(),
+            deveEstarBloqueado);
         return Ok(dto);
+    }
+
+    /// <summary>
+    /// O agente reporta um evento que ele mesmo detectou (ex.: o usuário desativou a permissão de
+    /// administrador no Android). É o que permite à TI saber que um aparelho ficou desprotegido.
+    /// </summary>
+    [HttpPost("alertas")]
+    public async Task<IActionResult> RegistrarAlerta(AlertaAgenteRequest request)
+    {
+        var dispositivo = await AutenticarAsync();
+        if (dispositivo is null) return Unauthorized();
+
+        _db.AlertasDispositivo.Add(new AlertaDispositivo
+        {
+            DispositivoId = dispositivo.Id,
+            Tipo = request.Tipo,
+            Detalhe = request.Detalhe,
+        });
+
+        // Admin desativado significa que o agente perdeu a capacidade de bloquear: registra a
+        // perda de proteção junto, para a lista de dispositivos refletir a realidade.
+        if (request.Tipo == TipoAlertaDispositivo.AdminDesativado)
+            dispositivo.NivelProtecao = NivelProtecaoAgente.Nenhuma;
+
+        await _db.SaveChangesAsync();
+        return NoContent();
     }
 
     [HttpPost("comandos/{comandoId:guid}/confirmar")]

@@ -23,6 +23,18 @@ src/Tracker.Api/App_Data/
 appsettings.*.local.json
 *.pfx
 
+# Agente Android: local.properties leva o caminho do SDK e a chave da empresa.
+agents/Tracker.Agent.Android/local.properties
+agents/Tracker.Agent.Android/.gradle/
+agents/Tracker.Agent.Android/build/
+agents/Tracker.Agent.Android/app/build/
+# gradle-wrapper.jar É versionado de proposito (convencao do Gradle): e o que permite compilar
+# com ./gradlew sem instalar o Gradle antes.
+*.apk
+*.aab
+*.keystore
+*.jks
+
 # Ferramentas locais
 .claude/
 

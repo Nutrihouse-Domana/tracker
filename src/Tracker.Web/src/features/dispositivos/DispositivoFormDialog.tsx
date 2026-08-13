@@ -13,7 +13,7 @@ import {
   MenuItem,
 } from '@mui/material'
 import type { TipoDispositivo, TipoPeriferico } from '../../api/types'
-import { useCriarNotebook, useCriarPeriferico, useCriarTelefone } from './hooks'
+import { useCriarMobile, useCriarNotebook, useCriarPeriferico } from './hooks'
 
 interface Props {
   open: boolean
@@ -33,10 +33,19 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
   const [observacoes, setObservacoes] = useState('')
 
   const criarNotebook = useCriarNotebook()
-  const criarTelefone = useCriarTelefone()
+  const criarMobile = useCriarMobile()
   const criarPeriferico = useCriarPeriferico()
 
-  const mutacaoAtiva = tipo === 'Notebook' ? criarNotebook : tipo === 'Telefone' ? criarTelefone : criarPeriferico
+  /** Notebook e mobile têm agente instalado; periférico é inventário manual. */
+  const comAgente = tipo !== 'Periferico'
+
+  const mutacoes = {
+    Notebook: criarNotebook,
+    Mobile: criarMobile,
+    Periferico: criarPeriferico,
+  } as const
+
+  const mutacaoAtiva = mutacoes[tipo]
 
   const handleClose = () => {
     setNumeroSerie('')
@@ -46,7 +55,7 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
     setImei('')
     setObservacoes('')
     criarNotebook.reset()
-    criarTelefone.reset()
+    criarMobile.reset()
     criarPeriferico.reset()
     onClose()
   }
@@ -60,9 +69,18 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
         { numeroSerie, assetTag, hostname, sistemaOperacional, dataAquisicao, observacoes },
         { onSuccess: handleClose },
       )
-    } else if (tipo === 'Telefone') {
-      criarTelefone.mutate(
-        { numeroSerie, assetTag, hostname, sistemaOperacional, imei, dataAquisicao, observacoes },
+    } else if (tipo === 'Mobile') {
+      criarMobile.mutate(
+        {
+          numeroSerie,
+          assetTag,
+          hostname,
+          sistemaOperacional,
+          // Vazio significa aparelho só-Wi-Fi, que não tem IMEI.
+          imei: imei.trim() || null,
+          dataAquisicao,
+          observacoes,
+        },
         { onSuccess: handleClose },
       )
     } else {
@@ -93,7 +111,7 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
               onChange={(_, v) => v && setTipo(v)}
             >
               <ToggleButton value="Notebook">Notebook</ToggleButton>
-              <ToggleButton value="Telefone">Telefone</ToggleButton>
+              <ToggleButton value="Mobile">Mobile</ToggleButton>
               <ToggleButton value="Periferico">Periférico</ToggleButton>
             </ToggleButtonGroup>
 
@@ -105,7 +123,7 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
               fullWidth
             />
             {/* Periférico não recebe etiqueta de patrimônio. */}
-            {(tipo === 'Notebook' || tipo === 'Telefone') && (
+            {comAgente && (
               <>
                 <TextField
                   label="Patrimônio"
@@ -132,12 +150,12 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
               </>
             )}
 
-            {tipo === 'Telefone' && (
+            {tipo === 'Mobile' && (
               <TextField
-                label="IMEI"
+                // Opcional: tablets só-Wi-Fi não têm IMEI.
+                label="IMEI (opcional em aparelhos só Wi-Fi)"
                 value={imei}
                 onChange={(e) => setImei(e.target.value)}
-                required
                 fullWidth
                 slotProps={{ htmlInput: { maxLength: 15 } }}
               />

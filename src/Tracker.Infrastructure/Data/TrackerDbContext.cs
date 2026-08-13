@@ -27,6 +27,7 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
     public DbSet<ComandoRemoto> ComandosRemotos => Set<ComandoRemoto>();
     public DbSet<HistoricoReparo> HistoricoReparos => Set<HistoricoReparo>();
     public DbSet<ComentarioDispositivo> ComentariosDispositivo => Set<ComentarioDispositivo>();
+    public DbSet<AlertaDispositivo> AlertasDispositivo => Set<AlertaDispositivo>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -50,7 +51,7 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
         {
             entity.HasDiscriminator(d => d.Tipo)
                 .HasValue<Notebook>(Domain.Enums.TipoDispositivo.Notebook)
-                .HasValue<Telefone>(Domain.Enums.TipoDispositivo.Telefone)
+                .HasValue<Mobile>(Domain.Enums.TipoDispositivo.Mobile)
                 .HasValue<Periferico>(Domain.Enums.TipoDispositivo.Periferico);
 
             entity.HasIndex(d => d.NumeroSerie).IsUnique();
@@ -62,6 +63,9 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
                 .HasForeignKey(d => d.UsuarioAtualId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
+
+        // IMEI mora só em Mobile (Notebook não tem). Nulo porque tablet só-Wi-Fi não tem modem.
+        builder.Entity<Mobile>().Property(m => m.Imei).HasColumnName("Imei").IsRequired(false);
 
         builder.Entity<HistoricoMovimentacao>(entity =>
         {
@@ -151,6 +155,17 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
                 .WithMany(d => d.Comentarios)
                 .HasForeignKey(c => c.DispositivoId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<AlertaDispositivo>(entity =>
+        {
+            entity.HasOne(a => a.Dispositivo)
+                .WithMany(d => d.Alertas)
+                .HasForeignKey(a => a.DispositivoId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // A tela do dispositivo lista primeiro os alertas não reconhecidos, mais recentes antes.
+            entity.HasIndex(a => new { a.DispositivoId, a.Reconhecido, a.CriadoEm });
         });
     }
 }

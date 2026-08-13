@@ -14,15 +14,18 @@ public class CriarNotebookRequestValidator : AbstractValidator<CriarNotebookRequ
     }
 }
 
-public class CriarTelefoneRequestValidator : AbstractValidator<CriarTelefoneRequest>
+public class CriarMobileRequestValidator : AbstractValidator<CriarMobileRequest>
 {
-    public CriarTelefoneRequestValidator()
+    public CriarMobileRequestValidator()
     {
         RuleFor(x => x.NumeroSerie).NotEmpty().MaximumLength(100);
         RuleFor(x => x.AssetTag).NotEmpty().MaximumLength(50);
         RuleFor(x => x.Hostname).NotEmpty().MaximumLength(100);
         RuleFor(x => x.SistemaOperacional).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Imei).NotEmpty().Length(15).Matches(@"^\d+$").WithMessage("IMEI deve conter 15 dígitos numéricos.");
+        // Tablet só-Wi-Fi não tem IMEI: valida o formato apenas quando informado.
+        RuleFor(x => x.Imei).Length(15).Matches(@"^\d+$")
+            .WithMessage("IMEI deve conter 15 dígitos numéricos.")
+            .When(x => !string.IsNullOrWhiteSpace(x.Imei));
     }
 }
 

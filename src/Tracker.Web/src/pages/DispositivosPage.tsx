@@ -29,7 +29,7 @@ import { corStatus, rotuloStatus } from '../features/dispositivos/status'
 const abas: { label: string; tipo: TipoDispositivo | undefined }[] = [
   { label: 'Todos', tipo: undefined },
   { label: 'Notebooks', tipo: 'Notebook' },
-  { label: 'Telefones', tipo: 'Telefone' },
+  { label: 'Mobiles', tipo: 'Mobile' },
   { label: 'Periféricos', tipo: 'Periferico' },
 ]
 

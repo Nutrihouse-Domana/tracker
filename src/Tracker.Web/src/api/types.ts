@@ -1,10 +1,19 @@
-export type TipoDispositivo = 'Notebook' | 'Telefone' | 'Periferico'
+export type TipoDispositivo = 'Notebook' | 'Mobile' | 'Periferico'
 export type StatusDispositivo = 'EmEstoque' | 'EmUso' | 'EmManutencao' | 'Bloqueado' | 'Baixado'
 export type TipoPeriferico = 'Mouse' | 'Teclado' | 'Monitor' | 'Dock' | 'Headset' | 'Outro'
 export type StatusReparo = 'Aberto' | 'EmAndamento' | 'Concluido' | 'Cancelado'
 export type TipoComandoRemoto = 'Bloquear' | 'Desbloquear'
 export type StatusComandoRemoto = 'Pendente' | 'Enviado' | 'Confirmado' | 'Falhou'
 export type OrigemLocalizacao = 'GpsAndroid' | 'IpGeolocationWindows' | 'WifiConhecida' | 'ManualTI'
+
+/** Quão protegido está o agente contra remoção pelo usuário. Só se aplica a Android. */
+export type NivelProtecaoAgente = 'Nenhuma' | 'DeviceAdmin' | 'DeviceOwner'
+
+export type TipoAlertaDispositivo =
+  | 'AdminDesativado'
+  | 'LocalizacaoNegada'
+  | 'BloqueioReaplicado'
+  | 'ProtecaoRebaixada'
 
 export interface UsuarioAdm {
   id: string
@@ -56,6 +65,11 @@ export interface Dispositivo {
   geofenceAtivo: boolean | null
   agenteVersao: string | null
   tipoPeriferico: TipoPeriferico | null
+  /** Telemetria do agente móvel; nula em notebooks Windows. */
+  fabricante: string | null
+  modelo: string | null
+  bateriaPercentual: number | null
+  nivelProtecao: NivelProtecaoAgente | null
 }
 
 export interface CriarNotebookRequest {
@@ -69,12 +83,14 @@ export interface CriarNotebookRequest {
   observacoes?: string | null
 }
 
-export interface CriarTelefoneRequest {
+/** Celular ou tablet: mesmo tipo, mesmo agente. */
+export interface CriarMobileRequest {
   numeroSerie: string
   assetTag: string
   hostname: string
   sistemaOperacional: string
-  imei: string
+  /** Opcional: tablet só-Wi-Fi não tem IMEI. */
+  imei?: string | null
   macAddress?: string | null
   dataAquisicao: string
   observacoes?: string | null
@@ -123,7 +139,7 @@ export interface TermoDeUso {
 
 export interface EstatisticasDashboard {
   totalNotebooks: number
-  totalTelefones: number
+  totalMobiles: number
   totalPerifericos: number
   emUso: number
   emEstoque: number
@@ -166,6 +182,17 @@ export interface CriarComentarioRequest {
 export interface EnrollmentResponse {
   dispositivoId: string
   token: string
+  assetTag: string | null
+}
+
+export interface AlertaDispositivo {
+  id: string
+  dispositivoId: string
+  tipo: TipoAlertaDispositivo
+  detalhe: string | null
+  reconhecido: boolean
+  criadoEm: string
+  reconhecidoEm: string | null
 }
 
 export interface ComandoRemoto {

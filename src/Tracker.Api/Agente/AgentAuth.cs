@@ -7,7 +7,7 @@ namespace Tracker.Api.Agente;
 
 /// <summary>
 /// Resolve o dispositivo dono de um token de agente (header X-Agent-Token).
-/// Como só notebooks/telefones têm agente, filtra por DispositivoComAgente.
+/// Como só notebooks e mobiles têm agente, filtra por DispositivoComAgente.
 /// </summary>
 public class AgentAuth
 {
@@ -29,10 +29,10 @@ public class AgentAuth
 
         var hash = _tokenService.CalcularHash(token);
 
-        // Consulta os tipos concretos (Notebook/Telefone) — é onde TokenAgenteHash existe e é
+        // Consulta os tipos concretos (Notebook/Mobile) — é onde TokenAgenteHash existe e é
         // traduzível para SQL. O DbSet base não expõe a propriedade do tipo derivado.
         DispositivoComAgente? dispositivo = await _db.Set<Notebook>().FirstOrDefaultAsync(d => d.TokenAgenteHash == hash);
-        dispositivo ??= await _db.Set<Telefone>().FirstOrDefaultAsync(d => d.TokenAgenteHash == hash);
+        dispositivo ??= await _db.Set<Mobile>().FirstOrDefaultAsync(d => d.TokenAgenteHash == hash);
 
         return dispositivo;
     }

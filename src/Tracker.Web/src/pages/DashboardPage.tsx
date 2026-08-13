@@ -109,7 +109,7 @@ export function DashboardPage() {
 
   const porTipo: (Omit<CartaoProps, 'onClick'> & { tipo: string })[] = [
     { titulo: 'Notebooks', valor: data?.totalNotebooks, cor: nutrihouseColors.terracota, Icone: LaptopMacIcon, legenda: 'Ver todos', tipo: 'Notebook' },
-    { titulo: 'Telefones', valor: data?.totalTelefones, cor: nutrihouseColors.tealVerdeAzulado, Icone: SmartphoneIcon, legenda: 'Ver todos', tipo: 'Telefone' },
+    { titulo: 'Mobiles', valor: data?.totalMobiles, cor: nutrihouseColors.tealVerdeAzulado, Icone: SmartphoneIcon, legenda: 'Ver todos', tipo: 'Mobile' },
     { titulo: 'Periféricos', valor: data?.totalPerifericos, cor: nutrihouseColors.dourado, Icone: MouseIcon, legenda: 'Ver todos', tipo: 'Periferico' },
   ]
 

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Politicas que o agente pede como administrador do aparelho.
+  Apenas force-lock, que e o que sustenta o bloqueio remoto (DevicePolicyManager.lockNow).
+  Nao pedimos wipe-data: apagar o aparelho nao esta no escopo do Tracker, e a tela de
+  consentimento do Android listaria "apagar todos os dados", assustando o usuario sem motivo.
+-->
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <force-lock />
+    </uses-policies>
+</device-admin>

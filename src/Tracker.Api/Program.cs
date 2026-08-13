@@ -12,6 +12,16 @@ using Tracker.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// O utilitário de recuperação de acesso (--redefinir-senha-adm) é rodado à mão no terminal, onde
+// o ambiente normalmente NÃO é Development — e aí o .NET não carrega os user-secrets, fazendo o
+// comando falhar na chave de criptografia antes de chegar à redefinição. Carregamos os secrets
+// explicitamente para que a recuperação não dependa de lembrar de ASPNETCORE_ENVIRONMENT.
+// Em produção o servidor não tem secrets: a chamada simplesmente não encontra nada.
+if (args.Contains("--redefinir-senha-adm"))
+{
+    builder.Configuration.AddUserSecrets<Program>(optional: true);
+}
+
 // Add services to the container.
 
 builder.Services.AddControllers()
@@ -21,7 +31,15 @@ builder.Services.AddControllers()
         // Emite todo DateTime como UTC com 'Z' (senão o front lê UTC como hora local: horário 3h adiantado).
         options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter());
     });
-builder.Services.AddSignalR();
+// O SignalR tem serialização própria: o JsonStringEnumConverter registrado em AddControllers NÃO
+// vale aqui. Sem esta linha o hub envia TipoComando como número (0/1) enquanto o heartbeat envia
+// como texto ("Bloquear"), e os agentes — que esperam texto — descartam o comando em silêncio.
+// O efeito era um bloqueio que só chegava no heartbeat seguinte, em vez de ser imediato.
+builder.Services.AddSignalR().AddJsonProtocol(options =>
+{
+    options.PayloadSerializerOptions.Converters.Add(
+        new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
 builder.Services.AddValidatorsFromAssemblyContaining<CriarUsuarioRequestValidator>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -30,9 +48,22 @@ builder.Services.AddSwaggerGen();
 
 // Chave de criptografia do CPF: em dev, "Encryption:CpfKeyBase64" (32 bytes, base64) vem de
 // appsettings.Development.json / user-secrets. Em produção, mover para um cofre de segredos.
-var cpfKeyBase64 = builder.Configuration["Encryption:CpfKeyBase64"]
-    ?? throw new InvalidOperationException(
-        "Configuração ausente: Encryption:CpfKeyBase64. Gere uma chave AES-256 (32 bytes) em base64.");
+var cpfKeyBase64 = builder.Configuration["Encryption:CpfKeyBase64"];
+
+if (string.IsNullOrWhiteSpace(cpfKeyBase64))
+{
+    // A recuperação de acesso só toca a tabela de usuários ADM — nunca lê nem grava CPF. Uma
+    // chave efêmera satisfaz o DbContext e evita que recuperar o login dependa de configuração
+    // presente, que é justamente o que costuma faltar na hora do aperto.
+    if (!args.Contains("--redefinir-senha-adm"))
+    {
+        throw new InvalidOperationException(
+            "Configuração ausente: Encryption:CpfKeyBase64. Gere uma chave AES-256 (32 bytes) em base64.");
+    }
+
+    cpfKeyBase64 = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+}
+
 builder.Services.AddSingleton(new AesStringEncryptor(Convert.FromBase64String(cpfKeyBase64)));
 
 builder.Services.AddDbContext<TrackerDbContext>(options =>
@@ -105,6 +136,30 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// Recuperação de acesso: "dotnet run -- --redefinir-senha-adm" aplica Seed:AdmSenha ao ADM
+// existente e encerra, sem subir o servidor. Fica atrás de um argumento explícito para que um
+// start normal (ou o IIS em produção) nunca redefina senha nenhuma.
+if (args.Contains("--redefinir-senha-adm"))
+{
+    // A senha pode vir por argumento (--senha ...), que dispensa configurar o cofre antes, ou
+    // de Seed:AdmSenha quando o argumento não é passado.
+    static string? ValorDe(string[] todos, string nome)
+    {
+        var i = Array.IndexOf(todos, nome);
+        return i >= 0 && i + 1 < todos.Length ? todos[i + 1] : null;
+    }
+
+    using var escopoSenha = app.Services.CreateScope();
+    var ok = await DbSeeder.RedefinirSenhaAdmAsync(
+        escopoSenha.ServiceProvider,
+        email: ValorDe(args, "--email"),
+        senha: ValorDe(args, "--senha"));
+    Console.WriteLine(ok
+        ? "Senha do ADM redefinida. Entre no site com o e-mail e a senha de Seed:*."
+        : "Não foi possível redefinir a senha — veja o erro acima.");
+    return ok ? 0 : 1;
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -131,5 +186,9 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+// Exigido porque o atalho --redefinir-senha-adm retorna um código de saída: com um return
+// tipado no arquivo, todos os caminhos precisam devolver um valor.
+return 0;
 
 public partial class Program { }
