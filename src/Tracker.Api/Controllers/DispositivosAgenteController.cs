@@ -45,13 +45,13 @@ public class DispositivosAgenteController : ControllerBase
     public async Task<ActionResult<EnrollmentResponse>> GerarEnrollment(Guid id)
     {
         if (await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id) is not DispositivoComAgente dispositivo)
-            return NotFound(new { message = "Dispositivo com agente (notebook/telefone) não encontrado." });
+            return NotFound(new { message = "Dispositivo com agente (notebook/mobile) não encontrado." });
 
         var (token, hash) = _tokenService.Gerar();
         dispositivo.TokenAgenteHash = hash;
         await _db.SaveChangesAsync();
 
-        return Ok(new EnrollmentResponse(dispositivo.Id, token));
+        return Ok(new EnrollmentResponse(dispositivo.Id, token, dispositivo.AssetTag));
     }
 
     /// <summary>Emite um comando de bloqueio/desbloqueio e faz push imediato via SignalR.</summary>
@@ -94,6 +94,37 @@ public class DispositivosAgenteController : ControllerBase
             .ToListAsync();
 
         return Ok(comandos);
+    }
+
+    /// <summary>Alertas reportados pelo agente (ex.: admin desativado no Android), recentes antes.</summary>
+    [HttpGet("{id:guid}/alertas")]
+    public async Task<ActionResult<IEnumerable<AlertaDispositivoDto>>> ListarAlertas(Guid id)
+    {
+        var alertas = await _db.AlertasDispositivo.AsNoTracking()
+            .Where(a => a.DispositivoId == id)
+            .OrderByDescending(a => a.CriadoEm)
+            .Take(100)
+            .Select(a => new AlertaDispositivoDto(
+                a.Id, a.DispositivoId, a.Tipo, a.Detalhe, a.Reconhecido, a.CriadoEm, a.ReconhecidoEm))
+            .ToListAsync();
+
+        return Ok(alertas);
+    }
+
+    /// <summary>Marca o alerta como tratado pela TI, tirando-o das pendências do dispositivo.</summary>
+    [HttpPost("{id:guid}/alertas/{alertaId:guid}/reconhecer")]
+    public async Task<IActionResult> ReconhecerAlerta(Guid id, Guid alertaId)
+    {
+        var alerta = await _db.AlertasDispositivo
+            .FirstOrDefaultAsync(a => a.Id == alertaId && a.DispositivoId == id);
+        if (alerta is null) return NotFound();
+
+        alerta.Reconhecido = true;
+        alerta.ReconhecidoEm = DateTime.UtcNow;
+        alerta.ReconhecidoPorAdmId = Guid.Parse(_userManager.GetUserId(User)!);
+
+        await _db.SaveChangesAsync();
+        return NoContent();
     }
 
     private static ComandoRemotoDto MapToDto(ComandoRemoto c) => new(

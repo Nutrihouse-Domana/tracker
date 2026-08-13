@@ -1,0 +1,46 @@
+<resources>
+    <string name="app_name">Tracker Nutrihouse</string>
+
+    <string name="enrollment_titulo">Agente Tracker</string>
+    <string name="enrollment_explicacao">Este aplicativo registra o aparelho no inventário de TI da Nutrihouse e permite o bloqueio remoto em caso de perda ou roubo.</string>
+    <string name="enrollment_chave">Código de instalação</string>
+    <string name="enrollment_chave_ajuda">Informado pela equipe de TI. Sem ele o aparelho não entra no inventário.</string>
+    <string name="enrollment_chave_vazia">Digite o código de instalação.</string>
+    <string name="enrollment_chave_invalida">Código de instalação incorreto. Confira com a equipe de TI.</string>
+    <string name="enrollment_registrar">Registrar aparelho</string>
+    <string name="enrollment_registrado">Aparelho registrado no inventário.</string>
+    <string name="enrollment_falha_generica">Não foi possível registrar o aparelho. Verifique a conexão.</string>
+    <string name="enrollment_admin_titulo">1. Permissão de administrador</string>
+    <string name="enrollment_admin_texto">Necessária para bloquear a tela remotamente. Sem ela o aparelho aparece como desprotegido no painel da TI.</string>
+    <string name="enrollment_admin_botao">Conceder permissão de administrador</string>
+    <string name="enrollment_localizacao_titulo">2. Localização</string>
+    <string name="enrollment_localizacao_texto">Usada para registrar onde o aparelho esteve. Escolha "Permitir todo o tempo".</string>
+    <string name="enrollment_localizacao_botao">Permitir localização</string>
+    <string name="enrollment_overlay_titulo">3. Sobrepor outros apps</string>
+    <string name="enrollment_overlay_texto">Necessária para a tela de bloqueio aparecer sobre qualquer aplicativo.</string>
+    <string name="enrollment_overlay_botao">Permitir sobreposição</string>
+    <string name="enrollment_bateria_titulo">4. Bateria sem restrição</string>
+    <string name="enrollment_bateria_texto">Evita que o sistema encerre o agente e o aparelho apareça offline no painel.</string>
+    <string name="enrollment_bateria_botao">Remover restrição de bateria</string>
+
+    <string name="admin_aviso_desativacao">Ao desativar o administrador este aparelho deixa de poder ser bloqueado remotamente. A equipe de TI da Nutrihouse será notificada.</string>
+
+    <string name="bloqueio_titulo">Dispositivo bloqueado</string>
+    <string name="bloqueio_texto">Este aparelho pertence à Nutrihouse e foi bloqueado remotamente pela equipe de TI.</string>
+    <string name="bloqueio_contato">Entre em contato com o suporte de TI para liberar o uso.</string>
+    <string name="bloqueio_wifi_botao">Conectar a uma rede Wi-Fi</string>
+    <string name="bloqueio_wifi_senha">Senha da rede</string>
+    <string name="bloqueio_wifi_atualizar">Atualizar lista</string>
+    <string name="bloqueio_wifi_conectar">Conectar</string>
+    <string name="bloqueio_wifi_sistema">Abrir Wi-Fi do sistema</string>
+    <string name="bloqueio_wifi_procurando">Procurando redes…</string>
+    <string name="bloqueio_wifi_nenhuma">Nenhuma rede encontrada. Toque em \"Atualizar lista\".</string>
+    <string name="bloqueio_wifi_encontradas">%1$d rede(s) encontrada(s). Selecione e conecte.</string>
+    <string name="bloqueio_wifi_sem_permissao">Sem permissão para conectar sozinho neste aparelho. Use \"Abrir Wi-Fi do sistema\".</string>
+    <string name="bloqueio_wifi_sistema_aberto">O bloqueio volta em instantes. Conecte-se à rede agora.</string>
+
+    <string name="notificacao_canal_nome">Agente Tracker</string>
+    <string name="notificacao_canal_descricao">Mantém o inventário de TI atualizado.</string>
+    <string name="notificacao_titulo">Tracker Nutrihouse ativo</string>
+    <string name="notificacao_texto">Monitorando o inventário do aparelho.</string>
+</resources>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Manifest aplicado SOMENTE no build de debug (o AGP faz o merge com o principal).
+
+  Desde o Android 9 (API 28) o sistema bloqueia HTTP sem TLS. A API de desenvolvimento roda em
+  http://<ip-da-maquina>:5171, entao o teste em laboratorio precisa desta excecao.
+
+  O build de RELEASE nao recebe este atributo de proposito: em producao o backend e HTTPS
+  (tracker.foodsacademy.com.br) e o token do agente nunca deve trafegar em texto claro.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application
+        android:usesCleartextTraffic="true"
+        tools:ignore="UnusedAttribute" />
+</manifest>

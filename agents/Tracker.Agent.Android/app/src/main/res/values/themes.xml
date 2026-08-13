@@ -1,0 +1,16 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.TrackerAgent" parent="Theme.Material3.DayNight">
+        <item name="android:statusBarColor">?attr/colorPrimary</item>
+    </style>
+
+    <!-- Tela de bloqueio: sem barra de titulo, fundo opaco e sem animacao de entrada,
+         para nao dar ao usuario uma janela de tempo usavel entre reaplicacoes. -->
+    <style name="Theme.TrackerAgent.Bloqueio" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/bloqueio_fundo</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:statusBarColor">@color/bloqueio_fundo</item>
+        <item name="android:navigationBarColor">@color/bloqueio_fundo</item>
+        <item name="android:windowShowWallpaper">false</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
+</resources>

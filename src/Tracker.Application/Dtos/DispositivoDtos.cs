@@ -19,7 +19,11 @@ public record DispositivoDto(
     DateTime? UltimoHeartbeatEm,
     bool? GeofenceAtivo,
     string? AgenteVersao,
-    TipoPeriferico? TipoPeriferico);
+    TipoPeriferico? TipoPeriferico,
+    string? Fabricante = null,
+    string? Modelo = null,
+    int? BateriaPercentual = null,
+    NivelProtecaoAgente? NivelProtecao = null);
 
 public record CriarNotebookRequest(
     string NumeroSerie,
@@ -31,12 +35,13 @@ public record CriarNotebookRequest(
     DateTime DataAquisicao,
     string? Observacoes);
 
-public record CriarTelefoneRequest(
+/// <summary>Celular ou tablet. IMEI é opcional porque tablets só-Wi-Fi não têm.</summary>
+public record CriarMobileRequest(
     string NumeroSerie,
     string AssetTag,
     string Hostname,
     string SistemaOperacional,
-    string Imei,
+    string? Imei,
     string? MacAddress,
     DateTime DataAquisicao,
     string? Observacoes);

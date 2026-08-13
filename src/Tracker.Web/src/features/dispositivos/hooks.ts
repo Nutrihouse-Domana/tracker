@@ -6,7 +6,7 @@ import type {
   CriarNotebookRequest,
   CriarPerifericoRequest,
   CriarReparoRequest,
-  CriarTelefoneRequest,
+  CriarMobileRequest,
   StatusDispositivo,
   StatusReparo,
   TipoComandoRemoto,
@@ -51,10 +51,10 @@ export function useCriarNotebook() {
   })
 }
 
-export function useCriarTelefone() {
+export function useCriarMobile() {
   const invalidate = useInvalidateDispositivos()
   return useMutation({
-    mutationFn: (data: CriarTelefoneRequest) => dispositivosApi.criarTelefone(data),
+    mutationFn: (data: CriarMobileRequest) => dispositivosApi.criarMobile(data),
     onSuccess: invalidate,
   })
 }
@@ -160,5 +160,21 @@ export function useHistoricoLocalizacao(dispositivoId: string | undefined) {
     queryKey: [...KEY, dispositivoId, 'localizacao'],
     queryFn: () => dispositivosApi.historicoLocalizacao(dispositivoId!),
     enabled: !!dispositivoId,
+  })
+}
+
+export function useAlertasDispositivo(dispositivoId: string | undefined) {
+  return useQuery({
+    queryKey: [...KEY, dispositivoId, 'alertas'],
+    queryFn: () => dispositivosApi.listarAlertas(dispositivoId!),
+    enabled: !!dispositivoId,
+  })
+}
+
+export function useReconhecerAlerta(dispositivoId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (alertaId: string) => dispositivosApi.reconhecerAlerta(dispositivoId, alertaId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [...KEY, dispositivoId, 'alertas'] }),
   })
 }

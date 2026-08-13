@@ -2,7 +2,7 @@ namespace Tracker.Application.Dtos;
 
 public record EstatisticasDashboardDto(
     int TotalNotebooks,
-    int TotalTelefones,
+    int TotalMobiles,
     int TotalPerifericos,
     int EmUso,
     int EmEstoque,

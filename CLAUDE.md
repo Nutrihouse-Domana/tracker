@@ -22,6 +22,7 @@ src/
   Tracker.Web/             React + TypeScript (Vite, MUI, TanStack Query, react-leaflet).
 agents/
   Tracker.Agent.Windows/   Worker Service Windows: heartbeat, geolocalização, bloqueio remoto.
+  Tracker.Agent.Android/   App Kotlin (tablets/celulares): mesmo protocolo, bloqueio via DevicePolicyManager.
 tests/Tracker.Api.Tests/   xUnit + WebApplicationFactory.
 deploy/                    Scripts PowerShell (publicar, instalar agente).
 docs/                      Guias de implantação (COMECE-AQUI, deploy on-premises, teste agente).
@@ -38,7 +39,19 @@ Frontend organizado por feature em `src/Tracker.Web/src/features/<feature>/` (ap
 - **Segredos de dev** ficam em `dotnet user-secrets` do projeto `Tracker.Api` (NÃO em arquivos):
   `Encryption:CpfKeyBase64` (AES-256, 32 bytes base64), `Enrollment:CompanyKey`,
   `Seed:AdmEmail`, `Seed:AdmSenha`, `Seed:AdmNome`.
-- Login ADM inicial é criado no start via `DbSeeder` a partir das chaves `Seed:*`.
+- Login ADM inicial é criado no start via `DbSeeder` a partir das chaves `Seed:*`. Ele **só cria
+  quando não existe nenhum usuário** — senha perdida depois disso trancaria a TI fora do sistema.
+  Para recuperar (preserva a conta e o histórico ligado a ela):
+
+  ```
+  dotnet run --no-build --project src/Tracker.Api -- --redefinir-senha-adm --senha "NOVA_SENHA"
+  ```
+
+  Use `--no-build` **com a API parada ou não**: sem ele, uma API rodando trava a DLL, o build falha
+  e o `dotnet run` executa um binário velho — o erro que aparece então não tem relação com a causa.
+  O utilitário não depende de `Encryption:CpfKeyBase64` nem do ambiente ser `Development`: ele
+  busca a conta por projeção (sem materializar o CPF criptografado) e carrega os user-secrets
+  sozinho. `--email` só é necessário quando há mais de um ADM.
 
 ## Comandos
 
@@ -61,13 +74,19 @@ dotnet-ef database update --project src/Tracker.Infrastructure --startup-project
 
 # Agente Windows
 dotnet run --project agents/Tracker.Agent.Windows      # modo console (Simular=true não trava a tela)
+
+# Agente Android (SDK em C:\Android\Sdk; gradlew versionado, não precisa instalar Gradle)
+cd agents/Tracker.Agent.Android && ./gradlew :app:assembleDebug   # APK assinado p/ teste
+# assembleRelease exige keystore em local.properties — falha com mensagem se faltar.
 ```
 
 ## Convenções e padrões
 
 - **Entidades** herdam de `EntidadeBase` (Id Guid, CriadoEm). Dispositivo usa **TPH**
-  (Table-per-Hierarchy): `Dispositivo` (abstrata) → `Notebook`/`Telefone` (via `DispositivoComAgente`)
-  e `Periferico`. Discriminador `Tipo`.
+  (Table-per-Hierarchy): `Dispositivo` (abstrata) → `Notebook`/`Mobile` (via
+  `DispositivoComAgente`) e `Periferico`. Discriminador `Tipo`.
+- **`Mobile` cobre celular E tablet.** Não existe tipo separado para tablet: o agente é o mesmo e
+  separá-los não mudava nada no controle de ativos. `Mobile.Imei` é nulo em aparelhos só-Wi-Fi.
 - **DTOs** são `record` na camada Application. Enums serializados como string na API.
 - **Validação** com FluentValidation, injetada nos controllers via `IValidator<T>`.
 - **CPF** é criptografado em repouso (AES-GCM) via `EncryptedStringConverter` no DbContext.
@@ -79,7 +98,16 @@ dotnet run --project agents/Tracker.Agent.Windows      # modo console (Simular=t
 ## Pegadinhas já resolvidas (não repita)
 
 - **TPH + EF Core:** `.OfType<DispositivoComAgente>()` NÃO traduz para SQL (classe intermediária
-  sem discriminador). Consulte `_db.Set<Notebook>()`/`Set<Telefone>()` ou busque a base e faça cast.
+  sem discriminador). Consulte `_db.Set<Notebook>()`/`Set<Mobile>()` ou busque a base e faça cast.
+  **Ao criar um novo tipo com agente, atualize os DOIS lugares que enumeram os tipos concretos:**
+  `AgentAuth.ResolverAsync` (senão o agente não autentica) e `BuscaController.BuscarDispositivos`
+  (senão o aparelho fica invisível na busca por hostname/IMEI).
+- **Novos valores de enum vão no FIM, e valores existentes NUNCA mudam de número.** O número é
+  gravado como discriminador na tabela: `Mobile` = 1 (era `Telefone`) e mexer nisso reclassificaria
+  todos os dispositivos já cadastrados. Coberto por `MobileTphTests`.
+- **Remover um valor de enum usado como discriminador exige migração de DADOS**, que o EF não gera
+  sozinho (não é mudança de schema). Ver `UnificaTelefoneETabletEmMobile`: um `UPDATE` manual move
+  os registros do valor extinto, senão o EF quebra ao materializá-los.
 - **Agente como Serviço do Windows:**
   - O `ContentRootPath` precisa ser `AppContext.BaseDirectory` (senão não acha `appsettings.json`
     — como serviço o diretório atual é System32).
@@ -89,6 +117,29 @@ dotnet run --project agents/Tracker.Agent.Windows      # modo console (Simular=t
   - Bloqueio é **persistente**: arquivo-sinal `%ProgramData%\TrackerAgent\locked.flag`. O agente
     re-trava sozinho (timer de 2s) mesmo offline/após reiniciar; só a TI remove o sinal (Desbloquear).
   - A tela de bloqueio é **uma janela por monitor** e se reconstrói ao trocar de monitor (hotplug).
+- **SignalR serializa enums de forma DIFERENTE dos controllers.** O `JsonStringEnumConverter`
+  registrado em `AddControllers().AddJsonOptions(...)` **não vale para o hub**: é preciso
+  `AddSignalR().AddJsonProtocol(...)` separado. Sem isso o heartbeat entrega
+  `tipoComando: "Bloquear"` e o hub entrega `tipoComando: 0` — os agentes esperam texto e
+  **descartam o comando do hub em silêncio**, sem erro nenhum no log do servidor. O sintoma é
+  bloqueio que demora ~1 heartbeat em vez de ser imediato, com a conexão SignalR aparentemente
+  saudável. Afeta os agentes Windows e Android igualmente. Os agentes hoje aceitam os dois
+  formatos como defesa, mas a configuração do servidor é o conserto de verdade.
+- **Agente Android:**
+  - **Janela só pode ser criada/removida na thread principal.** O laço de enforcement roda em
+    `Dispatchers.IO`; `WindowManager.addView` a partir dele falha ao construir o `Handler` interno
+    da View e a sobreposição **nunca sobe** — sobra o `lockNow()`, que é só a trava de tela do
+    sistema (sintoma: "bloqueou só a tela"). `OverlayBloqueio` já salta para a main thread sozinho.
+  - **O cliente Java do SignalR não tem `withAutomaticReconnect`** (o .NET tem). Se a conexão cai,
+    ela fica morta até alguém reconectar: `AgenteService.lacoDeConexaoHub` faz esse papel, com
+    recuo progressivo até 60s.
+  - **Bloqueio ≠ travar a tela.** `lockNow()` só aciona a trava do sistema e o usuário entra com a
+    senha dele. O que deixa o aparelho indisponível é a janela `TYPE_APPLICATION_OVERLAY`
+    (permissão "Sobrepor outros apps", obrigatória) reaplicada a cada 2s. Sem Device Owner o Home
+    ainda troca de app por um instante — só o modo quiosque fecha isso.
+  - **Logs do app podem não aparecer no `logcat`** (visto num Lenovo). Diagnostique por
+    `adb shell dumpsys window windows | Select-String nutrihouse` (janela com
+    `appop=SYSTEM_ALERT_WINDOW` = bloqueio ativo) e por `/proc/net/tcp` (conexão do hub).
 - **Scripts PowerShell (.ps1):** escreva em **ASCII puro** (sem acentos/travessão) — o Windows
   PowerShell 5.1 lê `.ps1` sem BOM na codepage do sistema e quebra com caracteres especiais.
 - **MigraDoc:** o pacote é `MigraDocCore.*` (namespaces `MigraDocCore.DocumentObjectModel`/`.Rendering`).
@@ -115,4 +166,9 @@ Já cobertos pelo `.gitignore`. Mantenha `EnrollmentKey`/tokens **vazios** nos `
 
 - Backend: `dotnet build Tracker.sln` e `dotnet test Tracker.sln`.
 - Frontend: `npm --prefix src/Tracker.Web run build` (faz type-check).
-- Se mexeu no agente: rode em console com `Simular=true` para não travar a própria tela.
+- Se mexeu no agente Windows: rode em console com `Simular=true` para não travar a própria tela.
+- Se mexeu no agente Android: `./gradlew :app:assembleDebug` e teste o bloqueio num aparelho de
+  laboratório — **não no próprio celular**, o bloqueio é persistente e só a TI remove.
+- **Kotlin + anotação em `val` só-getter:** use `@get:SuppressLint(...)`. Sem o `@get:` o
+  compilador recusa ("annotation is not applicable to target 'member property without backing
+  field'"). Ver `InfoAparelho.numeroSerie`.

@@ -39,8 +39,10 @@ public class BuscaController : ControllerBase
     }
 
     /// <summary>
-    /// Coleta os IDs em três consultas porque a hierarquia TPH não permite consultar
-    /// <c>DispositivoComAgente</c> (classe intermediária sem discriminador) diretamente.
+    /// Coleta os IDs em consultas separadas por tipo concreto porque a hierarquia TPH não permite
+    /// consultar <c>DispositivoComAgente</c> (classe intermediária sem discriminador) diretamente.
+    /// Ao criar um novo tipo com agente, é obrigatório incluí-lo aqui — senão ele fica invisível
+    /// na busca por hostname/IMEI.
     /// </summary>
     private async Task<List<BuscaDispositivoDto>> BuscarDispositivos(string padrao, int limite)
     {
@@ -54,12 +56,12 @@ public class BuscaController : ControllerBase
             .Where(n => EF.Functions.Like(n.Hostname, padrao, "\\"))
             .Select(n => n.Id);
 
-        var idsTelefones = _db.Set<Telefone>()
-            .Where(t => EF.Functions.Like(t.Hostname, padrao, "\\")
-                        || EF.Functions.Like(t.Imei, padrao, "\\"))
-            .Select(t => t.Id);
+        var idsMobiles = _db.Set<Mobile>()
+            .Where(m => EF.Functions.Like(m.Hostname, padrao, "\\")
+                        || EF.Functions.Like(m.Imei, padrao, "\\"))
+            .Select(m => m.Id);
 
-        var ids = await idsBase.Union(idsNotebooks).Union(idsTelefones).ToListAsync();
+        var ids = await idsBase.Union(idsNotebooks).Union(idsMobiles).ToListAsync();
         if (ids.Count == 0) return [];
 
         var encontrados = await _db.Dispositivos.AsNoTracking()
@@ -77,7 +79,7 @@ public class BuscaController : ControllerBase
             d.NumeroSerie,
             d.AssetTag,
             (d as DispositivoComAgente)?.Hostname,
-            (d as Telefone)?.Imei,
+            (d as Mobile)?.Imei,
             d.UsuarioAtual?.Nome)).ToList();
     }
 

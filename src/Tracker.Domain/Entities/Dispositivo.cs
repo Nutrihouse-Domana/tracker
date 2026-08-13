@@ -4,7 +4,7 @@ using Tracker.Domain.Enums;
 namespace Tracker.Domain.Entities;
 
 /// <summary>
-/// Base TPH para Notebook, Telefone e Periferico. Notebook/Telefone têm agente instalado
+/// Base TPH para Notebook, Mobile e Periferico. Os dois primeiros têm agente instalado
 /// (Hostname, heartbeat, bloqueio); Periferico é inventário manual, sem agente.
 /// </summary>
 public abstract class Dispositivo : EntidadeBase
@@ -24,9 +24,10 @@ public abstract class Dispositivo : EntidadeBase
     public ICollection<HistoricoLocalizacao> HistoricoLocalizacoes { get; set; } = new List<HistoricoLocalizacao>();
     public ICollection<HistoricoReparo> HistoricoReparos { get; set; } = new List<HistoricoReparo>();
     public ICollection<ComentarioDispositivo> Comentarios { get; set; } = new List<ComentarioDispositivo>();
+    public ICollection<AlertaDispositivo> Alertas { get; set; } = new List<AlertaDispositivo>();
 }
 
-/// <summary>Campos compartilhados por Notebook e Telefone: dispositivos com agente instalado.</summary>
+/// <summary>Campos compartilhados por Notebook, Telefone e Tablet: dispositivos com agente instalado.</summary>
 public abstract class DispositivoComAgente : Dispositivo
 {
     public string Hostname { get; set; } = string.Empty;
@@ -40,6 +41,21 @@ public abstract class DispositivoComAgente : Dispositivo
 
     /// <summary>Token/API key emitido no enrollment do agente. Armazenar apenas o hash.</summary>
     public string? TokenAgenteHash { get; set; }
+
+    // --- Telemetria reportada pelo agente móvel (nula em notebooks Windows) ---
+
+    /// <summary>Fabricante informado pelo aparelho (ex.: Samsung). Preenchido pelo agente Android.</summary>
+    public string? Fabricante { get; set; }
+    /// <summary>Modelo comercial do aparelho (ex.: SM-X200). Preenchido pelo agente Android.</summary>
+    public string? Modelo { get; set; }
+    /// <summary>Carga da bateria em porcentagem no último heartbeat.</summary>
+    public int? BateriaPercentual { get; set; }
+
+    /// <summary>
+    /// Proteção do agente contra remoção pelo usuário. Nulo no Windows (roda como Serviço).
+    /// Serve para a TI ver na lista quais aparelhos estão realmente protegidos.
+    /// </summary>
+    public NivelProtecaoAgente? NivelProtecao { get; set; }
 }
 
 public class Notebook : DispositivoComAgente
@@ -47,11 +63,16 @@ public class Notebook : DispositivoComAgente
     public Notebook() => Tipo = TipoDispositivo.Notebook;
 }
 
-public class Telefone : DispositivoComAgente
+/// <summary>
+/// Celular ou tablet Android. Um único tipo para os dois: o agente é o mesmo, e distinguir
+/// aparelhos por tamanho de tela não muda nada no controle de inventário.
+/// </summary>
+public class Mobile : DispositivoComAgente
 {
-    public Telefone() => Tipo = TipoDispositivo.Telefone;
+    public Mobile() => Tipo = TipoDispositivo.Mobile;
 
-    public string Imei { get; set; } = string.Empty;
+    /// <summary>IMEI. Opcional porque tablets só-Wi-Fi não têm modem celular.</summary>
+    public string? Imei { get; set; }
 }
 
 public class Periferico : Dispositivo

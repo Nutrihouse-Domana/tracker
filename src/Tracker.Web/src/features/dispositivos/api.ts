@@ -1,5 +1,6 @@
 import { apiClient } from '../../api/client'
 import type {
+  AlertaDispositivo,
   AtribuirDispositivoRequest,
   ComandoRemoto,
   ComentarioDispositivo,
@@ -7,7 +8,7 @@ import type {
   CriarNotebookRequest,
   CriarPerifericoRequest,
   CriarReparoRequest,
-  CriarTelefoneRequest,
+  CriarMobileRequest,
   Dispositivo,
   EnrollmentResponse,
   HistoricoLocalizacao,
@@ -25,8 +26,8 @@ export const dispositivosApi = {
   obter: (id: string) => apiClient.get<Dispositivo>(`/api/dispositivos/${id}`).then((r) => r.data),
   criarNotebook: (data: CriarNotebookRequest) =>
     apiClient.post<Dispositivo>('/api/dispositivos/notebooks', data).then((r) => r.data),
-  criarTelefone: (data: CriarTelefoneRequest) =>
-    apiClient.post<Dispositivo>('/api/dispositivos/telefones', data).then((r) => r.data),
+  criarMobile: (data: CriarMobileRequest) =>
+    apiClient.post<Dispositivo>('/api/dispositivos/mobiles', data).then((r) => r.data),
   criarPeriferico: (data: CriarPerifericoRequest) =>
     apiClient.post<Dispositivo>('/api/dispositivos/perifericos', data).then((r) => r.data),
   atualizarStatus: (id: string, status: StatusDispositivo) =>
@@ -53,4 +54,8 @@ export const dispositivosApi = {
     apiClient.get<ComandoRemoto[]>(`/api/dispositivos/${id}/comandos`).then((r) => r.data),
   historicoLocalizacao: (id: string) =>
     apiClient.get<HistoricoLocalizacao[]>(`/api/dispositivos/${id}/historico-localizacao`).then((r) => r.data),
+  listarAlertas: (id: string) =>
+    apiClient.get<AlertaDispositivo[]>(`/api/dispositivos/${id}/alertas`).then((r) => r.data),
+  reconhecerAlerta: (id: string, alertaId: string) =>
+    apiClient.post(`/api/dispositivos/${id}/alertas/${alertaId}/reconhecer`).then((r) => r.data),
 }

@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bloqueio_fundo"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="32dp">
+
+    <ImageView
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:contentDescription="@string/bloqueio_titulo"
+        android:src="@drawable/ic_bloqueio" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:gravity="center"
+        android:text="@string/bloqueio_titulo"
+        android:textColor="@color/bloqueio_destaque"
+        android:textSize="28sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center"
+        android:text="@string/bloqueio_texto"
+        android:textColor="@color/bloqueio_texto"
+        android:textSize="18sp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
+        android:text="@string/bloqueio_contato"
+        android:textColor="@color/bloqueio_texto"
+        android:textSize="16sp" />
+
+    <!-- Patrimonio e serie: permitem a TI identificar o aparelho sem desbloquear. -->
+    <TextView
+        android:id="@+id/textoIdentificacao"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:gravity="center"
+        android:textColor="@color/bloqueio_texto"
+        android:textSize="14sp" />
+
+    <!--
+      Wi-Fi dentro da tela de bloqueio: um aparelho bloqueado e sem rede nunca receberia o
+      comando de Desbloquear da TI. Mesma solucao do agente Windows.
+    -->
+    <Button
+        android:id="@+id/botaoWifi"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="@string/bloqueio_wifi_botao"
+        android:textColor="@color/bloqueio_fundo"
+        android:backgroundTint="@color/bloqueio_destaque" />
+
+    <LinearLayout
+        android:id="@+id/painelWifi"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <Spinner
+            android:id="@+id/listaRedes"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:backgroundTint="@color/bloqueio_texto" />
+
+        <EditText
+            android:id="@+id/campoSenhaWifi"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:autofillHints="password"
+            android:hint="@string/bloqueio_wifi_senha"
+            android:inputType="textPassword"
+            android:textColor="@color/bloqueio_texto"
+            android:textColorHint="#99FFFFFF" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/botaoAtualizarRedes"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/bloqueio_wifi_atualizar" />
+
+            <Button
+                android:id="@+id/botaoConectarWifi"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="@string/bloqueio_wifi_conectar" />
+        </LinearLayout>
+
+        <!-- Caminho para aparelhos sem Device Owner, onde o app nao pode conectar sozinho. -->
+        <Button
+            android:id="@+id/botaoPainelSistema"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/bloqueio_wifi_sistema" />
+
+        <TextView
+            android:id="@+id/textoStatusWifi"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:textColor="@color/bloqueio_texto"
+            android:textSize="13sp" />
+    </LinearLayout>
+</LinearLayout>

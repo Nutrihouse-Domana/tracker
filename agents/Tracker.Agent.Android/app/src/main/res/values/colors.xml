@@ -1,0 +1,5 @@
+<resources>
+    <color name="bloqueio_fundo">#FF0B1B2B</color>
+    <color name="bloqueio_texto">#FFFFFFFF</color>
+    <color name="bloqueio_destaque">#FFFFC107</color>
+</resources>

@@ -14,8 +14,20 @@ import {
 } from '@mui/material'
 import LockIcon from '@mui/icons-material/LockOutlined'
 import LockOpenIcon from '@mui/icons-material/LockOpenOutlined'
-import type { Dispositivo, StatusComandoRemoto } from '../../api/types'
-import { useComandos, useEmitirComando, useGerarEnrollment } from './hooks'
+import BatteryIcon from '@mui/icons-material/BatteryStdOutlined'
+import type {
+  Dispositivo,
+  NivelProtecaoAgente,
+  StatusComandoRemoto,
+  TipoAlertaDispositivo,
+} from '../../api/types'
+import {
+  useAlertasDispositivo,
+  useComandos,
+  useEmitirComando,
+  useGerarEnrollment,
+  useReconhecerAlerta,
+} from './hooks'
 import { rotuloStatus } from './status'
 
 interface Props {
@@ -29,15 +41,54 @@ const corStatusComando: Record<StatusComandoRemoto, 'warning' | 'info' | 'succes
   Falhou: 'error',
 }
 
+/**
+ * Como a proteção do agente aparece para a TI. Só existe no Android: no Windows o agente roda
+ * como Serviço e o campo vem nulo.
+ */
+const protecaoAgente: Record<
+  NivelProtecaoAgente,
+  { rotulo: string; cor: 'success' | 'warning' | 'error'; explicacao: string }
+> = {
+  DeviceOwner: {
+    rotulo: 'Proteção máxima (Device Owner)',
+    cor: 'success',
+    explicacao: 'O agente não pode ser desinstalado e a restauração de fábrica está bloqueada.',
+  },
+  DeviceAdmin: {
+    rotulo: 'Administrador ativo',
+    cor: 'warning',
+    explicacao:
+      'O bloqueio remoto funciona, mas o usuário pode desativar o administrador nas Configurações e então desinstalar o agente. Você é avisado aqui se isso acontecer.',
+  },
+  Nenhuma: {
+    rotulo: 'Sem proteção',
+    cor: 'error',
+    explicacao:
+      'O agente está sem permissão de administrador: o bloqueio remoto NÃO vai funcionar. Reative pelo próprio app no aparelho.',
+  },
+}
+
+const rotuloAlerta: Record<TipoAlertaDispositivo, string> = {
+  AdminDesativado: 'Permissão de administrador desativada no aparelho',
+  LocalizacaoNegada: 'Permissão de localização negada ou revogada',
+  BloqueioReaplicado: 'Bloqueio reaplicado pelo agente',
+  ProtecaoRebaixada: 'Nível de proteção do agente caiu',
+}
+
 export function AgenteSection({ dispositivo }: Props) {
   const [token, setToken] = useState<string | null>(null)
   const { data: comandos } = useComandos(dispositivo.id)
+  const { data: alertas } = useAlertasDispositivo(dispositivo.id)
   const emitir = useEmitirComando(dispositivo.id)
   const enrollment = useGerarEnrollment(dispositivo.id)
+  const reconhecer = useReconhecerAlerta(dispositivo.id)
 
   const gerarToken = () => {
     enrollment.mutate(undefined, { onSuccess: (r) => setToken(r.token) })
   }
+
+  const protecao = dispositivo.nivelProtecao ? protecaoAgente[dispositivo.nivelProtecao] : null
+  const alertasPendentes = alertas?.filter((a) => !a.reconhecido) ?? []
 
   return (
     <Stack spacing={2} sx={{ mt: 1 }}>
@@ -58,8 +109,75 @@ export function AgenteSection({ dispositivo }: Props) {
               Agente v{dispositivo.agenteVersao}
             </Typography>
           )}
+          {dispositivo.bateriaPercentual !== null && (
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+              <BatteryIcon fontSize="small" color="action" />
+              <Typography variant="body2" color="text.secondary">
+                {dispositivo.bateriaPercentual}%
+              </Typography>
+            </Stack>
+          )}
         </Stack>
+
+        {(dispositivo.fabricante || dispositivo.modelo) && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            {[dispositivo.fabricante, dispositivo.modelo].filter(Boolean).join(' ')}
+          </Typography>
+        )}
       </Box>
+
+      {/* Proteção só é reportada pelo agente Android; no Windows a seção não aparece. */}
+      {protecao && (
+        <>
+          <Divider />
+          <Box>
+            <Typography variant="subtitle2" gutterBottom>
+              Proteção do agente
+            </Typography>
+            <Alert severity={protecao.cor}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {protecao.rotulo}
+              </Typography>
+              <Typography variant="body2">{protecao.explicacao}</Typography>
+            </Alert>
+          </Box>
+        </>
+      )}
+
+      {alertasPendentes.length > 0 && (
+        <>
+          <Divider />
+          <Box>
+            <Typography variant="subtitle2" gutterBottom>
+              Alertas do aparelho ({alertasPendentes.length})
+            </Typography>
+            <List dense>
+              {alertasPendentes.map((a) => (
+                <ListItem
+                  key={a.id}
+                  divider
+                  secondaryAction={
+                    <Button
+                      size="small"
+                      disabled={reconhecer.isPending}
+                      onClick={() => reconhecer.mutate(a.id)}
+                    >
+                      Tratar
+                    </Button>
+                  }
+                >
+                  <ListItemText
+                    primary={rotuloAlerta[a.tipo] ?? a.tipo}
+                    secondary={`${new Date(a.criadoEm).toLocaleString('pt-BR')}${
+                      a.detalhe ? ` — ${a.detalhe}` : ''
+                    }`}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </Box>
+        </>
+      )}
 
       <Divider />
 
@@ -103,7 +221,9 @@ export function AgenteSection({ dispositivo }: Props) {
         {token && (
           <Alert severity="success" sx={{ mt: 1 }}>
             <Typography variant="body2" sx={{ mb: 1 }}>
-              Copie este token e cole no <code>appsettings.json</code> do agente na máquina. Ele aparece só uma vez:
+              {dispositivo.tipo === 'Notebook'
+                ? 'Copie este token e cole no appsettings.json do agente na máquina. Ele aparece só uma vez:'
+                : 'Token individual do aparelho. No Android o agente costuma se registrar sozinho pela chave da empresa; use este token só para reconectar um aparelho manualmente. Aparece só uma vez:'}
             </Typography>
             <TextField
               value={token}

@@ -19,7 +19,7 @@ public class DispositivosController : ControllerBase
     private readonly TrackerDbContext _db;
     private readonly UserManager<UsuarioADM> _userManager;
     private readonly IValidator<CriarNotebookRequest> _notebookValidator;
-    private readonly IValidator<CriarTelefoneRequest> _telefoneValidator;
+    private readonly IValidator<CriarMobileRequest> _mobileValidator;
     private readonly IValidator<CriarPerifericoRequest> _perifericoValidator;
     private readonly IValidator<AtribuirDispositivoRequest> _atribuirValidator;
     private readonly IValidator<CriarReparoRequest> _reparoValidator;
@@ -29,7 +29,7 @@ public class DispositivosController : ControllerBase
         TrackerDbContext db,
         UserManager<UsuarioADM> userManager,
         IValidator<CriarNotebookRequest> notebookValidator,
-        IValidator<CriarTelefoneRequest> telefoneValidator,
+        IValidator<CriarMobileRequest> mobileValidator,
         IValidator<CriarPerifericoRequest> perifericoValidator,
         IValidator<AtribuirDispositivoRequest> atribuirValidator,
         IValidator<CriarReparoRequest> reparoValidator,
@@ -38,7 +38,7 @@ public class DispositivosController : ControllerBase
         _db = db;
         _userManager = userManager;
         _notebookValidator = notebookValidator;
-        _telefoneValidator = telefoneValidator;
+        _mobileValidator = mobileValidator;
         _perifericoValidator = perifericoValidator;
         _atribuirValidator = atribuirValidator;
         _reparoValidator = reparoValidator;
@@ -58,11 +58,16 @@ public class DispositivosController : ControllerBase
         (d as DispositivoComAgente)?.Hostname,
         (d as DispositivoComAgente)?.SistemaOperacional,
         (d as DispositivoComAgente)?.VersaoSO,
-        (d as Telefone)?.Imei,
+        // IMEI vive em Mobile, não na base com agente (notebook não tem).
+        (d as Mobile)?.Imei,
         (d as DispositivoComAgente)?.UltimoHeartbeatEm,
         (d as DispositivoComAgente)?.GeofenceAtivo,
         (d as DispositivoComAgente)?.AgenteVersao,
-        (d as Periferico)?.TipoPeriferico);
+        (d as Periferico)?.TipoPeriferico,
+        (d as DispositivoComAgente)?.Fabricante,
+        (d as DispositivoComAgente)?.Modelo,
+        (d as DispositivoComAgente)?.BateriaPercentual,
+        (d as DispositivoComAgente)?.NivelProtecao);
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<DispositivoDto>>> Listar(
@@ -112,30 +117,33 @@ public class DispositivosController : ControllerBase
         return CreatedAtAction(nameof(ObterPorId), new { id = notebook.Id }, MapToDto(notebook));
     }
 
+    /// <summary>Cadastra um celular ou tablet. Rota antiga /telefones mantida como alias.</summary>
+    [HttpPost("mobiles")]
     [HttpPost("telefones")]
-    public async Task<ActionResult<DispositivoDto>> CriarTelefone(CriarTelefoneRequest request)
+    public async Task<ActionResult<DispositivoDto>> CriarMobile(CriarMobileRequest request)
     {
-        var validation = await _telefoneValidator.ValidateAsync(request);
+        var validation = await _mobileValidator.ValidateAsync(request);
         if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
 
         if (await _db.Dispositivos.AnyAsync(d => d.NumeroSerie == request.NumeroSerie || d.AssetTag == request.AssetTag))
             return Conflict(new { message = "Já existe um dispositivo com este número de série ou patrimônio." });
 
-        var telefone = new Telefone
+        var mobile = new Mobile
         {
             NumeroSerie = request.NumeroSerie,
             AssetTag = request.AssetTag,
             Hostname = request.Hostname,
             SistemaOperacional = request.SistemaOperacional,
-            Imei = request.Imei,
+            // Campo vazio no formulário significa "sem IMEI", não string vazia no banco.
+            Imei = string.IsNullOrWhiteSpace(request.Imei) ? null : request.Imei,
             MacAddress = request.MacAddress,
             DataAquisicao = request.DataAquisicao,
             Observacoes = request.Observacoes,
         };
 
-        _db.Dispositivos.Add(telefone);
+        _db.Dispositivos.Add(mobile);
         await _db.SaveChangesAsync();
-        return CreatedAtAction(nameof(ObterPorId), new { id = telefone.Id }, MapToDto(telefone));
+        return CreatedAtAction(nameof(ObterPorId), new { id = mobile.Id }, MapToDto(mobile));
     }
 
     [HttpPost("perifericos")]
