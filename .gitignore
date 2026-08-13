@@ -31,3 +31,6 @@ appsettings.*.local.json
 Thumbs.db
 .vscode/
 .idea/
+
+# Payload do instalador de pendrive (contem a EnrollmentKey)
+deploy/Instalador/Recursos/
