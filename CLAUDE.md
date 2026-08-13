@@ -24,6 +24,7 @@ agents/
   Tracker.Agent.Windows/   Worker Service Windows: heartbeat, geolocalização, bloqueio remoto.
 tests/Tracker.Api.Tests/   xUnit + WebApplicationFactory.
 deploy/                    Scripts PowerShell (publicar, instalar agente).
+  Instalador/              Instalador do agente para pendrive: .exe unico, autocontido.
 docs/                      Guias de implantação (COMECE-AQUI, deploy on-premises, teste agente).
 ```
 
@@ -89,6 +90,21 @@ dotnet run --project agents/Tracker.Agent.Windows      # modo console (Simular=t
   - Bloqueio é **persistente**: arquivo-sinal `%ProgramData%\TrackerAgent\locked.flag`. O agente
     re-trava sozinho (timer de 2s) mesmo offline/após reiniciar; só a TI remove o sinal (Desbloquear).
   - A tela de bloqueio é **uma janela por monitor** e se reconstrói ao trocar de monitor (hotplug).
+  - **SDDL do serviço:** conceda `CCDCLCSWRPWPDTLOCRSDRCWDWO` a SYSTEM (SY) e Administradores (BA).
+    A máscara antiga (`CCLCSWRPWPDTLOCRRC`) omitia `SD`/`DC`/`WD` e produzia um serviço que **nem
+    administrador removia ou reconfigurava** — reinstalar morria com `sc create` 1073. Para destravar
+    uma máquina nesse estado, apague `HKLM\SYSTEM\CurrentControlSet\Services\TrackerAgent\Security`.
+- **Instalação do agente por pendrive** (`deploy/Instalador`, guia em `docs/instalacao-agente-pendrive.md`):
+  - `.cmd`/`.bat` **não têm manifesto e nunca conseguem pedir elevação**. Só um `.exe` declarando
+    `requireAdministrator` faz o Windows exibir a caixa de usuário e senha; por isso o instalador é
+    um executável .NET, não um script.
+  - A **Execution Policy do PowerShell está bloqueada por GPO** nas máquinas da rede, e
+    `-ExecutionPolicy Bypass` é ignorado quando a política vem de diretiva de máquina — nenhum `.ps1`
+    do pendrive executa.
+  - Arquivo solto ao lado do executável falha em uso real: agente, `appsettings.json` e o XML da tarefa
+    vão como **recursos embutidos** (o `payload.zip` é montado e apagado por `deploy/gerar-pendrive.ps1`).
+  - `schtasks /xml` exige o arquivo em **UTF-16 LE**; e a checagem de serviço em execução usa o código
+    numérico `: 4` do `sc query`, porque o texto do estado é traduzido conforme o idioma do Windows.
 - **Scripts PowerShell (.ps1):** escreva em **ASCII puro** (sem acentos/travessão) — o Windows
   PowerShell 5.1 lê `.ps1` sem BOM na codepage do sistema e quebra com caracteres especiais.
 - **MigraDoc:** o pacote é `MigraDocCore.*` (namespaces `MigraDocCore.DocumentObjectModel`/`.Rendering`).
@@ -104,6 +120,10 @@ dotnet run --project agents/Tracker.Agent.Windows      # modo console (Simular=t
   de **variáveis de ambiente** (`ConnectionStrings__TrackerDb`, `Encryption__CpfKeyBase64`,
   `Enrollment__CompanyKey`, `Seed__*`).
 - Gerar pacote: `deploy/publicar-servidor.ps1`. Guia completo: `docs/deploy-servidor-onpremises.md`.
+- **Agente nas máquinas:** por GPO/AD, ou pelo instalador de pendrive
+  (`deploy/gerar-pendrive.ps1` gera um `Instalar-Agente.exe` autocontido de ~79 MB).
+  O `.exe` **não é versionado**: carrega a `EnrollmentKey` embutida, então é artefato de build,
+  entregue em pendrive — nunca em release do GitHub.
 
 ## Nunca versionar
 
