@@ -80,6 +80,9 @@ cd agents/Tracker.Agent.Android && ./gradlew :app:assembleDebug   # APK assinado
 # Release da frota: use o script (cria a keystore na 1a vez, compila e mostra versionCode/SHA-256).
 ./deploy/gerar-apk-agente.ps1
 # assembleRelease direto exige keystore em local.properties — falha com mensagem se faltar.
+
+# Instalar/diagnosticar no aparelho (adb vem do SDK)
+C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/app-release.apk
 ```
 
 ## Convenções e padrões
@@ -203,6 +206,25 @@ cd agents/Tracker.Agent.Android && ./gradlew :app:assembleDebug   # APK assinado
   - **Logs do app podem não aparecer no `logcat`** (visto num Lenovo). Diagnostique por
     `adb shell dumpsys window windows | Select-String nutrihouse` (janela com
     `appop=SYSTEM_ALERT_WINDOW` = bloqueio ativo) e por `/proc/net/tcp` (conexão do hub).
+  - **A identidade do aparelho é o número de série DIGITADO pelo técnico no registro**, não um
+    identificador do sistema. O Android não entrega série de fábrica nem IMEI a um app comum
+    (bloqueio desde a versão 10), e o `ANDROID_ID` que sobra **muda quando a assinatura do APK
+    muda** — trocar o keystore duplicou todos os registros do inventário. A série da etiqueta é
+    estável e sobrevive a troca de chave, reinstalação e limpeza de dados.
+  - **`dpm remove-active-admin` só funciona com app instalado em modo de teste.** Em produção o
+    Android recusa (`Attempt to remove non-test admin`), e como o admin ativo bloqueia a
+    desinstalação, nem `adb uninstall` passa. O caminho é desativar à mão em
+    Configurações > Segurança > Apps de administração do dispositivo. Abra direto com
+    `adb shell am start -n 'com.android.settings/.Settings$DeviceAdminSettingsActivity'`.
+- **Keystore do APK: guarde FORA do repositório e com backup externo.** Um keystore dentro da
+  árvore de trabalho já foi perdido (a pasta era descartável e sumiu). Sem ele não há como
+  atualizar o app nos aparelhos instalados — só desinstalando um a um, e cada reinstalação com
+  assinatura nova duplica o registro no inventário. Hoje fica em `C:\NutrihouseChaves`, apontado
+  por caminho absoluto em `local.properties`.
+- **A URL do backend no APK é amarrada ao buildType**, não ao `local.properties`: `release` usa
+  sempre `gradle.properties` (produção) e `debug` usa o `local.properties` da máquina. Sem isso,
+  um pacote gerado na máquina de quem estava testando sairia apontando para o laboratório — falha
+  silenciosa que só apareceria depois de instalada na frota.
 - **Scripts PowerShell (.ps1):** escreva em **ASCII puro** (sem acentos/travessão) — o Windows
   PowerShell 5.1 lê `.ps1` sem BOM na codepage do sistema e quebra com caracteres especiais.
 - **MigraDoc:** o pacote é `MigraDocCore.*` (namespaces `MigraDocCore.DocumentObjectModel`/`.Rendering`).
