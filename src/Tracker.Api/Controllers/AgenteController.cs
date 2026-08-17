@@ -61,35 +61,45 @@ public class AgenteController : ControllerBase
         if (request.Tipo is not (TipoDispositivo.Notebook or TipoDispositivo.Mobile))
             return BadRequest(new { message = "Auto-cadastro só vale para notebook ou mobile." });
 
-        // Arquivados ficam fora do filtro global mas seguram o índice único de NumeroSerie: sem
-        // esta checagem o INSERT estouraria com erro cru de banco.
-        var arquivado = await _db.Dispositivos.IgnoreQueryFilters()
-            .AnyAsync(d => d.NumeroSerie == request.NumeroSerie && d.ExcluidoEm != null);
-        if (arquivado)
-            return Conflict(new { message = "Já existe um dispositivo arquivado com este número de série. Restaure-o no painel antes de registrar." });
-
-        var existente = await _db.Dispositivos.FirstOrDefaultAsync(d => d.NumeroSerie == request.NumeroSerie);
+        var existente = await ReencontrarAsync(request);
         if (existente is not null && existente is not DispositivoComAgente)
-            return Conflict(new { message = "Já existe um dispositivo (sem agente) com este número de série." });
-
-        // Segunda chance pelo IMEI: o mesmo aparelho pode ter sido cadastrado antes pela TI (com o
-        // serial de fábrica) e agora se registrar com o ANDROID_ID — o IMEI digitado pelo técnico
-        // religa os dois em vez de duplicar o ativo.
-        if (existente is null && !string.IsNullOrWhiteSpace(request.Imei))
-            existente = await _db.Set<Mobile>().FirstOrDefaultAsync(m => m.Imei == request.Imei);
+            return Conflict(new { message = "Já existe um dispositivo (sem agente) com esta identificação." });
 
         var dispositivo = existente as DispositivoComAgente;
         if (dispositivo is null)
         {
+            // Arquivados ficam fora do filtro global mas seguram os índices únicos de NumeroSerie
+            // e AssetTag: sem esta checagem o INSERT estouraria com erro cru de banco.
+            var arquivado = await _db.Dispositivos.IgnoreQueryFilters().FirstOrDefaultAsync(d =>
+                d.ExcluidoEm != null &&
+                (d.NumeroSerie == request.NumeroSerie ||
+                    (request.AssetTag != null && d.AssetTag == request.AssetTag)));
+            if (arquivado is not null)
+            {
+                return Conflict(new
+                {
+                    message = $"O dispositivo '{arquivado.AssetTag ?? arquivado.NumeroSerie}' está " +
+                              "arquivado. Restaure-o no painel antes de registrar o aparelho.",
+                });
+            }
+
             dispositivo = request.Tipo == TipoDispositivo.Mobile
                 ? new Mobile { Imei = request.Imei }
                 : new Notebook();
             dispositivo.NumeroSerie = request.NumeroSerie;
-            // Patrimônio provisório — a TI ajusta depois no cadastro.
-            dispositivo.AssetTag = $"AUTO-{request.NumeroSerie}";
+            // Patrimônio digitado pelo técnico quando houver; senão um provisório que a TI ajusta.
+            dispositivo.AssetTag = NormalizarPatrimonio(request.AssetTag) ?? $"AUTO-{request.NumeroSerie}";
             dispositivo.DataAquisicao = DateTime.UtcNow;
             dispositivo.Status = StatusDispositivo.EmEstoque;
             _db.Dispositivos.Add(dispositivo);
+        }
+        else
+        {
+            // Reencontrado: o aparelho é o mesmo ativo, então o registro é reaproveitado (com o
+            // histórico) em vez de duplicado. Só promovemos os identificadores para valores
+            // melhores — nunca rebaixamos um dado real para um provisório.
+            await PromoverNumeroSerieAsync(dispositivo, request.NumeroSerie);
+            await PromoverPatrimonioAsync(dispositivo, request.AssetTag);
         }
 
         dispositivo.Hostname = request.Hostname;
@@ -108,6 +118,86 @@ public class AgenteController : ControllerBase
 
         await _db.SaveChangesAsync();
         return Ok(new EnrollmentResponse(dispositivo.Id, token, dispositivo.AssetTag));
+    }
+
+    /// <summary>
+    /// Prefixo do identificador que o agente Android usa quando o sistema não entrega o serial de
+    /// fábrica (todo aparelho sem Device Owner). É derivado do ANDROID_ID e, portanto, **muda
+    /// quando o APK é reinstalado com outra assinatura** — foi o que já duplicou ativo aqui.
+    /// </summary>
+    private const string PrefixoSerieProvisoria = "ANDROID-";
+
+    private static bool EhSerieProvisoria(string? serie) =>
+        serie is not null && serie.StartsWith(PrefixoSerieProvisoria, StringComparison.Ordinal);
+
+    private static bool EhPatrimonioProvisorio(string? patrimonio) =>
+        patrimonio is not null && patrimonio.StartsWith("AUTO-", StringComparison.Ordinal);
+
+    private static string? NormalizarPatrimonio(string? patrimonio) =>
+        string.IsNullOrWhiteSpace(patrimonio) ? null : patrimonio.Trim();
+
+    /// <summary>
+    /// Reencontra o ativo já cadastrado, na ordem em que os identificadores merecem confiança.
+    /// Sem isso, um aparelho que se registra de novo entra como dispositivo novo e o inventário
+    /// fica com o mesmo tablet duas vezes.
+    /// </summary>
+    private async Task<Dispositivo?> ReencontrarAsync(AutoEnrollmentRequest request)
+    {
+        // 1) Patrimônio: a identidade corporativa do ativo, digitada pelo técnico a partir da
+        //    etiqueta. É o único identificador que sobrevive a reinstalar o app com outra chave
+        //    de assinatura, a limpar os dados e à troca do agente.
+        var patrimonio = NormalizarPatrimonio(request.AssetTag);
+        if (patrimonio is not null)
+        {
+            var porPatrimonio = await _db.Dispositivos.FirstOrDefaultAsync(d => d.AssetTag == patrimonio);
+            if (porPatrimonio is not null) return porPatrimonio;
+        }
+
+        // 2) Número de série: o de fábrica quando o aparelho o entrega; senão o provisório, que
+        //    ainda reencontra o aparelho enquanto a assinatura do APK não mudar.
+        var porSerie = await _db.Dispositivos.FirstOrDefaultAsync(d => d.NumeroSerie == request.NumeroSerie);
+        if (porSerie is not null) return porSerie;
+
+        // 3) IMEI: só existe em aparelho com modem, e só é legível com Device Owner.
+        if (!string.IsNullOrWhiteSpace(request.Imei))
+            return await _db.Set<Mobile>().FirstOrDefaultAsync(m => m.Imei == request.Imei);
+
+        return null;
+    }
+
+    /// <summary>
+    /// Atualiza o número de série do ativo reencontrado, sem nunca trocar um serial de fábrica
+    /// pelo provisório do app — o provisório muda a cada reinstalação com assinatura diferente.
+    /// </summary>
+    private async Task PromoverNumeroSerieAsync(DispositivoComAgente dispositivo, string serieRecebida)
+    {
+        if (string.IsNullOrWhiteSpace(serieRecebida) || dispositivo.NumeroSerie == serieRecebida) return;
+        if (!EhSerieProvisoria(dispositivo.NumeroSerie) && EhSerieProvisoria(serieRecebida)) return;
+
+        // O índice único não conhece o filtro global: um arquivado com o mesmo serial faria o
+        // UPDATE estourar com erro cru de banco.
+        var emUso = await _db.Dispositivos.IgnoreQueryFilters()
+            .AnyAsync(d => d.NumeroSerie == serieRecebida && d.Id != dispositivo.Id);
+        if (emUso) return;
+
+        dispositivo.NumeroSerie = serieRecebida;
+    }
+
+    /// <summary>
+    /// Troca o patrimônio provisório (AUTO-*) pelo que o técnico digitou. Um patrimônio já
+    /// definido pela TI nunca é sobrescrito pelo agente.
+    /// </summary>
+    private async Task PromoverPatrimonioAsync(DispositivoComAgente dispositivo, string? patrimonioRecebido)
+    {
+        var patrimonio = NormalizarPatrimonio(patrimonioRecebido);
+        if (patrimonio is null || dispositivo.AssetTag == patrimonio) return;
+        if (!EhPatrimonioProvisorio(dispositivo.AssetTag)) return;
+
+        var emUso = await _db.Dispositivos.IgnoreQueryFilters()
+            .AnyAsync(d => d.AssetTag == patrimonio && d.Id != dispositivo.Id);
+        if (emUso) return;
+
+        dispositivo.AssetTag = patrimonio;
     }
 
     [HttpPost("heartbeat")]

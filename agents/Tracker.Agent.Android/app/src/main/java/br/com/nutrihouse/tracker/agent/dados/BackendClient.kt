@@ -58,6 +58,11 @@ class BackendClient(
         // Digitados pelo tecnico na tela de registro. Sem Device Owner o Android nao entrega o
         // serial de fabrica nem o IMEI ao app — o valor informado e o que liga o registro ao
         // ativo fisico (etiqueta, caixa, *#06#) no inventario.
+        //
+        // O patrimonio e o mais importante dos tres: e por ele que o backend RE-ENCONTRA um
+        // cadastro existente. O identificador provisorio do app muda quando o APK e reinstalado
+        // com outra assinatura, e sem o patrimonio o aparelho entraria duplicado.
+        patrimonioInformado: String? = null,
         numeroSerieInformado: String? = null,
         imeiInformado: String? = null,
     ): Boolean = withContext(Dispatchers.IO) {
@@ -69,6 +74,7 @@ class BackendClient(
             put("macAddress", JSONObject.NULL) // Android 6+ nao expoe o MAC real ao app.
             put("tipo", info.tipo.name)
             put("imei", imeiInformado?.takeIf { it.isNotBlank() } ?: info.imei ?: JSONObject.NULL)
+            put("assetTag", patrimonioInformado?.takeIf { it.isNotBlank() } ?: JSONObject.NULL)
             put("fabricante", info.fabricante)
             put("modelo", info.modelo)
             put("nivelProtecao", politica.nivelProtecao.name)
