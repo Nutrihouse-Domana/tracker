@@ -43,3 +43,6 @@ agents/Tracker.Agent.Android/app/build/
 Thumbs.db
 .vscode/
 .idea/
+
+# Payload do instalador de pendrive (contem a EnrollmentKey)
+deploy/Instalador/Recursos/

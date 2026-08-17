@@ -23,7 +23,13 @@ public record AutoEnrollmentRequest(
     string? Imei,
     string? Fabricante = null,
     string? Modelo = null,
-    NivelProtecaoAgente? NivelProtecao = null);
+    NivelProtecaoAgente? NivelProtecao = null,
+    /// <summary>
+    /// Patrimônio digitado pelo técnico. É a identidade corporativa do ativo (está na etiqueta) e
+    /// tem precedência no reencontro: diferente do número de série de aparelho sem Device Owner,
+    /// ele não muda quando o app é reinstalado com outra assinatura.
+    /// </summary>
+    string? AssetTag = null);
 
 /// <summary>
 /// Telemetria enviada periodicamente pelo agente. Os campos a partir de BateriaPercentual só
@@ -38,7 +44,11 @@ public record HeartbeatRequest(
     double? PrecisaoMetros,
     int? BateriaPercentual = null,
     NivelProtecaoAgente? NivelProtecao = null,
-    OrigemLocalizacao? Origem = null);
+    OrigemLocalizacao? Origem = null,
+    // versionCode do APK instalado: é o que dispara a oferta de atualização OTA. Só Android envia.
+    int? AgenteVersaoCode = null,
+    // IMEI lido no aparelho (disponível com Device Owner). Preenche o cadastro quando estiver vazio.
+    string? Imei = null);
 
 /// <summary>Comando pendente entregue ao agente (via heartbeat ou SignalR).</summary>
 public record ComandoPendenteDto(Guid Id, TipoComandoRemoto TipoComando);
@@ -50,7 +60,32 @@ public record ComandoPendenteDto(Guid Id, TipoComandoRemoto TipoComando);
 /// </summary>
 public record HeartbeatResponse(
     IReadOnlyList<ComandoPendenteDto> ComandosPendentes,
-    bool DeveEstarBloqueado = false);
+    bool DeveEstarBloqueado = false,
+    // Presente quando há APK mais novo publicado: o agente baixa, confere o hash e se instala.
+    AtualizacaoAgenteDto? AtualizacaoAgente = null);
+
+/// <summary>
+/// Oferta de atualização OTA entregue no heartbeat. O agente confere o SHA-256 do APK baixado
+/// contra <paramref name="HashSha256"/> antes de instalar — um download corrompido é descartado.
+/// </summary>
+public record AtualizacaoAgenteDto(int VersaoCode, string VersaoNome, string HashSha256, long TamanhoBytes);
+
+/// <summary>Pacote OTA publicado, exibido no painel (o arquivo em si fica em disco).</summary>
+public record PacoteAgenteAndroidDto(
+    Guid Id,
+    int VersaoCode,
+    string VersaoNome,
+    string NomeArquivoOriginal,
+    string HashSha256,
+    long TamanhoBytes,
+    DateTime CriadoEm);
+
+/// <summary>Situação da frota Android em relação ao pacote vigente.</summary>
+public record SituacaoAgenteAndroidDto(
+    PacoteAgenteAndroidDto? PacoteVigente,
+    IReadOnlyList<PacoteAgenteAndroidDto> Historico,
+    int DispositivosNaVersao,
+    int DispositivosDesatualizados);
 
 /// <summary>Evento que o agente reporta por conta própria (ex.: admin desativado no Android).</summary>
 public record AlertaAgenteRequest(TipoAlertaDispositivo Tipo, string? Detalhe);

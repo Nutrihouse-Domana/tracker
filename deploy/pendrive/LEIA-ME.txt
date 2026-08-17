@@ -1,0 +1,63 @@
+TRACKER AGENT - INSTALACAO POR PENDRIVE (Nutrihouse)
+====================================================
+
+COMO INSTALAR (na maquina do colaborador)
+-----------------------------------------
+1. Espete o pendrive.
+2. Duplo clique em  Instalar-Agente.exe
+3. O Windows pede USUARIO e SENHA de administrador - a TI digita.
+4. Aguarde a mensagem "INSTALACAO CONCLUIDA" e feche a janela.
+5. O dispositivo aparece sozinho no Tracker em ate 1 minuto (auto-cadastro).
+
+O Instalar-Agente.exe e AUTOCONTIDO: um unico arquivo, nada precisa estar ao lado
+dele. O agente, o appsettings.json ja configurado (backend + chave da empresa) e a
+definicao da tela de bloqueio viajam embutidos dentro do proprio executavel.
+Pode copiar so o .exe para onde quiser - inclusive rodar direto do pendrive.
+
+POR QUE UM .EXE E NAO UM .BAT OU .PS1
+-------------------------------------
+  - Arquivo .cmd/.bat nao tem manifesto e por isso NUNCA consegue pedir elevacao.
+    So executavel que declara "requireAdministrator" faz o Windows exibir a caixa
+    de usuario e senha - e por isso que os instaladores comerciais conseguem.
+  - A Execution Policy do PowerShell esta bloqueada por diretiva de grupo, entao
+    nenhum .ps1 vindo do pendrive executaria.
+
+O QUE A INSTALACAO FAZ
+----------------------
+  - cria a pasta C:\TrackerAgent e extrai o agente ja configurado;
+  - registra o servico do Windows "TrackerAgent" (inicio automatico, LocalSystem,
+    reinicio em caso de falha, e protegido contra parada por usuario comum);
+  - registra a tarefa "TrackerAgentLock" (tela de bloqueio remoto);
+  - grava  logs\<NOME-DA-MAQUINA>-instalacao.log  ao lado do .exe. Se a midia for
+    somente leitura, o log vai para %ProgramData%\TrackerAgent.
+
+Reinstalar na mesma maquina e seguro: o token do dispositivo (token.dat) e preservado,
+entao nao duplica o registro no Tracker.
+
+DESINSTALAR
+-----------
+Abra o Prompt de Comando e rode:
+    Instalar-Agente.exe --desinstalar
+(tambem pede usuario e senha de administrador)
+
+SE A ELEVACAO FALHAR
+--------------------
+  1. SHIFT + botao direito no Instalar-Agente.exe, "Executar como usuario diferente".
+  2. Fazer logon na maquina com a conta de administrador e rodar normalmente.
+  3. Instalar remotamente da estacao da TI, ou publicar por GPO/Intune (roda como
+     SYSTEM e nem passa por UAC).
+
+Para descobrir qual politica esta barrando, rode o Diagnostico-UAC.cmd (opcional,
+roda como usuario comum e nao altera nada) e mande para a TI o arquivo
+logs\UAC-<NOME-DA-MAQUINA>.txt.
+Obs.: o proprio .exe tem  --diagnostico , mas ele so funciona quando a elevacao
+da certo (o manifesto exige admin para o processo iniciar); por isso o .cmd existe.
+
+ATENCAO
+-------
+O executavel carrega embutida a EnrollmentKey (segredo da empresa).
+Este pendrive e de uso exclusivo da TI - nao empreste nem deixe com o usuario.
+
+Para regerar o instalador (so quando o agente ou a configuracao mudarem), na raiz
+do repositorio:
+  .\deploy\gerar-pendrive.ps1 -Destino E:\TrackerAgent -BackendUrl https://tracker.foodsacademy.com.br

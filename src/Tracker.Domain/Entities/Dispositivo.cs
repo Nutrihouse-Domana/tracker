@@ -20,6 +20,28 @@ public abstract class Dispositivo : EntidadeBase
     public Guid? UsuarioAtualId { get; set; }
     public Usuario? UsuarioAtual { get; set; }
 
+    /// <summary>Unidade que o dispositivo atende (matriz, filial...). Nulo enquanto não definida.</summary>
+    public Guid? UnidadeId { get; set; }
+    public Unidade? Unidade { get; set; }
+
+    /// <summary>
+    /// True: o ativo é de um usuário nominal (fluxo normal de atribuição e termo de uso).
+    /// False: é do local — fica lotado na <see cref="Unidade"/> e não tem detentor individual
+    /// (ex.: notebook de sala de reunião). Nesse caso <see cref="UsuarioAtualId"/> é sempre nulo.
+    /// </summary>
+    public bool PertenceAUsuario { get; set; } = true;
+
+    // --- Arquivamento (exclusão lógica) ---
+    // Excluir de verdade destruiria movimentações, reparos e termos de uso assinados, que são a
+    // razão de o Tracker existir. A "exclusão" some com o ativo de todas as telas via filtro
+    // global de consulta, preservando a trilha de auditoria e permitindo restaurar.
+
+    /// <summary>Quando o ativo foi arquivado. Nulo = ativo normal.</summary>
+    public DateTime? ExcluidoEm { get; set; }
+    /// <summary>ADM que confirmou a exclusão com a própria senha.</summary>
+    public Guid? ExcluidoPorAdmId { get; set; }
+    public string? MotivoExclusao { get; set; }
+
     public ICollection<HistoricoMovimentacao> HistoricoMovimentacoes { get; set; } = new List<HistoricoMovimentacao>();
     public ICollection<HistoricoLocalizacao> HistoricoLocalizacoes { get; set; } = new List<HistoricoLocalizacao>();
     public ICollection<HistoricoReparo> HistoricoReparos { get; set; } = new List<HistoricoReparo>();
@@ -35,6 +57,11 @@ public abstract class DispositivoComAgente : Dispositivo
     public string? VersaoSO { get; set; }
     public string? MacAddress { get; set; }
     public string? AgenteVersao { get; set; }
+    /// <summary>
+    /// versionCode do APK instalado, reportado no heartbeat. Só o agente Android envia (nulo no
+    /// Windows) — é o que o servidor compara para oferecer a atualização OTA.
+    /// </summary>
+    public int? AgenteVersaoCode { get; set; }
     public DateTime? UltimoHeartbeatEm { get; set; }
     public bool GeofenceAtivo { get; set; }
     public StatusComandoRemoto? StatusUltimoComando { get; set; }

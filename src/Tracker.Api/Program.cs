@@ -67,7 +67,13 @@ if (string.IsNullOrWhiteSpace(cpfKeyBase64))
 builder.Services.AddSingleton(new AesStringEncryptor(Convert.FromBase64String(cpfKeyBase64)));
 
 builder.Services.AddDbContext<TrackerDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("TrackerDb")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("TrackerDb"))
+        // Dispositivo tem filtro global (exclusão lógica) e é o lado obrigatório de várias
+        // relações (movimentações, reparos, termos...). O EF avisa disso a cada start; aqui é
+        // intencional: o histórico de um ativo arquivado só é lido com IgnoreQueryFilters().
+        .ConfigureWarnings(w => w.Ignore(
+            Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId
+                .PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning)));
 
 builder.Services
     .AddIdentity<UsuarioADM, IdentityRole<Guid>>(options =>
@@ -98,11 +104,18 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddScoped<ITermoDeUsoPdfService, TermoDeUsoPdfService>();
 builder.Services.AddSingleton<AgentTokenService>();
 builder.Services.AddScoped<AgentAuth>();
+builder.Services.AddScoped<Tracker.Api.Seguranca.ConfirmacaoSenhaAdm>();
 
 var termosPath = Path.Combine(
     builder.Environment.ContentRootPath,
     builder.Configuration["Storage:TermosDeUsoPath"] ?? "App_Data/termos-de-uso");
 builder.Services.AddSingleton<IArmazenamentoArquivosService>(_ => new ArmazenamentoArquivosService(termosPath));
+
+var pacotesPath = Path.Combine(
+    builder.Environment.ContentRootPath,
+    builder.Configuration["Storage:PacotesAgentePath"] ?? "App_Data/pacotes-agente");
+builder.Services.AddSingleton<IArmazenamentoPacotesAgenteService>(
+    _ => new ArmazenamentoPacotesAgenteService(pacotesPath));
 
 builder.Services.AddCors(options =>
 {

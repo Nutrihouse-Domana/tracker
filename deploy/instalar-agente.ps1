@@ -50,7 +50,14 @@ sc.exe failure $NomeServico reset= 86400 actions= restart/5000/restart/5000/rest
 
 # Protecao contra parada/remocao: nega STOP/DELETE a usuarios nao-administradores.
 # SDDL: concede controle total a SYSTEM (SY) e Administradores (BA); usuarios comuns so leem status.
-$sddl = "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCLCSWRPWPDTLOCRRC;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)"
+#
+# NAO reduza o conjunto de direitos de SY/BA. A versao anterior usava "CCLCSWRPWPDTLOCRRC",
+# que omite SD (delete), DC (mudar configuracao) e WD (mudar a propria DACL): o servico ficava
+# impossivel de remover ou reconfigurar ATE POR ADMINISTRADOR, e a reinstalacao morria com
+# "sc create" 1073 (servico ja existe). Para consertar uma maquina nesse estado, apague
+# HKLM\SYSTEM\CurrentControlSet\Services\TrackerAgent\Security e reinstale.
+$direitosTotais = "CCDCLCSWRPWPDTLOCRSDRCWDWO"
+$sddl = "D:(A;;$direitosTotais;;;SY)(A;;$direitosTotais;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)"
 sc.exe sdset $NomeServico $sddl | Out-Null
 
 # Tarefa agendada que lanca a TELA DE BLOQUEIO na sessao interativa do usuario.

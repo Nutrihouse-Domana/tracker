@@ -7,9 +7,12 @@
     <string name="enrollment_chave_ajuda">Informado pela equipe de TI. Sem ele o aparelho não entra no inventário.</string>
     <string name="enrollment_chave_vazia">Digite o código de instalação.</string>
     <string name="enrollment_chave_invalida">Código de instalação incorreto. Confira com a equipe de TI.</string>
-    <string name="enrollment_serie">Número de série</string>
-    <string name="enrollment_serie_ajuda">Da etiqueta do aparelho ou em Configurações &gt; Sobre o tablet.</string>
-    <string name="enrollment_serie_vazia">Informe o número de série do aparelho.</string>
+    <string name="enrollment_patrimonio">Patrimônio</string>
+    <string name="enrollment_patrimonio_ajuda">O da etiqueta do ativo. É o que liga o aparelho ao cadastro que já existe — sem ele, reinstalar o agente cria um dispositivo duplicado.</string>
+    <string name="enrollment_numero_serie">Número de série (opcional)</string>
+    <string name="enrollment_numero_serie_ajuda">O da etiqueta/caixa do aparelho. Sem ele, o inventário usa um identificador interno do Android.</string>
+    <string name="enrollment_imei">IMEI (opcional)</string>
+    <string name="enrollment_imei_ajuda">Disque *#06# para ver. Permite localizar o aparelho no inventário pelo IMEI.</string>
     <string name="enrollment_registrar">Registrar aparelho</string>
     <string name="enrollment_registrado">Aparelho registrado no inventário.</string>
     <string name="enrollment_falha_generica">Não foi possível registrar o aparelho. Verifique a conexão.</string>
@@ -25,6 +28,9 @@
     <string name="enrollment_bateria_titulo">4. Bateria sem restrição</string>
     <string name="enrollment_bateria_texto">Evita que o sistema encerre o agente e o aparelho apareça offline no painel.</string>
     <string name="enrollment_bateria_botao">Remover restrição de bateria</string>
+    <string name="enrollment_instalar_titulo">5. Atualizações automáticas</string>
+    <string name="enrollment_instalar_texto">Permite ao agente instalar as próprias atualizações enviadas pela TI, sem loja de aplicativos.</string>
+    <string name="enrollment_instalar_botao">Permitir instalação de atualizações</string>
 
     <string name="admin_aviso_desativacao">Ao desativar o administrador este aparelho deixa de poder ser bloqueado remotamente. A equipe de TI da Nutrihouse será notificada.</string>
 

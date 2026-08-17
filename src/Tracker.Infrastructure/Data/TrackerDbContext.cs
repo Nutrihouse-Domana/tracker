@@ -20,6 +20,7 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
     public DbSet<Usuario> Usuarios => Set<Usuario>();
     public DbSet<Dispositivo> Dispositivos => Set<Dispositivo>();
     public DbSet<Local> Locais => Set<Local>();
+    public DbSet<Unidade> Unidades => Set<Unidade>();
     public DbSet<HistoricoMovimentacao> HistoricoMovimentacoes => Set<HistoricoMovimentacao>();
     public DbSet<HistoricoLocalizacao> HistoricoLocalizacoes => Set<HistoricoLocalizacao>();
     public DbSet<TermoDeUso> TermosDeUso => Set<TermoDeUso>();
@@ -28,6 +29,7 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
     public DbSet<HistoricoReparo> HistoricoReparos => Set<HistoricoReparo>();
     public DbSet<ComentarioDispositivo> ComentariosDispositivo => Set<ComentarioDispositivo>();
     public DbSet<AlertaDispositivo> AlertasDispositivo => Set<AlertaDispositivo>();
+    public DbSet<PacoteAgenteAndroid> PacotesAgenteAndroid => Set<PacoteAgenteAndroid>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -62,6 +64,25 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
                 .WithMany(u => u.Dispositivos)
                 .HasForeignKey(d => d.UsuarioAtualId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // Restrict: apagar uma unidade não pode deixar dispositivos órfãos em silêncio.
+            entity.HasOne(d => d.Unidade)
+                .WithMany(u => u.Dispositivos)
+                .HasForeignKey(d => d.UnidadeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Exclusão lógica: o dispositivo arquivado desaparece de TODA consulta (listas, busca,
+            // dashboard, autenticação do agente) sem que cada query precise lembrar do filtro.
+            // Para vê-lo — tela de arquivados, restauração — use IgnoreQueryFilters().
+            entity.HasQueryFilter(d => d.ExcluidoEm == null);
+            entity.HasIndex(d => d.ExcluidoEm);
+        });
+
+        builder.Entity<Unidade>(entity =>
+        {
+            entity.HasIndex(u => u.Nome).IsUnique();
+            entity.Property(u => u.Nome).HasMaxLength(120);
+            entity.Property(u => u.Codigo).HasMaxLength(20);
         });
 
         // IMEI mora só em Mobile (Notebook não tem). Nulo porque tablet só-Wi-Fi não tem modem.
@@ -155,6 +176,16 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
                 .WithMany(d => d.Comentarios)
                 .HasForeignKey(c => c.DispositivoId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<PacoteAgenteAndroid>(entity =>
+        {
+            // Um pacote por versionCode: republicar a mesma versão exige apagar/subir outra.
+            entity.HasIndex(p => p.VersaoCode).IsUnique();
+            entity.Property(p => p.VersaoNome).HasMaxLength(50);
+            entity.Property(p => p.NomeArquivoOriginal).HasMaxLength(260);
+            entity.Property(p => p.CaminhoRelativo).HasMaxLength(400);
+            entity.Property(p => p.HashSha256).HasMaxLength(64);
         });
 
         builder.Entity<AlertaDispositivo>(entity =>

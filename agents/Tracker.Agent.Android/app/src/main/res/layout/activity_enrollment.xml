@@ -53,27 +53,60 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!--
-          Numero de serie digitado pelo tecnico. O Android nao entrega a serie de fabrica nem o
-          IMEI a um app comum (bloqueio do sistema desde a versao 10), e o identificador que sobra
-          (ANDROID_ID) muda quando a assinatura do app muda — foi o que duplicou registros no
-          inventario. A serie da etiqueta e estavel e nao depende de nada disso.
-        -->
+        <!-- Patrimonio: e o identificador que RE-ENCONTRA o ativo no inventario. Vem primeiro de
+             proposito - sem ele, um aparelho que se registra de novo (agente trocado, dados
+             limpos) entra como dispositivo novo e duplica o ativo. -->
         <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/blocoSerie"
+            android:id="@+id/blocoPatrimonio"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:hint="@string/enrollment_serie"
-            app:helperText="@string/enrollment_serie_ajuda"
+            android:hint="@string/enrollment_patrimonio"
+            app:helperText="@string/enrollment_patrimonio_ajuda"
             app:helperTextEnabled="true">
 
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/campoSerie"
+                android:id="@+id/campoPatrimonio"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:imeOptions="actionDone"
-                android:inputType="textCapCharacters|textNoSuggestions"
+                android:inputType="textCapCharacters"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Identificacao fisica do ativo. Sem Device Owner o Android nao entrega o serial de
+             fabrica nem o IMEI ao app; o tecnico digita (etiqueta, caixa ou *#06#) para o
+             aparelho ser encontravel no inventario pelo identificador real. -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/blocoNumeroSerie"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/enrollment_numero_serie"
+            app:helperText="@string/enrollment_numero_serie_ajuda"
+            app:helperTextEnabled="true">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/campoNumeroSerie"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textVisiblePassword"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/blocoImei"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/enrollment_imei"
+            app:helperText="@string/enrollment_imei_ajuda"
+            app:helperTextEnabled="true">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/campoImei"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -172,7 +205,28 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:layout_marginBottom="24dp"
             android:text="@string/enrollment_bateria_botao" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/enrollment_instalar_titulo"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/enrollment_instalar_texto"
+            android:textAppearance="?attr/textAppearanceBodySmall" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/botaoInstalarApps"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="24dp"
+            android:text="@string/enrollment_instalar_botao" />
     </LinearLayout>
 </ScrollView>

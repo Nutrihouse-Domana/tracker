@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- net8.0-windows: usa WindowsIdentity e o registro do Windows. -->
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>Instalar-Agente</AssemblyName>
+    <RootNamespace>Tracker.Instalador</RootNamespace>
+
+    <!-- O manifesto com requireAdministrator faz o Windows pedir usuario e senha. -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- Um unico .exe, sem exigir .NET instalado na maquina do colaborador. -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishTrimmed>true</PublishTrimmed>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+
+    <AssemblyTitle>Instalador do Tracker Agent - Nutrihouse</AssemblyTitle>
+    <Product>Tracker Agent</Product>
+    <Company>Nutrihouse</Company>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Modelo da tarefa de bloqueio: o caminho real e substituido em tempo de execucao. -->
+    <EmbeddedResource Include="TrackerAgentLock.template.xml" LogicalName="TrackerAgentLock.template.xml" />
+
+    <!--
+      payload.zip = agente publicado + appsettings.json ja configurado. E gerado por
+      deploy\gerar-pendrive.ps1 imediatamente antes do publish e APAGADO em seguida,
+      porque contem a EnrollmentKey da empresa. Nunca versione a pasta Recursos.
+      Se o arquivo nao existir, o projeto compila e o executavel avisa em tempo de execucao.
+    -->
+    <EmbeddedResource Include="Recursos\payload.zip" LogicalName="payload.zip" Condition="Exists('Recursos\payload.zip')" />
+  </ItemGroup>
+
+</Project>

@@ -11,7 +11,10 @@ public record BuscaDispositivoDto(
     string? AssetTag,
     string? Hostname,
     string? Imei,
-    string? UsuarioAtualNome);
+    string? UsuarioAtualNome,
+    string? UnidadeNome = null,
+    // Quem responde pelo ativo: o usuário nominal ou, se for do local, a unidade.
+    string? ResponsavelNome = null);
 
 /// <summary>Item de usuário no resultado da busca global.</summary>
 public record BuscaUsuarioDto(

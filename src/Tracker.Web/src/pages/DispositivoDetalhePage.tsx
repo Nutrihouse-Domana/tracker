@@ -12,7 +12,10 @@ import {
   Grid,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBackOutlined'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import { useDispositivo } from '../features/dispositivos/hooks'
+import { PosseSection } from '../features/dispositivos/PosseSection'
+import { ExcluirDispositivoDialog } from '../features/dispositivos/ExcluirDispositivoDialog'
 import { StatusDispositivoAcoes } from '../features/dispositivos/StatusDispositivoAcoes'
 import { MovimentacaoSection } from '../features/dispositivos/MovimentacaoSection'
 import { ReparosSection } from '../features/dispositivos/ReparosSection'
@@ -25,6 +28,7 @@ export function DispositivoDetalhePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [aba, setAba] = useState(0)
+  const [excluirAberto, setExcluirAberto] = useState(false)
   const { data: dispositivo, isLoading } = useDispositivo(id)
 
   if (isLoading) {
@@ -50,6 +54,7 @@ export function DispositivoDetalhePage() {
         </Typography>
       ),
     },
+    { label: 'Unidade & Posse', render: () => <PosseSection dispositivo={dispositivo} /> },
     { label: 'Movimentação', render: () => <MovimentacaoSection dispositivoId={dispositivo.id} /> },
     { label: 'Reparos', render: () => <ReparosSection dispositivoId={dispositivo.id} /> },
     { label: 'Comentários', render: () => <ComentariosSection dispositivoId={dispositivo.id} /> },
@@ -76,7 +81,17 @@ export function DispositivoDetalhePage() {
               {dispositivo.tipo} — {dispositivo.assetTag ?? dispositivo.numeroSerie}
             </Typography>
           </Box>
-          <StatusDispositivoAcoes dispositivoId={dispositivo.id} status={dispositivo.status} />
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            <StatusDispositivoAcoes dispositivoId={dispositivo.id} status={dispositivo.status} />
+            <Button
+              size="small"
+              color="error"
+              startIcon={<DeleteOutlineIcon />}
+              onClick={() => setExcluirAberto(true)}
+            >
+              Excluir
+            </Button>
+          </Stack>
         </Stack>
 
         <Grid container spacing={2}>
@@ -85,8 +100,15 @@ export function DispositivoDetalhePage() {
             <Typography variant="body2">{dispositivo.numeroSerie}</Typography>
           </Grid>
           <Grid size={{ xs: 6, sm: 3 }}>
-            <Typography variant="caption" color="text.secondary">Usuário atual</Typography>
-            <Typography variant="body2">{dispositivo.usuarioAtualNome ?? '—'}</Typography>
+            {/* Ativo do local não tem detentor: o rótulo e o valor passam a ser da unidade. */}
+            <Typography variant="caption" color="text.secondary">
+              {dispositivo.pertenceAUsuario ? 'Usuário atual' : 'Unidade (ativo do local)'}
+            </Typography>
+            <Typography variant="body2">{dispositivo.responsavelNome ?? '—'}</Typography>
+          </Grid>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <Typography variant="caption" color="text.secondary">Unidade atendida</Typography>
+            <Typography variant="body2">{dispositivo.unidadeNome ?? '—'}</Typography>
           </Grid>
           {dispositivo.sistemaOperacional && (
             <Grid size={{ xs: 6, sm: 3 }}>
@@ -131,6 +153,13 @@ export function DispositivoDetalhePage() {
         </Tabs>
         <Box sx={{ p: 3 }}>{tabs[aba]?.render()}</Box>
       </Paper>
+
+      <ExcluirDispositivoDialog
+        dispositivo={excluirAberto ? dispositivo : null}
+        onClose={() => setExcluirAberto(false)}
+        // O ativo sai das listas: ficar na tela dele seria um beco sem saída.
+        onExcluido={() => navigate('/dispositivos')}
+      />
     </>
   )
 }

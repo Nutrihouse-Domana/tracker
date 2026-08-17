@@ -26,6 +26,8 @@ const navItems = [
   { label: 'Dashboard', path: '/' },
   { label: 'Dispositivos', path: '/dispositivos' },
   { label: 'Usuários', path: '/usuarios' },
+  { label: 'Unidades', path: '/unidades' },
+  { label: 'Agente', path: '/agente-android' },
 ]
 
 export function AppShell() {

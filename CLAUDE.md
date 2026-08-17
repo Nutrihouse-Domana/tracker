@@ -77,7 +77,9 @@ dotnet run --project agents/Tracker.Agent.Windows      # modo console (Simular=t
 
 # Agente Android (SDK em C:\Android\Sdk; gradlew versionado, não precisa instalar Gradle)
 cd agents/Tracker.Agent.Android && ./gradlew :app:assembleDebug   # APK assinado p/ teste
-# assembleRelease exige keystore em local.properties — falha com mensagem se faltar.
+# Release da frota: use o script (cria a keystore na 1a vez, compila e mostra versionCode/SHA-256).
+./deploy/gerar-apk-agente.ps1
+# assembleRelease direto exige keystore em local.properties — falha com mensagem se faltar.
 
 # Instalar/diagnosticar no aparelho (adb vem do SDK)
 C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/app-release.apk
@@ -93,10 +95,17 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
 - **DTOs** são `record` na camada Application. Enums serializados como string na API.
 - **Validação** com FluentValidation, injetada nos controllers via `IValidator<T>`.
 - **CPF** é criptografado em repouso (AES-GCM) via `EncryptedStringConverter` no DbContext.
+- **Ações sensíveis pedem a senha do ADM logado** (`ConfirmacaoSenhaAdm` em `src/Tracker.Api/Seguranca`):
+  excluir dispositivo e alternar `PertenceAUsuario`. Cookie de sessão não prova quem está na máquina.
 - **Autenticação:** ADM via ASP.NET Core Identity (cookie). **Agente** via token por dispositivo
   no header `X-Agent-Token` (hash SHA-256 guardado em `TokenAgenteHash`), resolvido por `AgentAuth`.
 - **Comandos remotos:** ADM emite via REST; entrega ao agente por **SignalR** (`/hubs/comandos`)
   com fallback pelo **heartbeat** (o agente também busca comandos pendentes a cada heartbeat).
+- **Atualização OTA do agente Android (sem loja):** a TI publica o APK no painel (página Agente,
+  com senha do ADM — `AgenteAndroidController`); o heartbeat compara `AgenteVersaoCode` com o
+  maior `PacoteAgenteAndroid.VersaoCode` e anuncia a oferta; o agente baixa
+  (`GET /api/agente/atualizacao/apk`, token do dispositivo), confere o SHA-256 e se instala via
+  `PackageInstaller`. APKs ficam em `App_Data/pacotes-agente` (`Storage:PacotesAgentePath`).
 
 ## Pegadinhas já resolvidas (não repita)
 
@@ -105,6 +114,28 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   **Ao criar um novo tipo com agente, atualize os DOIS lugares que enumeram os tipos concretos:**
   `AgentAuth.ResolverAsync` (senão o agente não autentica) e `BuscaController.BuscarDispositivos`
   (senão o aparelho fica invisível na busca por hostname/IMEI).
+- **Excluir dispositivo tem DOIS modos** (`ExcluirDispositivoRequest.Definitiva`), escolhidos pelo
+  ADM no diálogo: arquivar (padrão) ou apagar de vez. Na definitiva, **`TermoDeUso` é o único
+  dependente com FK `Restrict`** — o controller remove os termos à mão antes do `Remove`, senão o
+  DELETE estoura com erro cru de FK; os demais dependentes saem por `ON DELETE CASCADE`. Os PDFs
+  em disco só são apagados **depois** do `SaveChangesAsync`. Coberto por `UnidadeEPosseTests`.
+- **O arquivamento é LÓGICO** (`ExcluidoEm`/`ExcluidoPorAdmId`/`MotivoExclusao`), com
+  **filtro global** `HasQueryFilter(d => d.ExcluidoEm == null)`. Consequências:
+  - Toda consulta já sai filtrada; para ver arquivados use `IgnoreQueryFilters()`.
+  - **O índice único de `NumeroSerie`/`AssetTag` NÃO conhece o filtro.** Um `AnyAsync` comum não
+    enxerga o arquivado e o cadastro estouraria com erro cru de banco — `ConferirDuplicidadeAsync`
+    checa com `IgnoreQueryFilters()` e devolve mensagem dizendo para restaurar.
+  - O `PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning` é suprimido de
+    propósito no `Program.cs`: Dispositivo é o lado obrigatório de várias relações de histórico.
+- **`AddColumn<bool>` gerado pelo EF vem com `defaultValue: false`** — o padrão do C# (`= true` em
+  `PertenceAUsuario`) **não** vale para o backfill. Sem corrigir a migração à mão, todo dispositivo
+  já cadastrado viraria "ativo do local" sem unidade e perderia o detentor na tela. Ver
+  `UnidadeEPosseComExclusaoLogica`.
+- **Senha errada em confirmação devolve 400, nunca 401.** O interceptor do axios
+  (`src/Tracker.Web/src/api/client.ts`) trata 401 como sessão expirada e limpa o `me` — o ADM
+  seria deslogado só por errar a senha no diálogo de exclusão.
+- **`Unidade` ≠ `Local`.** Unidade é a lotação organizacional do ativo (matriz/filial) e alimenta a
+  coluna "Responsável" quando `PertenceAUsuario = false`; `Local` é ponto geográfico de geofence.
 - **Novos valores de enum vão no FIM, e valores existentes NUNCA mudam de número.** O número é
   gravado como discriminador na tabela: `Mobile` = 1 (era `Telefone`) e mexer nisso reclassificaria
   todos os dispositivos já cadastrados. Coberto por `MobileTphTests`.
@@ -128,6 +159,38 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   bloqueio que demora ~1 heartbeat em vez de ser imediato, com a conexão SignalR aparentemente
   saudável. Afeta os agentes Windows e Android igualmente. Os agentes hoje aceitam os dois
   formatos como defesa, mas a configuração do servidor é o conserto de verdade.
+- **OTA Android:**
+  - **Todo release do agente PRECISA incrementar `versionCode`** em `app/build.gradle.kts` — o
+    Android recusa instalar versão igual/menor, e o painel barra a publicação com mensagem.
+    O agente compara com `BuildConfig.VERSION_CODE` (não existe mais `AgenteConfig.VERSAO_AGENTE`).
+  - O heartbeat só oferece APK a quem **envia** `agenteVersaoCode` — o agente Windows não envia e
+    nunca recebe oferta. Não dê valor padrão 0 ao campo no backend: nulo significa "não é Android".
+  - Sem Device Owner, a 1ª OTA mostra o diálogo do sistema (exige "instalar apps desconhecidos",
+    passo 5 do enrollment). Da 2ª em diante (Android 12+) é silencioso: o agente vira o
+    instalador de si mesmo (`USER_ACTION_NOT_REQUIRED`).
+  - Agentes 1.0.0 (sem OTA) não se atualizam sozinhos: a primeira troca é manual via adb.
+  - **A keystore de release amarra a frota inteira**: assinatura diferente é recusada pelo Android
+    e a saída seria reinstalar aparelho por aparelho. Ela mora **fora do repositório**
+    (`Documents\TrackerKeystore\`) porque worktree/clone novo não leva a chave junto.
+  - **O release liga o R8.** `proguard-rules.pro` preserva `dados.**` (o Gson do SignalR lê os
+    campos por nome) e o Device Admin; receivers do manifest o AGP mantém sozinho. DTO novo fora
+    de `dados` exige regra nova — sem ela o comando chega vazio e é descartado **em silêncio**.
+- **Identificação Android — o `NumeroSerie` provisório NÃO é estável.** Sem Device Owner o agente
+  manda `ANDROID-<ANDROID_ID>`, e o ANDROID_ID é escopado por **chave de assinatura do APK**: ele
+  muda quando o app é reinstalado assinado com outra chave (trocar debug→release faz isso na frota
+  inteira). Já duplicou tablet em produção assim. Consequências:
+  - O `AutoEnrollment` reencontra o ativo nesta ordem: **patrimônio → número de série → IMEI**.
+    O patrimônio é digitado pelo técnico e é o único que atravessa troca de assinatura.
+  - `PromoverNumeroSerieAsync`/`PromoverPatrimonioAsync` só **sobem** a qualidade do dado: serial
+    de fábrica nunca é rebaixado para `ANDROID-*`, patrimônio real nunca volta a `AUTO-*`. As duas
+    checam o índice único **com `IgnoreQueryFilters()`** (arquivado seguraria o UPDATE).
+  - Arquivado com o mesmo serial **ou patrimônio** devolve 409 com mensagem clara.
+  - O heartbeat completa o `Imei` só quando o cadastro está vazio — nunca sobrescreve o digitado.
+- **Ler série/IMEI de fábrica depende da versão do Android:** até o 7.1 `Build.SERIAL` é livre; do
+  8.0 ao 9 exige `READ_PHONE_STATE` (declarada com `maxSdkVersion=28`, pedida no enrollment); do
+  **10 em diante é proibido a app comum — só Device Owner**, e nenhuma permissão contorna. Tablet
+  sem modem (`FEATURE_TELEPHONY` ausente) não tem IMEI algum: o campo some da tela em vez de
+  convidar o técnico a inventar um número.
 - **Agente Android:**
   - **Janela só pode ser criada/removida na thread principal.** O laço de enforcement roda em
     `Dispatchers.IO`; `WindowManager.addView` a partir dele falha ao construir o `Handler` interno

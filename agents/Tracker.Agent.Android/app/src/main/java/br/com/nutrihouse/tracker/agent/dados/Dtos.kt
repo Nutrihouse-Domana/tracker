@@ -9,10 +9,22 @@ data class ComandoPendente(
     val tipoComando: String = "",
 )
 
+/**
+ * Oferta de atualizacao OTA anunciada no heartbeat. O hash e conferido apos o download: um APK
+ * corrompido (ou trocado no servidor entre o anuncio e o download) e descartado sem instalar.
+ */
+data class AtualizacaoAgente(
+    val versaoCode: Int,
+    val versaoNome: String,
+    val hashSha256: String,
+    val tamanhoBytes: Long,
+)
+
 /** Resposta do heartbeat. deveEstarBloqueado e o estado desejado segundo o servidor. */
 data class RespostaHeartbeat(
     val comandosPendentes: List<ComandoPendente>,
     val deveEstarBloqueado: Boolean,
+    val atualizacaoAgente: AtualizacaoAgente? = null,
 )
 
 /** Eventos que o agente reporta sozinho; espelha Tracker.Domain.Enums.TipoAlertaDispositivo. */

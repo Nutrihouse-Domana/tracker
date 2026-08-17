@@ -9,6 +9,7 @@ using Tracker.Domain.Entities;
 using Tracker.Domain.Enums;
 using Tracker.Infrastructure.Data;
 using Tracker.Infrastructure.Security;
+using Tracker.Infrastructure.Storage;
 
 namespace Tracker.Api.Controllers;
 
@@ -60,28 +61,54 @@ public class AgenteController : ControllerBase
         if (request.Tipo is not (TipoDispositivo.Notebook or TipoDispositivo.Mobile))
             return BadRequest(new { message = "Auto-cadastro só vale para notebook ou mobile." });
 
-        var existente = await _db.Dispositivos.FirstOrDefaultAsync(d => d.NumeroSerie == request.NumeroSerie);
+        var existente = await ReencontrarAsync(request);
         if (existente is not null && existente is not DispositivoComAgente)
-            return Conflict(new { message = "Já existe um dispositivo (sem agente) com este número de série." });
+            return Conflict(new { message = "Já existe um dispositivo (sem agente) com esta identificação." });
 
         var dispositivo = existente as DispositivoComAgente;
         if (dispositivo is null)
         {
+            // Arquivados ficam fora do filtro global mas seguram os índices únicos de NumeroSerie
+            // e AssetTag: sem esta checagem o INSERT estouraria com erro cru de banco.
+            var arquivado = await _db.Dispositivos.IgnoreQueryFilters().FirstOrDefaultAsync(d =>
+                d.ExcluidoEm != null &&
+                (d.NumeroSerie == request.NumeroSerie ||
+                    (request.AssetTag != null && d.AssetTag == request.AssetTag)));
+            if (arquivado is not null)
+            {
+                return Conflict(new
+                {
+                    message = $"O dispositivo '{arquivado.AssetTag ?? arquivado.NumeroSerie}' está " +
+                              "arquivado. Restaure-o no painel antes de registrar o aparelho.",
+                });
+            }
+
             dispositivo = request.Tipo == TipoDispositivo.Mobile
                 ? new Mobile { Imei = request.Imei }
                 : new Notebook();
             dispositivo.NumeroSerie = request.NumeroSerie;
-            // Patrimônio provisório — a TI ajusta depois no cadastro.
-            dispositivo.AssetTag = $"AUTO-{request.NumeroSerie}";
+            // Patrimônio digitado pelo técnico quando houver; senão um provisório que a TI ajusta.
+            dispositivo.AssetTag = NormalizarPatrimonio(request.AssetTag) ?? $"AUTO-{request.NumeroSerie}";
             dispositivo.DataAquisicao = DateTime.UtcNow;
             dispositivo.Status = StatusDispositivo.EmEstoque;
             _db.Dispositivos.Add(dispositivo);
+        }
+        else
+        {
+            // Reencontrado: o aparelho é o mesmo ativo, então o registro é reaproveitado (com o
+            // histórico) em vez de duplicado. Só promovemos os identificadores para valores
+            // melhores — nunca rebaixamos um dado real para um provisório.
+            await PromoverNumeroSerieAsync(dispositivo, request.NumeroSerie);
+            await PromoverPatrimonioAsync(dispositivo, request.AssetTag);
         }
 
         dispositivo.Hostname = request.Hostname;
         dispositivo.SistemaOperacional = request.SistemaOperacional;
         dispositivo.VersaoSO = request.VersaoSO;
         dispositivo.MacAddress = request.MacAddress;
+        // IMEI informado (digitado pelo técnico ou lido com Device Owner) completa o cadastro.
+        if (dispositivo is Mobile mobile && !string.IsNullOrWhiteSpace(request.Imei))
+            mobile.Imei = request.Imei;
         dispositivo.Fabricante = request.Fabricante ?? dispositivo.Fabricante;
         dispositivo.Modelo = request.Modelo ?? dispositivo.Modelo;
         dispositivo.NivelProtecao = request.NivelProtecao ?? dispositivo.NivelProtecao;
@@ -93,6 +120,86 @@ public class AgenteController : ControllerBase
         return Ok(new EnrollmentResponse(dispositivo.Id, token, dispositivo.AssetTag));
     }
 
+    /// <summary>
+    /// Prefixo do identificador que o agente Android usa quando o sistema não entrega o serial de
+    /// fábrica (todo aparelho sem Device Owner). É derivado do ANDROID_ID e, portanto, **muda
+    /// quando o APK é reinstalado com outra assinatura** — foi o que já duplicou ativo aqui.
+    /// </summary>
+    private const string PrefixoSerieProvisoria = "ANDROID-";
+
+    private static bool EhSerieProvisoria(string? serie) =>
+        serie is not null && serie.StartsWith(PrefixoSerieProvisoria, StringComparison.Ordinal);
+
+    private static bool EhPatrimonioProvisorio(string? patrimonio) =>
+        patrimonio is not null && patrimonio.StartsWith("AUTO-", StringComparison.Ordinal);
+
+    private static string? NormalizarPatrimonio(string? patrimonio) =>
+        string.IsNullOrWhiteSpace(patrimonio) ? null : patrimonio.Trim();
+
+    /// <summary>
+    /// Reencontra o ativo já cadastrado, na ordem em que os identificadores merecem confiança.
+    /// Sem isso, um aparelho que se registra de novo entra como dispositivo novo e o inventário
+    /// fica com o mesmo tablet duas vezes.
+    /// </summary>
+    private async Task<Dispositivo?> ReencontrarAsync(AutoEnrollmentRequest request)
+    {
+        // 1) Patrimônio: a identidade corporativa do ativo, digitada pelo técnico a partir da
+        //    etiqueta. É o único identificador que sobrevive a reinstalar o app com outra chave
+        //    de assinatura, a limpar os dados e à troca do agente.
+        var patrimonio = NormalizarPatrimonio(request.AssetTag);
+        if (patrimonio is not null)
+        {
+            var porPatrimonio = await _db.Dispositivos.FirstOrDefaultAsync(d => d.AssetTag == patrimonio);
+            if (porPatrimonio is not null) return porPatrimonio;
+        }
+
+        // 2) Número de série: o de fábrica quando o aparelho o entrega; senão o provisório, que
+        //    ainda reencontra o aparelho enquanto a assinatura do APK não mudar.
+        var porSerie = await _db.Dispositivos.FirstOrDefaultAsync(d => d.NumeroSerie == request.NumeroSerie);
+        if (porSerie is not null) return porSerie;
+
+        // 3) IMEI: só existe em aparelho com modem, e só é legível com Device Owner.
+        if (!string.IsNullOrWhiteSpace(request.Imei))
+            return await _db.Set<Mobile>().FirstOrDefaultAsync(m => m.Imei == request.Imei);
+
+        return null;
+    }
+
+    /// <summary>
+    /// Atualiza o número de série do ativo reencontrado, sem nunca trocar um serial de fábrica
+    /// pelo provisório do app — o provisório muda a cada reinstalação com assinatura diferente.
+    /// </summary>
+    private async Task PromoverNumeroSerieAsync(DispositivoComAgente dispositivo, string serieRecebida)
+    {
+        if (string.IsNullOrWhiteSpace(serieRecebida) || dispositivo.NumeroSerie == serieRecebida) return;
+        if (!EhSerieProvisoria(dispositivo.NumeroSerie) && EhSerieProvisoria(serieRecebida)) return;
+
+        // O índice único não conhece o filtro global: um arquivado com o mesmo serial faria o
+        // UPDATE estourar com erro cru de banco.
+        var emUso = await _db.Dispositivos.IgnoreQueryFilters()
+            .AnyAsync(d => d.NumeroSerie == serieRecebida && d.Id != dispositivo.Id);
+        if (emUso) return;
+
+        dispositivo.NumeroSerie = serieRecebida;
+    }
+
+    /// <summary>
+    /// Troca o patrimônio provisório (AUTO-*) pelo que o técnico digitou. Um patrimônio já
+    /// definido pela TI nunca é sobrescrito pelo agente.
+    /// </summary>
+    private async Task PromoverPatrimonioAsync(DispositivoComAgente dispositivo, string? patrimonioRecebido)
+    {
+        var patrimonio = NormalizarPatrimonio(patrimonioRecebido);
+        if (patrimonio is null || dispositivo.AssetTag == patrimonio) return;
+        if (!EhPatrimonioProvisorio(dispositivo.AssetTag)) return;
+
+        var emUso = await _db.Dispositivos.IgnoreQueryFilters()
+            .AnyAsync(d => d.AssetTag == patrimonio && d.Id != dispositivo.Id);
+        if (emUso) return;
+
+        dispositivo.AssetTag = patrimonio;
+    }
+
     [HttpPost("heartbeat")]
     public async Task<ActionResult<HeartbeatResponse>> Heartbeat(HeartbeatRequest request)
     {
@@ -101,8 +208,19 @@ public class AgenteController : ControllerBase
 
         dispositivo.UltimoHeartbeatEm = DateTime.UtcNow;
         if (!string.IsNullOrWhiteSpace(request.AgenteVersao)) dispositivo.AgenteVersao = request.AgenteVersao;
+        if (request.AgenteVersaoCode is { } versaoCode) dispositivo.AgenteVersaoCode = versaoCode;
         if (!string.IsNullOrWhiteSpace(request.Hostname)) dispositivo.Hostname = request.Hostname;
         if (request.BateriaPercentual is { } bateria) dispositivo.BateriaPercentual = bateria;
+
+        // IMEI só vira disponível ao agente quando o aparelho é Device Owner — pode acontecer
+        // depois do enrollment. Preenche apenas quando o cadastro está vazio: o valor digitado
+        // pela TI não deve ser sobrescrito por telemetria.
+        if (dispositivo is Mobile mobile &&
+            string.IsNullOrWhiteSpace(mobile.Imei) &&
+            !string.IsNullOrWhiteSpace(request.Imei))
+        {
+            mobile.Imei = request.Imei;
+        }
 
         // Queda de proteção (usuário desativou o admin no Android) vira alerta: sem isso a TI
         // continuaria vendo o aparelho como protegido.
@@ -152,10 +270,48 @@ public class AgenteController : ControllerBase
         var desbloqueioPendente = pendentes.Any(c => c.TipoComando == TipoComandoRemoto.Desbloquear);
         var deveEstarBloqueado = dispositivo.Status == StatusDispositivo.Bloqueado && !desbloqueioPendente;
 
+        // Oferta de atualização OTA: só para agentes que informam o versionCode (Android). O
+        // agente Windows não envia e nunca recebe oferta de APK.
+        AtualizacaoAgenteDto? atualizacao = null;
+        if (request.AgenteVersaoCode is { } versaoAtual)
+        {
+            var vigente = await _db.PacotesAgenteAndroid.AsNoTracking()
+                .OrderByDescending(p => p.VersaoCode)
+                .FirstOrDefaultAsync();
+
+            if (vigente is not null && vigente.VersaoCode > versaoAtual)
+            {
+                atualizacao = new AtualizacaoAgenteDto(
+                    vigente.VersaoCode, vigente.VersaoNome, vigente.HashSha256, vigente.TamanhoBytes);
+            }
+        }
+
         var dto = new HeartbeatResponse(
             pendentes.Select(c => new ComandoPendenteDto(c.Id, c.TipoComando)).ToList(),
-            deveEstarBloqueado);
+            deveEstarBloqueado,
+            atualizacao);
         return Ok(dto);
+    }
+
+    /// <summary>
+    /// Entrega o APK do pacote vigente ao agente (autenticado pelo token do dispositivo). O agente
+    /// confere o SHA-256 contra o hash anunciado no heartbeat antes de instalar — se uma versão
+    /// nova for publicada entre o anúncio e o download, o hash não bate e ele tenta de novo depois.
+    /// </summary>
+    [HttpGet("atualizacao/apk")]
+    public async Task<IActionResult> BaixarPacoteAtualizacao(
+        [FromServices] IArmazenamentoPacotesAgenteService pacotes)
+    {
+        var dispositivo = await AutenticarAsync();
+        if (dispositivo is null) return Unauthorized();
+
+        var vigente = await _db.PacotesAgenteAndroid.AsNoTracking()
+            .OrderByDescending(p => p.VersaoCode)
+            .FirstOrDefaultAsync();
+        if (vigente is null) return NotFound(new { message = "Nenhum pacote publicado." });
+
+        var stream = await pacotes.AbrirAsync(vigente.CaminhoRelativo);
+        return File(stream, "application/vnd.android.package-archive", $"tracker-agent-{vigente.VersaoNome}.apk");
     }
 
     /// <summary>

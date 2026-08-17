@@ -63,8 +63,10 @@ android {
         applicationId = "br.com.nutrihouse.tracker.agent"
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        // versionCode e o numero que a atualizacao OTA compara (aparelho e painel): todo release
+        // novo PRECISA incrementa-lo, senao a frota nunca aceita o pacote.
+        versionCode = 3
+        versionName = "1.1.1"
 
         // O codigo de instalacao e digitado pelo tecnico no aparelho, de proposito: um APK que
         // carrega o codigo embutido vira a propria chave da empresa se o arquivo vazar.

@@ -11,9 +11,14 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   MenuItem,
+  FormControlLabel,
+  Switch,
+  Typography,
 } from '@mui/material'
 import type { TipoDispositivo, TipoPeriferico } from '../../api/types'
 import { useCriarMobile, useCriarNotebook, useCriarPeriferico } from './hooks'
+import { useUnidades } from '../unidades/hooks'
+import { mensagemErroApi } from '../../utils/erroApi'
 
 interface Props {
   open: boolean
@@ -31,7 +36,10 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
   const [imei, setImei] = useState('')
   const [tipoPeriferico, setTipoPeriferico] = useState<TipoPeriferico>('Mouse')
   const [observacoes, setObservacoes] = useState('')
+  const [unidadeId, setUnidadeId] = useState('')
+  const [pertenceAUsuario, setPertenceAUsuario] = useState(true)
 
+  const { data: unidades } = useUnidades()
   const criarNotebook = useCriarNotebook()
   const criarMobile = useCriarMobile()
   const criarPeriferico = useCriarPeriferico()
@@ -54,6 +62,8 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
     setSistemaOperacional('')
     setImei('')
     setObservacoes('')
+    setUnidadeId('')
+    setPertenceAUsuario(true)
     criarNotebook.reset()
     criarMobile.reset()
     criarPeriferico.reset()
@@ -63,10 +73,11 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const dataAquisicao = new Date().toISOString()
+    const posse = { unidadeId: unidadeId || null, pertenceAUsuario }
 
     if (tipo === 'Notebook') {
       criarNotebook.mutate(
-        { numeroSerie, assetTag, hostname, sistemaOperacional, dataAquisicao, observacoes },
+        { numeroSerie, assetTag, hostname, sistemaOperacional, dataAquisicao, observacoes, ...posse },
         { onSuccess: handleClose },
       )
     } else if (tipo === 'Mobile') {
@@ -80,12 +91,13 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
           imei: imei.trim() || null,
           dataAquisicao,
           observacoes,
+          ...posse,
         },
         { onSuccess: handleClose },
       )
     } else {
       criarPeriferico.mutate(
-        { numeroSerie, tipoPeriferico, dataAquisicao, observacoes },
+        { numeroSerie, tipoPeriferico, dataAquisicao, observacoes, ...posse },
         { onSuccess: handleClose },
       )
     }
@@ -99,7 +111,10 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
           <Stack spacing={2} sx={{ mt: 1 }}>
             {mutacaoAtiva.isError && (
               <Alert severity="error">
-                Não foi possível criar o dispositivo. Verifique se o número de série ou o patrimônio já existem.
+                {mensagemErroApi(
+                  mutacaoAtiva.error,
+                  'Não foi possível criar o dispositivo. Verifique se o número de série ou o patrimônio já existem.',
+                )}
               </Alert>
             )}
 
@@ -176,6 +191,40 @@ export function DispositivoFormDialog({ open, onClose }: Props) {
                 ))}
               </TextField>
             )}
+
+            <TextField
+              select
+              label="Unidade que o dispositivo atende"
+              value={unidadeId}
+              onChange={(e) => setUnidadeId(e.target.value)}
+              // Obrigatória quando o ativo é do local: é o nome dela que aparece no lugar do usuário.
+              required={!pertenceAUsuario}
+              fullWidth
+            >
+              <MenuItem value="">— Sem unidade —</MenuItem>
+              {unidades?.map((u) => (
+                <MenuItem key={u.id} value={u.id}>
+                  {u.codigo ? `${u.nome} (${u.codigo})` : u.nome}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <Stack spacing={0.5}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={pertenceAUsuario}
+                    onChange={(e) => setPertenceAUsuario(e.target.checked)}
+                  />
+                }
+                label={pertenceAUsuario ? 'Pertence a um usuário' : 'Pertence ao local (unidade)'}
+              />
+              <Typography variant="caption" color="text.secondary">
+                {pertenceAUsuario
+                  ? 'Será atribuído a um usuário pelo fluxo normal.'
+                  : 'Fica lotado na unidade, que aparece no lugar do usuário.'}
+              </Typography>
+            </Stack>
 
             <TextField
               label="Observações"

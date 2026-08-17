@@ -9,8 +9,10 @@ import type {
   CriarPerifericoRequest,
   CriarReparoRequest,
   CriarMobileRequest,
+  DefinirPosseDispositivoRequest,
   Dispositivo,
   EnrollmentResponse,
+  ExcluirDispositivoRequest,
   HistoricoLocalizacao,
   HistoricoMovimentacao,
   HistoricoReparo,
@@ -21,8 +23,10 @@ import type {
 } from '../../api/types'
 
 export const dispositivosApi = {
-  listar: (filtros?: { tipo?: TipoDispositivo; status?: StatusDispositivo }) =>
+  listar: (filtros?: { tipo?: TipoDispositivo; status?: StatusDispositivo; unidadeId?: string }) =>
     apiClient.get<Dispositivo[]>('/api/dispositivos', { params: filtros }).then((r) => r.data),
+  listarArquivados: () =>
+    apiClient.get<Dispositivo[]>('/api/dispositivos/arquivados').then((r) => r.data),
   obter: (id: string) => apiClient.get<Dispositivo>(`/api/dispositivos/${id}`).then((r) => r.data),
   criarNotebook: (data: CriarNotebookRequest) =>
     apiClient.post<Dispositivo>('/api/dispositivos/notebooks', data).then((r) => r.data),
@@ -32,6 +36,13 @@ export const dispositivosApi = {
     apiClient.post<Dispositivo>('/api/dispositivos/perifericos', data).then((r) => r.data),
   atualizarStatus: (id: string, status: StatusDispositivo) =>
     apiClient.put(`/api/dispositivos/${id}/status`, { status }).then((r) => r.data),
+  definirUnidade: (id: string, unidadeId: string | null) =>
+    apiClient.put(`/api/dispositivos/${id}/unidade`, { unidadeId }).then((r) => r.data),
+  definirPosse: (id: string, data: DefinirPosseDispositivoRequest) =>
+    apiClient.put(`/api/dispositivos/${id}/posse`, data).then((r) => r.data),
+  excluir: (id: string, data: ExcluirDispositivoRequest) =>
+    apiClient.post(`/api/dispositivos/${id}/excluir`, data).then((r) => r.data),
+  restaurar: (id: string) => apiClient.post(`/api/dispositivos/${id}/restaurar`).then((r) => r.data),
   atribuir: (id: string, data: AtribuirDispositivoRequest) =>
     apiClient.post<HistoricoMovimentacao>(`/api/dispositivos/${id}/atribuir`, data).then((r) => r.data),
   historicoMovimentacao: (id: string) =>

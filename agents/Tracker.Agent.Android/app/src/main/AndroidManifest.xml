@@ -26,6 +26,17 @@
          estando em segundo plano: e o que sustenta o bloqueio persistente. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- Auto-atualizacao OTA sem loja: permite ao agente instalar o proprio APK novo. Sem
+         Device Owner o usuario ainda confirma o dialogo do sistema na primeira vez. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Numero de serie e IMEI reais. maxSdkVersion=28 de proposito: do Android 10 em diante o
+         sistema recusa a leitura a app comum (so Device Owner), entao pedir a permissao la seria
+         incomodar o usuario por nada. -->
+    <uses-permission
+        android:name="android.permission.READ_PHONE_STATE"
+        android:maxSdkVersion="28" />
+
     <application
         android:name=".TrackerApp"
         android:allowBackup="false"
@@ -76,6 +87,11 @@
                 <action android:name="android.app.action.PROFILE_PROVISIONING_COMPLETE" />
             </intent-filter>
         </receiver>
+
+        <!-- Resultado da sessao de instalacao da OTA (sucesso, falha ou confirmacao pendente). -->
+        <receiver
+            android:name=".atualizacao.ResultadoInstalacaoReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".servico.BootReceiver"

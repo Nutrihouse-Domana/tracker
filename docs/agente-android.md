@@ -163,6 +163,24 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app\build\outputs\apk\debug\app
 
 ### Gerar o APK de release (distribuição na frota)
 
+**Caminho recomendado** — um comando que faz tudo (cria a keystore na primeira vez, escreve o
+`local.properties`, compila e mostra o que digitar no painel):
+
+```powershell
+.\deploy\gerar-apk-agente.ps1
+```
+
+Ele pede a senha da keystore no prompt (a senha não passa pela linha de comando, que seria
+visível na lista de processos) e, ao final, imprime o caminho do APK, o `versionCode`, o
+`versionName` e o SHA-256 para conferência. Da segunda vez em diante ele só pede a senha e
+recompila. A keystore fica por padrão em `Documents\TrackerKeystore\` — **fora do repositório**,
+de propósito: worktrees e clones novos não levam a chave junto.
+
+O passo a passo manual abaixo continua válido se você preferir controlar cada etapa.
+
+<details>
+<summary>Processo manual</summary>
+
 Exige um keystore próprio. Gere uma vez, com o `keytool` que já vem no JDK — a senha é digitada
 por você, no prompt:
 
@@ -190,6 +208,15 @@ tracker.keyPassword=SUA_SENHA
 
 Sem o keystore configurado, o `assembleRelease` **falha de propósito**, com a mensagem dizendo o
 que falta — em vez de gerar um APK sem assinatura que não instalaria em aparelho nenhum.
+
+</details>
+
+> **O build de release liga o R8 (minify).** As regras em `app/proguard-rules.pro` preservam
+> `dados.**` (o Gson do SignalR lê os campos por nome) e o `TrackerDeviceAdminReceiver`. Os
+> receivers declarados no manifest — incluindo o `ResultadoInstalacaoReceiver` da OTA — são
+> mantidos pelo próprio AGP. Ao criar um DTO novo **fora** do pacote `dados`, ou uma classe
+> resolvida por reflexão, acrescente a regra: o sintoma de esquecer é o comando chegar vazio e ser
+> descartado em silêncio, sem erro no log.
 
 ---
 
@@ -270,13 +297,70 @@ adb shell dpm remove-active-admin br.com.nutrihouse.tracker.agent/.admin.Tracker
 
 ## Identificação no inventário
 
-Sem Device Owner, o Android não entrega o número de série nem o IMEI a um app comum. O agente usa
-o `ANDROID_ID`, gravado como `ANDROID-<id>` no campo Número de série. Ele é estável por
-aparelho e só muda em restauração de fábrica — serve como chave de inventário, mas **não** é o
-serial da etiqueta. Ajuste o patrimônio (`AssetTag`) manualmente no painel; o auto-cadastro grava
-`AUTO-<serie>` como provisório.
+### Sempre informe o patrimônio
 
-Com Device Owner, número de série e IMEI reais são preenchidos automaticamente.
+A tela de registro pede três identificadores. O **patrimônio é o que importa** — é por ele que o
+backend reencontra um cadastro que já existe, em vez de criar um ativo duplicado:
+
+| Campo | Para que serve |
+|---|---|
+| **Patrimônio** | O da etiqueta do ativo. Reencontra o cadastro existente. **Preencha sempre.** |
+| Número de série | O da etiqueta/caixa. Dá identidade real ao registro quando o Android não a entrega. |
+| IMEI | Só aparece em aparelho com modem — tablet Wi-Fi não tem IMEI nenhum. |
+
+Deixando o patrimônio em branco, o agente se identifica por um valor derivado do `ANDROID_ID`,
+gravado como `ANDROID-<id>`. **Esse valor não é estável**: o Android o escopa por chave de
+assinatura do APK, então ele muda sempre que o app é reinstalado assinado com outra chave — é
+exatamente o que acontece ao trocar um APK de teste pelo de release. Quando ele muda e não há
+patrimônio, o mesmo aparelho volta ao inventário como um ativo novo.
+
+O reencontro segue a ordem **patrimônio → número de série → IMEI**, e os identificadores só
+melhoram: um serial de fábrica nunca é substituído pelo provisório, e um patrimônio real nunca
+volta a ser `AUTO-*`.
+
+### O que o Android deixa ler sozinho
+
+| Versão do aparelho | Número de série | IMEI |
+|---|---|---|
+| Até o Android 7.1 | Automático | Automático |
+| Android 8.0 a 9 | Automático (permissão de telefonia, pedida no registro) | Automático (idem) |
+| **Android 10 ou mais novo** | **Só com Device Owner** | **Só com Device Owner** |
+
+Do Android 10 em diante não existe permissão que resolva: o sistema reserva esses dados a apps
+privilegiados. Em aparelho moderno, ou você provisiona como Device Owner (exige restauração de
+fábrica, ver adiante), ou o técnico digita os valores no registro. A tela de diagnóstico mostra
+qual é o caso do aparelho: "Série de fábrica" quando conseguiu ler, "Série provisória" quando não.
+
+Com Device Owner, número de série e IMEI reais são preenchidos automaticamente (o IMEI também é
+completado depois, via heartbeat, se o cadastro estiver sem ele). A busca do painel encontra o
+aparelho por hostname, número de série ou IMEI.
+
+---
+
+## Atualização OTA (sem loja)
+
+O agente se atualiza sozinho, sem Play Store e sem tocar nos aparelhos:
+
+1. Gere o APK novo (`./gradlew :app:assembleRelease`) com `versionCode` **maior** que o atual em
+   `app/build.gradle.kts` (obrigatório: o Android recusa instalar versão igual ou menor).
+2. No painel, página **Agente** → *Publicar nova versão*: envie o `.apk`, informe o
+   `versionCode`/`versionName` exatamente como no `build.gradle.kts` e confirme com a sua senha.
+3. Cada aparelho compara o próprio `versionCode` no heartbeat (a cada ~1 min). Estando atrás, ele
+   baixa o APK (autenticado pelo token do dispositivo), **confere o SHA-256** e se instala via
+   `PackageInstaller`.
+
+Como a instalação se resolve:
+
+| Situação do aparelho | O que acontece |
+|---|---|
+| Device Owner | Instala em silêncio. Ninguém toca no aparelho. |
+| Sem Device Owner, 1ª OTA | O Android mostra o diálogo "Deseja atualizar este app?" — o usuário toca em Atualizar. Requer a permissão "instalar apps desconhecidos" (passo 5 da tela de registro). |
+| Sem Device Owner, OTAs seguintes (Android 12+) | Silencioso: após a 1ª OTA o agente vira o instalador de si mesmo. |
+
+O APK precisa estar **assinado com a mesma keystore** do instalado — assinatura diferente é
+recusada pelo Android (o aparelho segue funcionando na versão antiga). Depois de instalar, o
+serviço religa sozinho (`MY_PACKAGE_REPLACED`) e um bloqueio ativo continua valendo: o sinal
+persistente sobrevive à atualização.
 
 ---
 
@@ -320,6 +404,10 @@ registrados continuam funcionando, porque eles usam o token individual, não o c
 | `CLEARTEXT communication not permitted` | APK de release apontando para `http://`, ou debug sem o manifest de `src/debug`. Use HTTPS, ou o build de debug. |
 | API de dev inacessível pelo celular | A API precisa escutar em `0.0.0.0` (perfil `rede` do launchSettings), a porta 5171 liberada no firewall, e o aparelho no mesmo Wi-Fi. |
 | App voltou a pedir o código | O token foi revogado/regenerado no painel. Digite o código novamente no aparelho. |
+| Publiquei um APK e a frota não atualiza | `versionCode` publicado igual/menor que o instalado (o painel barra, mas confira), permissão "instalar apps desconhecidos" ausente nos aparelhos sem Device Owner, ou APK assinado com outra keystore. |
+| O mesmo aparelho apareceu duas vezes no inventário | Foi registrado sem o patrimônio depois de o APK trocar de assinatura (o identificador provisório muda junto). Arquive o registro novo, apague os dados do app no aparelho e registre de novo **informando o patrimônio** do cadastro original. |
+| A tela diz "Série provisória" | Aparelho com Android 10+ sem Device Owner: o sistema não libera o serial de fábrica. Digite o número de série e o patrimônio no registro, ou provisione como Device Owner. |
+| Painel mostra "Desatualizados" que nunca zeram | Aparelhos com agente 1.0.0 (anterior à OTA) não sabem se atualizar: essa primeira troca é manual, por `adb install -r` ou pelo APK aberto no aparelho. |
 
 Logs no aparelho:
 
