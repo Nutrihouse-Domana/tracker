@@ -96,6 +96,11 @@ cd agents/Tracker.Agent.Android && ./gradlew :app:assembleDebug   # APK assinado
   no header `X-Agent-Token` (hash SHA-256 guardado em `TokenAgenteHash`), resolvido por `AgentAuth`.
 - **Comandos remotos:** ADM emite via REST; entrega ao agente por **SignalR** (`/hubs/comandos`)
   com fallback pelo **heartbeat** (o agente também busca comandos pendentes a cada heartbeat).
+- **Atualização OTA do agente Android (sem loja):** a TI publica o APK no painel (página Agente,
+  com senha do ADM — `AgenteAndroidController`); o heartbeat compara `AgenteVersaoCode` com o
+  maior `PacoteAgenteAndroid.VersaoCode` e anuncia a oferta; o agente baixa
+  (`GET /api/agente/atualizacao/apk`, token do dispositivo), confere o SHA-256 e se instala via
+  `PackageInstaller`. APKs ficam em `App_Data/pacotes-agente` (`Storage:PacotesAgentePath`).
 
 ## Pegadinhas já resolvidas (não repita)
 
@@ -149,6 +154,21 @@ cd agents/Tracker.Agent.Android && ./gradlew :app:assembleDebug   # APK assinado
   bloqueio que demora ~1 heartbeat em vez de ser imediato, com a conexão SignalR aparentemente
   saudável. Afeta os agentes Windows e Android igualmente. Os agentes hoje aceitam os dois
   formatos como defesa, mas a configuração do servidor é o conserto de verdade.
+- **OTA Android:**
+  - **Todo release do agente PRECISA incrementar `versionCode`** em `app/build.gradle.kts` — o
+    Android recusa instalar versão igual/menor, e o painel barra a publicação com mensagem.
+    O agente compara com `BuildConfig.VERSION_CODE` (não existe mais `AgenteConfig.VERSAO_AGENTE`).
+  - O heartbeat só oferece APK a quem **envia** `agenteVersaoCode` — o agente Windows não envia e
+    nunca recebe oferta. Não dê valor padrão 0 ao campo no backend: nulo significa "não é Android".
+  - Sem Device Owner, a 1ª OTA mostra o diálogo do sistema (exige "instalar apps desconhecidos",
+    passo 5 do enrollment). Da 2ª em diante (Android 12+) é silencioso: o agente vira o
+    instalador de si mesmo (`USER_ACTION_NOT_REQUIRED`).
+  - Agentes 1.0.0 (sem OTA) não se atualizam sozinhos: a primeira troca é manual via adb.
+- **Identificação Android:** o técnico pode digitar **número de série e IMEI** no enrollment (o
+  Android não os entrega a app comum sem Device Owner). O auto-enrollment casa dispositivo
+  existente por `NumeroSerie` e, se falhar, por `Imei` (religa em vez de duplicar); um arquivado
+  com o mesmo serial devolve 409 com mensagem clara (o índice único não conhece o filtro global).
+  O heartbeat completa o `Imei` só quando o cadastro está vazio — nunca sobrescreve o digitado.
 - **Agente Android:**
   - **Janela só pode ser criada/removida na thread principal.** O laço de enforcement roda em
     `Dispatchers.IO`; `WindowManager.addView` a partir dele falha ao construir o `Handler` interno

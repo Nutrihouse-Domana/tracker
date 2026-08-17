@@ -1,9 +1,10 @@
 package br.com.nutrihouse.tracker.agent
 
-/** Constantes de operacao do agente. Os valores de ambiente vem do BuildConfig. */
+/**
+ * Constantes de operacao do agente. Os valores de ambiente vem do BuildConfig — inclusive a
+ * versao (VERSION_NAME/VERSION_CODE), que e a mesma que o Android compara na atualizacao OTA.
+ */
 object AgenteConfig {
-    const val VERSAO_AGENTE = "1.0.0"
-
     /**
      * Cadencia do heartbeat. E a rede de seguranca de entrega de comandos, entao define o pior
      * caso de demora para um bloqueio quando o SignalR esta fora do ar.
@@ -32,6 +33,7 @@ object AgenteConfig {
     const val ROTA_AUTO_ENROLLMENT = "/api/agente/auto-enrollment"
     const val ROTA_HEARTBEAT = "/api/agente/heartbeat"
     const val ROTA_ALERTAS = "/api/agente/alertas"
+    const val ROTA_ATUALIZACAO_APK = "/api/agente/atualizacao/apk"
     const val ROTA_HUB_COMANDOS = "/hubs/comandos"
 
     const val HEADER_TOKEN = "X-Agent-Token"

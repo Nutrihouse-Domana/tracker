@@ -53,15 +53,22 @@ class BackendClient(
      * ficasse salvo, um aparelho roubado carregaria a chave da empresa e poderia se recadastrar
      * sozinho depois de a TI revogar o token dele.
      */
-    suspend fun registrar(codigoInstalacao: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun registrar(
+        codigoInstalacao: String,
+        // Digitados pelo tecnico na tela de registro. Sem Device Owner o Android nao entrega o
+        // serial de fabrica nem o IMEI ao app — o valor informado e o que liga o registro ao
+        // ativo fisico (etiqueta, caixa, *#06#) no inventario.
+        numeroSerieInformado: String? = null,
+        imeiInformado: String? = null,
+    ): Boolean = withContext(Dispatchers.IO) {
         val corpo = JSONObject().apply {
             put("hostname", info.hostname)
-            put("numeroSerie", info.numeroSerie)
+            put("numeroSerie", numeroSerieInformado?.takeIf { it.isNotBlank() } ?: info.numeroSerie)
             put("sistemaOperacional", info.sistemaOperacional)
             put("versaoSO", info.versaoSO)
             put("macAddress", JSONObject.NULL) // Android 6+ nao expoe o MAC real ao app.
             put("tipo", info.tipo.name)
-            put("imei", info.imei ?: JSONObject.NULL)
+            put("imei", imeiInformado?.takeIf { it.isNotBlank() } ?: info.imei ?: JSONObject.NULL)
             put("fabricante", info.fabricante)
             put("modelo", info.modelo)
             put("nivelProtecao", politica.nivelProtecao.name)
@@ -97,7 +104,11 @@ class BackendClient(
         withContext(Dispatchers.IO) {
             val corpo = JSONObject().apply {
                 put("hostname", info.hostname)
-                put("agenteVersao", AgenteConfig.VERSAO_AGENTE)
+                put("agenteVersao", BuildConfig.VERSION_NAME)
+                // versionCode instalado: e o que o servidor compara para oferecer a OTA.
+                put("agenteVersaoCode", BuildConfig.VERSION_CODE)
+                // Com Device Owner o IMEI fica disponivel depois do enrollment; completa o cadastro.
+                put("imei", info.imei ?: JSONObject.NULL)
                 put("latitude", localizacao?.latitude ?: JSONObject.NULL)
                 put("longitude", localizacao?.longitude ?: JSONObject.NULL)
                 put("enderecoAproximado", JSONObject.NULL) // Geocodificacao fica com o painel.
@@ -122,8 +133,43 @@ class BackendClient(
                 }
             }
 
-            RespostaHeartbeat(comandos, json.optBoolean("deveEstarBloqueado", false))
+            val atualizacao = json.optJSONObject("atualizacaoAgente")?.let {
+                AtualizacaoAgente(
+                    versaoCode = it.optInt("versaoCode"),
+                    versaoNome = it.optString("versaoNome"),
+                    hashSha256 = it.optString("hashSha256"),
+                    tamanhoBytes = it.optLong("tamanhoBytes"),
+                )
+            }
+
+            RespostaHeartbeat(comandos, json.optBoolean("deveEstarBloqueado", false), atualizacao)
         }
+
+    /**
+     * Baixa o APK do pacote vigente para o arquivo indicado, autenticado pelo token do aparelho.
+     * So grava em disco — a conferencia do hash e a instalacao ficam com o AtualizadorAgente.
+     */
+    suspend fun baixarApk(destino: java.io.File) {
+        withContext(Dispatchers.IO) {
+            val token = armazenamento.token
+                ?: throw BackendException("Aparelho ainda nao registrado (sem token).")
+
+            val requisicao = Request.Builder()
+                .url(baseUrl + AgenteConfig.ROTA_ATUALIZACAO_APK)
+                .header(AgenteConfig.HEADER_TOKEN, token)
+                .get()
+                .build()
+
+            http.newCall(requisicao).execute().use { resposta ->
+                if (!resposta.isSuccessful) {
+                    throw BackendException("Falha ao baixar o APK (HTTP ${resposta.code}).")
+                }
+
+                val corpo = resposta.body ?: throw BackendException("APK sem conteudo na resposta.")
+                destino.outputStream().use { saida -> corpo.byteStream().copyTo(saida) }
+            }
+        }
+    }
 
     /** Confirma ao backend que o comando foi executado no aparelho. */
     suspend fun confirmarComando(comandoId: String) {
