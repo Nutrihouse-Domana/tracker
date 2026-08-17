@@ -9,6 +9,7 @@ using Tracker.Domain.Entities;
 using Tracker.Domain.Enums;
 using Tracker.Infrastructure.Data;
 using Tracker.Infrastructure.Security;
+using Tracker.Infrastructure.Storage;
 
 namespace Tracker.Api.Controllers;
 
@@ -60,9 +61,22 @@ public class AgenteController : ControllerBase
         if (request.Tipo is not (TipoDispositivo.Notebook or TipoDispositivo.Mobile))
             return BadRequest(new { message = "Auto-cadastro só vale para notebook ou mobile." });
 
+        // Arquivados ficam fora do filtro global mas seguram o índice único de NumeroSerie: sem
+        // esta checagem o INSERT estouraria com erro cru de banco.
+        var arquivado = await _db.Dispositivos.IgnoreQueryFilters()
+            .AnyAsync(d => d.NumeroSerie == request.NumeroSerie && d.ExcluidoEm != null);
+        if (arquivado)
+            return Conflict(new { message = "Já existe um dispositivo arquivado com este número de série. Restaure-o no painel antes de registrar." });
+
         var existente = await _db.Dispositivos.FirstOrDefaultAsync(d => d.NumeroSerie == request.NumeroSerie);
         if (existente is not null && existente is not DispositivoComAgente)
             return Conflict(new { message = "Já existe um dispositivo (sem agente) com este número de série." });
+
+        // Segunda chance pelo IMEI: o mesmo aparelho pode ter sido cadastrado antes pela TI (com o
+        // serial de fábrica) e agora se registrar com o ANDROID_ID — o IMEI digitado pelo técnico
+        // religa os dois em vez de duplicar o ativo.
+        if (existente is null && !string.IsNullOrWhiteSpace(request.Imei))
+            existente = await _db.Set<Mobile>().FirstOrDefaultAsync(m => m.Imei == request.Imei);
 
         var dispositivo = existente as DispositivoComAgente;
         if (dispositivo is null)
@@ -82,6 +96,9 @@ public class AgenteController : ControllerBase
         dispositivo.SistemaOperacional = request.SistemaOperacional;
         dispositivo.VersaoSO = request.VersaoSO;
         dispositivo.MacAddress = request.MacAddress;
+        // IMEI informado (digitado pelo técnico ou lido com Device Owner) completa o cadastro.
+        if (dispositivo is Mobile mobile && !string.IsNullOrWhiteSpace(request.Imei))
+            mobile.Imei = request.Imei;
         dispositivo.Fabricante = request.Fabricante ?? dispositivo.Fabricante;
         dispositivo.Modelo = request.Modelo ?? dispositivo.Modelo;
         dispositivo.NivelProtecao = request.NivelProtecao ?? dispositivo.NivelProtecao;
@@ -101,8 +118,19 @@ public class AgenteController : ControllerBase
 
         dispositivo.UltimoHeartbeatEm = DateTime.UtcNow;
         if (!string.IsNullOrWhiteSpace(request.AgenteVersao)) dispositivo.AgenteVersao = request.AgenteVersao;
+        if (request.AgenteVersaoCode is { } versaoCode) dispositivo.AgenteVersaoCode = versaoCode;
         if (!string.IsNullOrWhiteSpace(request.Hostname)) dispositivo.Hostname = request.Hostname;
         if (request.BateriaPercentual is { } bateria) dispositivo.BateriaPercentual = bateria;
+
+        // IMEI só vira disponível ao agente quando o aparelho é Device Owner — pode acontecer
+        // depois do enrollment. Preenche apenas quando o cadastro está vazio: o valor digitado
+        // pela TI não deve ser sobrescrito por telemetria.
+        if (dispositivo is Mobile mobile &&
+            string.IsNullOrWhiteSpace(mobile.Imei) &&
+            !string.IsNullOrWhiteSpace(request.Imei))
+        {
+            mobile.Imei = request.Imei;
+        }
 
         // Queda de proteção (usuário desativou o admin no Android) vira alerta: sem isso a TI
         // continuaria vendo o aparelho como protegido.
@@ -152,10 +180,48 @@ public class AgenteController : ControllerBase
         var desbloqueioPendente = pendentes.Any(c => c.TipoComando == TipoComandoRemoto.Desbloquear);
         var deveEstarBloqueado = dispositivo.Status == StatusDispositivo.Bloqueado && !desbloqueioPendente;
 
+        // Oferta de atualização OTA: só para agentes que informam o versionCode (Android). O
+        // agente Windows não envia e nunca recebe oferta de APK.
+        AtualizacaoAgenteDto? atualizacao = null;
+        if (request.AgenteVersaoCode is { } versaoAtual)
+        {
+            var vigente = await _db.PacotesAgenteAndroid.AsNoTracking()
+                .OrderByDescending(p => p.VersaoCode)
+                .FirstOrDefaultAsync();
+
+            if (vigente is not null && vigente.VersaoCode > versaoAtual)
+            {
+                atualizacao = new AtualizacaoAgenteDto(
+                    vigente.VersaoCode, vigente.VersaoNome, vigente.HashSha256, vigente.TamanhoBytes);
+            }
+        }
+
         var dto = new HeartbeatResponse(
             pendentes.Select(c => new ComandoPendenteDto(c.Id, c.TipoComando)).ToList(),
-            deveEstarBloqueado);
+            deveEstarBloqueado,
+            atualizacao);
         return Ok(dto);
+    }
+
+    /// <summary>
+    /// Entrega o APK do pacote vigente ao agente (autenticado pelo token do dispositivo). O agente
+    /// confere o SHA-256 contra o hash anunciado no heartbeat antes de instalar — se uma versão
+    /// nova for publicada entre o anúncio e o download, o hash não bate e ele tenta de novo depois.
+    /// </summary>
+    [HttpGet("atualizacao/apk")]
+    public async Task<IActionResult> BaixarPacoteAtualizacao(
+        [FromServices] IArmazenamentoPacotesAgenteService pacotes)
+    {
+        var dispositivo = await AutenticarAsync();
+        if (dispositivo is null) return Unauthorized();
+
+        var vigente = await _db.PacotesAgenteAndroid.AsNoTracking()
+            .OrderByDescending(p => p.VersaoCode)
+            .FirstOrDefaultAsync();
+        if (vigente is null) return NotFound(new { message = "Nenhum pacote publicado." });
+
+        var stream = await pacotes.AbrirAsync(vigente.CaminhoRelativo);
+        return File(stream, "application/vnd.android.package-archive", $"tracker-agent-{vigente.VersaoNome}.apk");
     }
 
     /// <summary>

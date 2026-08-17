@@ -466,6 +466,52 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.ToTable("Locais");
                 });
 
+            modelBuilder.Entity("Tracker.Domain.Entities.PacoteAgenteAndroid", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CaminhoRelativo")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("EnviadoPorAdmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("HashSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("NomeArquivoOriginal")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<long>("TamanhoBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("VersaoCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("VersaoNome")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VersaoCode")
+                        .IsUnique();
+
+                    b.ToTable("PacotesAgenteAndroid");
+                });
+
             modelBuilder.Entity("Tracker.Domain.Entities.RegraDeGeofence", b =>
                 {
                     b.Property<Guid>("Id")
@@ -694,6 +740,10 @@ namespace Tracker.Infrastructure.Data.Migrations
                         .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("AgenteVersaoCode")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("int");
+
                     b.Property<int?>("BateriaPercentual")
                         .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("int");
@@ -758,6 +808,10 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.Property<string>("AgenteVersao")
                         .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("AgenteVersaoCode")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("int");
 
                     b.Property<int?>("BateriaPercentual")
                         .ValueGeneratedOnUpdateSometimes()

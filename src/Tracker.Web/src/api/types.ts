@@ -293,3 +293,22 @@ export interface BuscaGlobal {
   dispositivos: BuscaDispositivo[]
   usuarios: BuscaUsuario[]
 }
+
+// --- Atualização OTA do agente Android ---
+
+export interface PacoteAgenteAndroid {
+  id: string
+  versaoCode: number
+  versaoNome: string
+  nomeArquivoOriginal: string
+  hashSha256: string
+  tamanhoBytes: number
+  criadoEm: string
+}
+
+export interface SituacaoAgenteAndroid {
+  pacoteVigente: PacoteAgenteAndroid | null
+  historico: PacoteAgenteAndroid[]
+  dispositivosNaVersao: number
+  dispositivosDesatualizados: number
+}

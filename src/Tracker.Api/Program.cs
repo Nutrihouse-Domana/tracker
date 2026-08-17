@@ -111,6 +111,12 @@ var termosPath = Path.Combine(
     builder.Configuration["Storage:TermosDeUsoPath"] ?? "App_Data/termos-de-uso");
 builder.Services.AddSingleton<IArmazenamentoArquivosService>(_ => new ArmazenamentoArquivosService(termosPath));
 
+var pacotesPath = Path.Combine(
+    builder.Environment.ContentRootPath,
+    builder.Configuration["Storage:PacotesAgentePath"] ?? "App_Data/pacotes-agente");
+builder.Services.AddSingleton<IArmazenamentoPacotesAgenteService>(
+    _ => new ArmazenamentoPacotesAgenteService(pacotesPath));
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("TrackerWeb", policy =>

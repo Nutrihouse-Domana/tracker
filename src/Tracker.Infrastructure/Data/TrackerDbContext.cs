@@ -29,6 +29,7 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
     public DbSet<HistoricoReparo> HistoricoReparos => Set<HistoricoReparo>();
     public DbSet<ComentarioDispositivo> ComentariosDispositivo => Set<ComentarioDispositivo>();
     public DbSet<AlertaDispositivo> AlertasDispositivo => Set<AlertaDispositivo>();
+    public DbSet<PacoteAgenteAndroid> PacotesAgenteAndroid => Set<PacoteAgenteAndroid>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -175,6 +176,16 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
                 .WithMany(d => d.Comentarios)
                 .HasForeignKey(c => c.DispositivoId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<PacoteAgenteAndroid>(entity =>
+        {
+            // Um pacote por versionCode: republicar a mesma versão exige apagar/subir outra.
+            entity.HasIndex(p => p.VersaoCode).IsUnique();
+            entity.Property(p => p.VersaoNome).HasMaxLength(50);
+            entity.Property(p => p.NomeArquivoOriginal).HasMaxLength(260);
+            entity.Property(p => p.CaminhoRelativo).HasMaxLength(400);
+            entity.Property(p => p.HashSha256).HasMaxLength(64);
         });
 
         builder.Entity<AlertaDispositivo>(entity =>

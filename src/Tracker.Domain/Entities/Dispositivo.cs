@@ -57,6 +57,11 @@ public abstract class DispositivoComAgente : Dispositivo
     public string? VersaoSO { get; set; }
     public string? MacAddress { get; set; }
     public string? AgenteVersao { get; set; }
+    /// <summary>
+    /// versionCode do APK instalado, reportado no heartbeat. Só o agente Android envia (nulo no
+    /// Windows) — é o que o servidor compara para oferecer a atualização OTA.
+    /// </summary>
+    public int? AgenteVersaoCode { get; set; }
     public DateTime? UltimoHeartbeatEm { get; set; }
     public bool GeofenceAtivo { get; set; }
     public StatusComandoRemoto? StatusUltimoComando { get; set; }
