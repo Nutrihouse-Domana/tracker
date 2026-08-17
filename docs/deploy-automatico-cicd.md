@@ -95,13 +95,18 @@ No servidor `192.168.0.254`, como **Administrador**:
 
 Se algo der errado após um deploy:
 
+> A pasta que o IIS serve **não é necessariamente `C:\Tracker`** — hoje é `C:\publish\Tracker`.
+> Por isso o script abaixo descobre o caminho pelo `PhysicalPath` do site em vez de escrevê-lo à
+> mão: restaurar na pasta errada não surte efeito e o site continua fora.
+
 ```powershell
 # no servidor, como Administrador
 Import-Module WebAdministration
+$destino = [Environment]::ExpandEnvironmentVariables([string](Get-Website -Name Tracker).physicalPath)
 Stop-Website -Name Tracker
 $ultimo = Get-ChildItem C:\TrackerBackups -Directory | Sort-Object CreationTime -Desc | Select-Object -First 1
-Get-ChildItem C:\Tracker -Force | Remove-Item -Recurse -Force
-Copy-Item "$($ultimo.FullName)\*" C:\Tracker -Recurse -Force
+Get-ChildItem $destino -Force | Remove-Item -Recurse -Force
+Copy-Item "$($ultimo.FullName)\*" $destino -Recurse -Force
 Start-Website -Name Tracker
 ```
 
