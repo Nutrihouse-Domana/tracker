@@ -7,12 +7,9 @@
     <string name="enrollment_chave_ajuda">Informado pela equipe de TI. Sem ele o aparelho não entra no inventário.</string>
     <string name="enrollment_chave_vazia">Digite o código de instalação.</string>
     <string name="enrollment_chave_invalida">Código de instalação incorreto. Confira com a equipe de TI.</string>
-    <string name="enrollment_patrimonio">Patrimônio</string>
-    <string name="enrollment_patrimonio_ajuda">O da etiqueta do ativo. É o que liga o aparelho ao cadastro que já existe — sem ele, reinstalar o agente cria um dispositivo duplicado.</string>
-    <string name="enrollment_numero_serie">Número de série (opcional)</string>
-    <string name="enrollment_numero_serie_ajuda">O da etiqueta/caixa do aparelho. Sem ele, o inventário usa um identificador interno do Android.</string>
-    <string name="enrollment_imei">IMEI (opcional)</string>
-    <string name="enrollment_imei_ajuda">Disque *#06# para ver. Permite localizar o aparelho no inventário pelo IMEI.</string>
+    <string name="enrollment_numero_serie">Número de série</string>
+    <string name="enrollment_numero_serie_ajuda">O da etiqueta/caixa do aparelho, ou em Configurações &gt; Sobre o aparelho.</string>
+    <string name="enrollment_numero_serie_vazio">Informe o número de série da etiqueta.</string>
     <string name="enrollment_registrar">Registrar aparelho</string>
     <string name="enrollment_registrado">Aparelho registrado no inventário.</string>
     <string name="enrollment_falha_generica">Não foi possível registrar o aparelho. Verifique a conexão.</string>

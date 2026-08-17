@@ -53,29 +53,10 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <!-- Patrimonio: e o identificador que RE-ENCONTRA o ativo no inventario. Vem primeiro de
-             proposito - sem ele, um aparelho que se registra de novo (agente trocado, dados
-             limpos) entra como dispositivo novo e duplica o ativo. -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/blocoPatrimonio"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="@string/enrollment_patrimonio"
-            app:helperText="@string/enrollment_patrimonio_ajuda"
-            app:helperTextEnabled="true">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/campoPatrimonio"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textCapCharacters"
-                android:maxLines="1" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Identificacao fisica do ativo. Sem Device Owner o Android nao entrega o serial de
-             fabrica nem o IMEI ao app; o tecnico digita (etiqueta, caixa ou *#06#) para o
-             aparelho ser encontravel no inventario pelo identificador real. -->
+        <!-- Identificacao do ativo. Sem Device Owner o Android nao entrega o serial de fabrica ao
+             app, e o identificador que sobra (ANDROID_ID) muda quando o APK e reinstalado com
+             outra assinatura — foi o que ja duplicou registros. A serie da etiqueta e estavel, e
+             e por ela que o backend re-encontra o aparelho num novo registro. -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/blocoNumeroSerie"
             android:layout_width="match_parent"
@@ -93,22 +74,6 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/blocoImei"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:hint="@string/enrollment_imei"
-            app:helperText="@string/enrollment_imei_ajuda"
-            app:helperTextEnabled="true">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/campoImei"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="number"
-                android:maxLines="1" />
-        </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/botaoRegistrar"
