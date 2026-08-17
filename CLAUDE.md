@@ -90,6 +90,8 @@ cd agents/Tracker.Agent.Android && ./gradlew :app:assembleDebug   # APK assinado
 - **DTOs** são `record` na camada Application. Enums serializados como string na API.
 - **Validação** com FluentValidation, injetada nos controllers via `IValidator<T>`.
 - **CPF** é criptografado em repouso (AES-GCM) via `EncryptedStringConverter` no DbContext.
+- **Ações sensíveis pedem a senha do ADM logado** (`ConfirmacaoSenhaAdm` em `src/Tracker.Api/Seguranca`):
+  excluir dispositivo e alternar `PertenceAUsuario`. Cookie de sessão não prova quem está na máquina.
 - **Autenticação:** ADM via ASP.NET Core Identity (cookie). **Agente** via token por dispositivo
   no header `X-Agent-Token` (hash SHA-256 guardado em `TokenAgenteHash`), resolvido por `AgentAuth`.
 - **Comandos remotos:** ADM emite via REST; entrega ao agente por **SignalR** (`/hubs/comandos`)
@@ -102,6 +104,28 @@ cd agents/Tracker.Agent.Android && ./gradlew :app:assembleDebug   # APK assinado
   **Ao criar um novo tipo com agente, atualize os DOIS lugares que enumeram os tipos concretos:**
   `AgentAuth.ResolverAsync` (senão o agente não autentica) e `BuscaController.BuscarDispositivos`
   (senão o aparelho fica invisível na busca por hostname/IMEI).
+- **Excluir dispositivo tem DOIS modos** (`ExcluirDispositivoRequest.Definitiva`), escolhidos pelo
+  ADM no diálogo: arquivar (padrão) ou apagar de vez. Na definitiva, **`TermoDeUso` é o único
+  dependente com FK `Restrict`** — o controller remove os termos à mão antes do `Remove`, senão o
+  DELETE estoura com erro cru de FK; os demais dependentes saem por `ON DELETE CASCADE`. Os PDFs
+  em disco só são apagados **depois** do `SaveChangesAsync`. Coberto por `UnidadeEPosseTests`.
+- **O arquivamento é LÓGICO** (`ExcluidoEm`/`ExcluidoPorAdmId`/`MotivoExclusao`), com
+  **filtro global** `HasQueryFilter(d => d.ExcluidoEm == null)`. Consequências:
+  - Toda consulta já sai filtrada; para ver arquivados use `IgnoreQueryFilters()`.
+  - **O índice único de `NumeroSerie`/`AssetTag` NÃO conhece o filtro.** Um `AnyAsync` comum não
+    enxerga o arquivado e o cadastro estouraria com erro cru de banco — `ConferirDuplicidadeAsync`
+    checa com `IgnoreQueryFilters()` e devolve mensagem dizendo para restaurar.
+  - O `PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning` é suprimido de
+    propósito no `Program.cs`: Dispositivo é o lado obrigatório de várias relações de histórico.
+- **`AddColumn<bool>` gerado pelo EF vem com `defaultValue: false`** — o padrão do C# (`= true` em
+  `PertenceAUsuario`) **não** vale para o backfill. Sem corrigir a migração à mão, todo dispositivo
+  já cadastrado viraria "ativo do local" sem unidade e perderia o detentor na tela. Ver
+  `UnidadeEPosseComExclusaoLogica`.
+- **Senha errada em confirmação devolve 400, nunca 401.** O interceptor do axios
+  (`src/Tracker.Web/src/api/client.ts`) trata 401 como sessão expirada e limpa o `me` — o ADM
+  seria deslogado só por errar a senha no diálogo de exclusão.
+- **`Unidade` ≠ `Local`.** Unidade é a lotação organizacional do ativo (matriz/filial) e alimenta a
+  coluna "Responsável" quando `PertenceAUsuario = false`; `Local` é ponto geográfico de geofence.
 - **Novos valores de enum vão no FIM, e valores existentes NUNCA mudam de número.** O número é
   gravado como discriminador na tabela: `Mobile` = 1 (era `Telefone`) e mexer nisso reclassificaria
   todos os dispositivos já cadastrados. Coberto por `MobileTphTests`.

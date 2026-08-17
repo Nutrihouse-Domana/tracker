@@ -3,6 +3,8 @@ import { dispositivosApi } from './api'
 import type {
   AtribuirDispositivoRequest,
   CriarComentarioRequest,
+  DefinirPosseDispositivoRequest,
+  ExcluirDispositivoRequest,
   CriarNotebookRequest,
   CriarPerifericoRequest,
   CriarReparoRequest,
@@ -15,10 +17,23 @@ import type {
 
 const KEY = ['dispositivos']
 
-export function useDispositivos(filtros?: { tipo?: TipoDispositivo; status?: StatusDispositivo }) {
+export function useDispositivos(filtros?: {
+  tipo?: TipoDispositivo
+  status?: StatusDispositivo
+  unidadeId?: string
+}) {
   return useQuery({
     queryKey: [...KEY, filtros ?? {}],
     queryFn: () => dispositivosApi.listar(filtros),
+  })
+}
+
+/** Dispositivos arquivados (excluídos logicamente), para consulta e restauração. */
+export function useDispositivosArquivados(habilitado = true) {
+  return useQuery({
+    queryKey: [...KEY, 'arquivados'],
+    queryFn: () => dispositivosApi.listarArquivados(),
+    enabled: habilitado,
   })
 }
 
@@ -81,6 +96,43 @@ export function useAtribuirDispositivo() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: AtribuirDispositivoRequest }) =>
       dispositivosApi.atribuir(id, data),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDefinirUnidadeDispositivo() {
+  const invalidate = useInvalidateDispositivos()
+  return useMutation({
+    mutationFn: ({ id, unidadeId }: { id: string; unidadeId: string | null }) =>
+      dispositivosApi.definirUnidade(id, unidadeId),
+    onSuccess: invalidate,
+  })
+}
+
+/** Alterna entre "pertence a usuário" e "pertence ao local". Exige a senha do ADM. */
+export function useDefinirPosseDispositivo() {
+  const invalidate = useInvalidateDispositivos()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: DefinirPosseDispositivoRequest }) =>
+      dispositivosApi.definirPosse(id, data),
+    onSuccess: invalidate,
+  })
+}
+
+/** Arquiva o dispositivo. Exige a senha do ADM. */
+export function useExcluirDispositivo() {
+  const invalidate = useInvalidateDispositivos()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: ExcluirDispositivoRequest }) =>
+      dispositivosApi.excluir(id, data),
+    onSuccess: invalidate,
+  })
+}
+
+export function useRestaurarDispositivo() {
+  const invalidate = useInvalidateDispositivos()
+  return useMutation({
+    mutationFn: (id: string) => dispositivosApi.restaurar(id),
     onSuccess: invalidate,
   })
 }

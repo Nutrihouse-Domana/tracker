@@ -49,7 +49,8 @@ public class BuscaController : ControllerBase
         var idsBase = _db.Dispositivos
             .Where(d => EF.Functions.Like(d.NumeroSerie, padrao, "\\")
                         || EF.Functions.Like(d.AssetTag, padrao, "\\")
-                        || (d.UsuarioAtual != null && EF.Functions.Like(d.UsuarioAtual.Nome, padrao, "\\")))
+                        || (d.UsuarioAtual != null && EF.Functions.Like(d.UsuarioAtual.Nome, padrao, "\\"))
+                        || (d.Unidade != null && EF.Functions.Like(d.Unidade.Nome, padrao, "\\")))
             .Select(d => d.Id);
 
         var idsNotebooks = _db.Set<Notebook>()
@@ -66,6 +67,7 @@ public class BuscaController : ControllerBase
 
         var encontrados = await _db.Dispositivos.AsNoTracking()
             .Include(d => d.UsuarioAtual)
+            .Include(d => d.Unidade)
             .Where(d => ids.Contains(d.Id))
             .OrderBy(d => d.Tipo)
             .ThenBy(d => d.AssetTag)
@@ -80,7 +82,9 @@ public class BuscaController : ControllerBase
             d.AssetTag,
             (d as DispositivoComAgente)?.Hostname,
             (d as Mobile)?.Imei,
-            d.UsuarioAtual?.Nome)).ToList();
+            d.UsuarioAtual?.Nome,
+            d.Unidade?.Nome,
+            d.PertenceAUsuario ? d.UsuarioAtual?.Nome : d.Unidade?.Nome)).ToList();
     }
 
     private Task<List<BuscaUsuarioDto>> BuscarUsuarios(string padrao, int limite) =>

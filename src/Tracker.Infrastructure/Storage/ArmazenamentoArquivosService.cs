@@ -9,6 +9,12 @@ public interface IArmazenamentoArquivosService
         Guid dispositivoId, Stream conteudo, string nomeArquivoOriginal, CancellationToken ct = default);
 
     Task<Stream> AbrirAsync(string caminhoRelativo);
+
+    /// <summary>
+    /// Apaga do disco todos os termos assinados do dispositivo. Usado só na exclusão definitiva:
+    /// sem isso os PDFs ficariam órfãos no file share depois que o registro sumisse do banco.
+    /// </summary>
+    void ExcluirArquivosDoDispositivo(Guid dispositivoId);
 }
 
 /// <summary>
@@ -55,5 +61,11 @@ public class ArmazenamentoArquivosService : IArmazenamentoArquivosService
     {
         Stream stream = File.OpenRead(Path.Combine(_raiz, caminhoRelativo));
         return Task.FromResult(stream);
+    }
+
+    public void ExcluirArquivosDoDispositivo(Guid dispositivoId)
+    {
+        var pastaDispositivo = Path.Combine(_raiz, dispositivoId.ToString());
+        if (Directory.Exists(pastaDispositivo)) Directory.Delete(pastaDispositivo, recursive: true);
     }
 }

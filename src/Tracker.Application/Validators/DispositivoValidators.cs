@@ -46,3 +46,26 @@ public class AtribuirDispositivoRequestValidator : AbstractValidator<AtribuirDis
         RuleFor(x => x.RegistradoPorAdmId).NotEmpty();
     }
 }
+
+public class ExcluirDispositivoRequestValidator : AbstractValidator<ExcluirDispositivoRequest>
+{
+    public ExcluirDispositivoRequestValidator()
+    {
+        RuleFor(x => x.Senha).NotEmpty().WithMessage("Informe sua senha para confirmar a exclusão.");
+        RuleFor(x => x.Motivo).MaximumLength(400);
+    }
+}
+
+public class DefinirPosseDispositivoRequestValidator : AbstractValidator<DefinirPosseDispositivoRequest>
+{
+    public DefinirPosseDispositivoRequestValidator()
+    {
+        RuleFor(x => x.Senha).NotEmpty().WithMessage("Informe sua senha para confirmar a alteração.");
+        RuleFor(x => x.Motivo).MaximumLength(400);
+        // Ativo do local sem unidade não diz nada a ninguém: o nome da unidade é justamente o
+        // que passa a aparecer no lugar do usuário.
+        RuleFor(x => x.UnidadeId).NotEmpty()
+            .When(x => !x.PertenceAUsuario)
+            .WithMessage("Selecione a unidade a que o dispositivo pertence.");
+    }
+}
