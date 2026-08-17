@@ -163,6 +163,24 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app\build\outputs\apk\debug\app
 
 ### Gerar o APK de release (distribuição na frota)
 
+**Caminho recomendado** — um comando que faz tudo (cria a keystore na primeira vez, escreve o
+`local.properties`, compila e mostra o que digitar no painel):
+
+```powershell
+.\deploy\gerar-apk-agente.ps1
+```
+
+Ele pede a senha da keystore no prompt (a senha não passa pela linha de comando, que seria
+visível na lista de processos) e, ao final, imprime o caminho do APK, o `versionCode`, o
+`versionName` e o SHA-256 para conferência. Da segunda vez em diante ele só pede a senha e
+recompila. A keystore fica por padrão em `Documents\TrackerKeystore\` — **fora do repositório**,
+de propósito: worktrees e clones novos não levam a chave junto.
+
+O passo a passo manual abaixo continua válido se você preferir controlar cada etapa.
+
+<details>
+<summary>Processo manual</summary>
+
 Exige um keystore próprio. Gere uma vez, com o `keytool` que já vem no JDK — a senha é digitada
 por você, no prompt:
 
@@ -190,6 +208,15 @@ tracker.keyPassword=SUA_SENHA
 
 Sem o keystore configurado, o `assembleRelease` **falha de propósito**, com a mensagem dizendo o
 que falta — em vez de gerar um APK sem assinatura que não instalaria em aparelho nenhum.
+
+</details>
+
+> **O build de release liga o R8 (minify).** As regras em `app/proguard-rules.pro` preservam
+> `dados.**` (o Gson do SignalR lê os campos por nome) e o `TrackerDeviceAdminReceiver`. Os
+> receivers declarados no manifest — incluindo o `ResultadoInstalacaoReceiver` da OTA — são
+> mantidos pelo próprio AGP. Ao criar um DTO novo **fora** do pacote `dados`, ou uma classe
+> resolvida por reflexão, acrescente a regra: o sintoma de esquecer é o comando chegar vazio e ser
+> descartado em silêncio, sem erro no log.
 
 ---
 

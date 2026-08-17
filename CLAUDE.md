@@ -77,7 +77,9 @@ dotnet run --project agents/Tracker.Agent.Windows      # modo console (Simular=t
 
 # Agente Android (SDK em C:\Android\Sdk; gradlew versionado, não precisa instalar Gradle)
 cd agents/Tracker.Agent.Android && ./gradlew :app:assembleDebug   # APK assinado p/ teste
-# assembleRelease exige keystore em local.properties — falha com mensagem se faltar.
+# Release da frota: use o script (cria a keystore na 1a vez, compila e mostra versionCode/SHA-256).
+./deploy/gerar-apk-agente.ps1
+# assembleRelease direto exige keystore em local.properties — falha com mensagem se faltar.
 ```
 
 ## Convenções e padrões
@@ -164,6 +166,12 @@ cd agents/Tracker.Agent.Android && ./gradlew :app:assembleDebug   # APK assinado
     passo 5 do enrollment). Da 2ª em diante (Android 12+) é silencioso: o agente vira o
     instalador de si mesmo (`USER_ACTION_NOT_REQUIRED`).
   - Agentes 1.0.0 (sem OTA) não se atualizam sozinhos: a primeira troca é manual via adb.
+  - **A keystore de release amarra a frota inteira**: assinatura diferente é recusada pelo Android
+    e a saída seria reinstalar aparelho por aparelho. Ela mora **fora do repositório**
+    (`Documents\TrackerKeystore\`) porque worktree/clone novo não leva a chave junto.
+  - **O release liga o R8.** `proguard-rules.pro` preserva `dados.**` (o Gson do SignalR lê os
+    campos por nome) e o Device Admin; receivers do manifest o AGP mantém sozinho. DTO novo fora
+    de `dados` exige regra nova — sem ela o comando chega vazio e é descartado **em silêncio**.
 - **Identificação Android:** o técnico pode digitar **número de série e IMEI** no enrollment (o
   Android não os entrega a app comum sem Device Owner). O auto-enrollment casa dispositivo
   existente por `NumeroSerie` e, se falhar, por `Imei` (religa em vez de duplicar); um arquivado
