@@ -57,6 +57,7 @@ class EnrollmentActivity : AppCompatActivity() {
 
         // O código de instalação é sempre digitado aqui; some da tela depois do registro.
         binding.campoChave.doOnTextChanged { _, _, _, _ -> binding.blocoChave.error = null }
+        binding.campoSerie.doOnTextChanged { _, _, _, _ -> binding.blocoSerie.error = null }
         binding.campoChave.setOnEditorActionListener { _, _, _ -> registrar(); true }
 
         binding.botaoRegistrar.setOnClickListener { registrar() }
@@ -81,16 +82,25 @@ class EnrollmentActivity : AppCompatActivity() {
             return
         }
 
+        // Obrigatório: é a identidade do aparelho no inventário. Sem ele restaria o ANDROID_ID,
+        // que muda quando a assinatura do app muda e por isso já duplicou registros.
+        val serie = binding.campoSerie.text?.toString()?.trim().orEmpty()
+        if (serie.isBlank()) {
+            binding.blocoSerie.error = getString(R.string.enrollment_serie_vazia)
+            return
+        }
+
         binding.botaoRegistrar.isEnabled = false
 
         lifecycleScope.launch {
-            val resultado = runCatching { backend.registrar(codigo) }
+            val resultado = runCatching { backend.registrar(codigo, serie) }
 
             binding.botaoRegistrar.isEnabled = true
             resultado
                 .onSuccess {
-                    // Limpa o campo: o código não fica na tela nem é guardado no aparelho.
+                    // Limpa os campos: o código não fica na tela nem é guardado no aparelho.
                     binding.campoChave.text = null
+                    binding.campoSerie.text = null
                     aviso(getString(R.string.enrollment_registrado))
                     AgenteService.iniciar(this@EnrollmentActivity)
                     atualizarTela()
@@ -198,15 +208,17 @@ class EnrollmentActivity : AppCompatActivity() {
             "✖ Bateria restrita: o aparelho pode aparecer offline"
         }
 
-        linhas += "Série: ${info.numeroSerie}"
+        linhas += "Série: ${info.numeroSerieInventario}"
 
         binding.textoStatus.text = linhas.joinToString("\n")
 
         // Depois de registrado o campo do código e o botão saem da tela: ela passa a servir só
         // como diagnóstico do aparelho.
         val precisaRegistrar = !armazenamento.registrado
-        binding.blocoChave.visibility = if (precisaRegistrar) View.VISIBLE else View.GONE
-        binding.botaoRegistrar.visibility = if (precisaRegistrar) View.VISIBLE else View.GONE
+        val visivel = if (precisaRegistrar) View.VISIBLE else View.GONE
+        binding.blocoChave.visibility = visivel
+        binding.blocoSerie.visibility = visivel
+        binding.botaoRegistrar.visibility = visivel
         binding.botaoRegistrar.isEnabled = precisaRegistrar
     }
 

@@ -7,6 +7,9 @@
     <string name="enrollment_chave_ajuda">Informado pela equipe de TI. Sem ele o aparelho não entra no inventário.</string>
     <string name="enrollment_chave_vazia">Digite o código de instalação.</string>
     <string name="enrollment_chave_invalida">Código de instalação incorreto. Confira com a equipe de TI.</string>
+    <string name="enrollment_serie">Número de série</string>
+    <string name="enrollment_serie_ajuda">Da etiqueta do aparelho ou em Configurações &gt; Sobre o tablet.</string>
+    <string name="enrollment_serie_vazia">Informe o número de série do aparelho.</string>
     <string name="enrollment_registrar">Registrar aparelho</string>
     <string name="enrollment_registrado">Aparelho registrado no inventário.</string>
     <string name="enrollment_falha_generica">Não foi possível registrar o aparelho. Verifique a conexão.</string>

@@ -128,7 +128,7 @@ class BloqueioActivity : AppCompatActivity() {
 
         binding.textoIdentificacao.text = buildString {
             if (!patrimonio.isNullOrBlank()) appendLine("Patrimônio: $patrimonio")
-            appendLine("Série: ${info.numeroSerie}")
+            appendLine("Série: ${info.numeroSerieInventario}")
             append("${info.fabricante} ${info.modelo}")
         }
     }

@@ -53,10 +53,15 @@ class BackendClient(
      * ficasse salvo, um aparelho roubado carregaria a chave da empresa e poderia se recadastrar
      * sozinho depois de a TI revogar o token dele.
      */
-    suspend fun registrar(codigoInstalacao: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun registrar(
+        codigoInstalacao: String,
+        numeroSerie: String,
+    ): Boolean = withContext(Dispatchers.IO) {
         val corpo = JSONObject().apply {
             put("hostname", info.hostname)
-            put("numeroSerie", info.numeroSerie)
+            // A serie digitada pelo tecnico e a identidade no inventario. Guardada localmente
+            // para as telas do app, mas quem manda no registro e sempre o que foi digitado agora.
+            put("numeroSerie", numeroSerie)
             put("sistemaOperacional", info.sistemaOperacional)
             put("versaoSO", info.versaoSO)
             put("macAddress", JSONObject.NULL) // Android 6+ nao expoe o MAC real ao app.
@@ -85,6 +90,7 @@ class BackendClient(
             }
 
             val json = JSONObject(texto)
+            armazenamento.numeroSerie = numeroSerie
             armazenamento.token = json.getString("token")
             armazenamento.dispositivoId = json.optString("dispositivoId").takeIf { it.isNotBlank() }
             armazenamento.assetTag = json.optString("assetTag").takeIf { it.isNotBlank() }

@@ -9,6 +9,7 @@ import android.os.Build
 import android.provider.Settings
 import android.telephony.TelephonyManager
 import android.util.Log
+import br.com.nutrihouse.tracker.agent.dados.Armazenamento
 
 /** Tipo enviado ao backend no auto-cadastro; espelha Tracker.Domain.Enums.TipoDispositivo. */
 enum class TipoAparelho { Mobile }
@@ -24,6 +25,10 @@ enum class TipoAparelho { Mobile }
 class InfoAparelho(private val context: Context) {
 
     private val politica by lazy { Politica(context) }
+
+    // lazy: abrir o armazenamento criptografado passa pelo Keystore do aparelho, caro demais
+    // para refazer a cada leitura de propriedade.
+    private val armazenamento by lazy { Armazenamento(context) }
 
     /**
      * Celular e tablet entram no inventario como o MESMO tipo (Mobile): o agente e identico nos
@@ -50,6 +55,14 @@ class InfoAparelho(private val context: Context) {
      * Identificador estavel do aparelho. Tenta o numero de serie real (so funciona com Device
      * Owner) e cai para o ANDROID_ID.
      */
+    /**
+     * Identidade do aparelho no inventario. Prioriza a serie digitada pelo tecnico no registro:
+     * ela vem da etiqueta, e diferente do ANDROID_ID nao muda quando a assinatura do app muda —
+     * o que ja causou registros duplicados.
+     */
+    val numeroSerieInventario: String
+        get() = armazenamento.numeroSerie?.takeIf { it.isNotBlank() } ?: numeroSerie
+
     // @get:: a propriedade nao tem backing field (so getter), entao a anotacao vai no getter.
     @get:SuppressLint("HardwareIds")
     val numeroSerie: String
