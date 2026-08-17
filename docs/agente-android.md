@@ -297,17 +297,39 @@ adb shell dpm remove-active-admin br.com.nutrihouse.tracker.agent/.admin.Tracker
 
 ## Identificação no inventário
 
-Sem Device Owner, o Android não entrega o número de série nem o IMEI a um app comum. Por isso a
-tela de registro tem dois campos opcionais que o técnico preenche na instalação:
+### Sempre informe o patrimônio
 
-- **Número de série** — o da etiqueta/caixa do aparelho. Vira o `NumeroSerie` do inventário.
-- **IMEI** — visível discando `*#06#`. Além de identificar, ele **religa** o registro a um
-  aparelho que a TI já tenha cadastrado antes pelo IMEI (evita duplicar o ativo).
+A tela de registro pede três identificadores. O **patrimônio é o que importa** — é por ele que o
+backend reencontra um cadastro que já existe, em vez de criar um ativo duplicado:
 
-Se os campos ficarem vazios, o agente usa o `ANDROID_ID`, gravado como `ANDROID-<id>` no campo
-Número de série. Ele é estável por aparelho e só muda em restauração de fábrica — serve como
-chave de inventário, mas **não** é o serial da etiqueta. Ajuste o patrimônio (`AssetTag`)
-manualmente no painel; o auto-cadastro grava `AUTO-<serie>` como provisório.
+| Campo | Para que serve |
+|---|---|
+| **Patrimônio** | O da etiqueta do ativo. Reencontra o cadastro existente. **Preencha sempre.** |
+| Número de série | O da etiqueta/caixa. Dá identidade real ao registro quando o Android não a entrega. |
+| IMEI | Só aparece em aparelho com modem — tablet Wi-Fi não tem IMEI nenhum. |
+
+Deixando o patrimônio em branco, o agente se identifica por um valor derivado do `ANDROID_ID`,
+gravado como `ANDROID-<id>`. **Esse valor não é estável**: o Android o escopa por chave de
+assinatura do APK, então ele muda sempre que o app é reinstalado assinado com outra chave — é
+exatamente o que acontece ao trocar um APK de teste pelo de release. Quando ele muda e não há
+patrimônio, o mesmo aparelho volta ao inventário como um ativo novo.
+
+O reencontro segue a ordem **patrimônio → número de série → IMEI**, e os identificadores só
+melhoram: um serial de fábrica nunca é substituído pelo provisório, e um patrimônio real nunca
+volta a ser `AUTO-*`.
+
+### O que o Android deixa ler sozinho
+
+| Versão do aparelho | Número de série | IMEI |
+|---|---|---|
+| Até o Android 7.1 | Automático | Automático |
+| Android 8.0 a 9 | Automático (permissão de telefonia, pedida no registro) | Automático (idem) |
+| **Android 10 ou mais novo** | **Só com Device Owner** | **Só com Device Owner** |
+
+Do Android 10 em diante não existe permissão que resolva: o sistema reserva esses dados a apps
+privilegiados. Em aparelho moderno, ou você provisiona como Device Owner (exige restauração de
+fábrica, ver adiante), ou o técnico digita os valores no registro. A tela de diagnóstico mostra
+qual é o caso do aparelho: "Série de fábrica" quando conseguiu ler, "Série provisória" quando não.
 
 Com Device Owner, número de série e IMEI reais são preenchidos automaticamente (o IMEI também é
 completado depois, via heartbeat, se o cadastro estiver sem ele). A busca do painel encontra o
@@ -383,6 +405,8 @@ registrados continuam funcionando, porque eles usam o token individual, não o c
 | API de dev inacessível pelo celular | A API precisa escutar em `0.0.0.0` (perfil `rede` do launchSettings), a porta 5171 liberada no firewall, e o aparelho no mesmo Wi-Fi. |
 | App voltou a pedir o código | O token foi revogado/regenerado no painel. Digite o código novamente no aparelho. |
 | Publiquei um APK e a frota não atualiza | `versionCode` publicado igual/menor que o instalado (o painel barra, mas confira), permissão "instalar apps desconhecidos" ausente nos aparelhos sem Device Owner, ou APK assinado com outra keystore. |
+| O mesmo aparelho apareceu duas vezes no inventário | Foi registrado sem o patrimônio depois de o APK trocar de assinatura (o identificador provisório muda junto). Arquive o registro novo, apague os dados do app no aparelho e registre de novo **informando o patrimônio** do cadastro original. |
+| A tela diz "Série provisória" | Aparelho com Android 10+ sem Device Owner: o sistema não libera o serial de fábrica. Digite o número de série e o patrimônio no registro, ou provisione como Device Owner. |
 | Painel mostra "Desatualizados" que nunca zeram | Aparelhos com agente 1.0.0 (anterior à OTA) não sabem se atualizar: essa primeira troca é manual, por `adb install -r` ou pelo APK aberto no aparelho. |
 
 Logs no aparelho:

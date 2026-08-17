@@ -30,6 +30,13 @@
          Device Owner o usuario ainda confirma o dialogo do sistema na primeira vez. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Numero de serie e IMEI reais. maxSdkVersion=28 de proposito: do Android 10 em diante o
+         sistema recusa a leitura a app comum (so Device Owner), entao pedir a permissao la seria
+         incomodar o usuario por nada. -->
+    <uses-permission
+        android:name="android.permission.READ_PHONE_STATE"
+        android:maxSdkVersion="28" />
+
     <application
         android:name=".TrackerApp"
         android:allowBackup="false"

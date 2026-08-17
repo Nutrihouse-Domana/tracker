@@ -23,7 +23,13 @@ public record AutoEnrollmentRequest(
     string? Imei,
     string? Fabricante = null,
     string? Modelo = null,
-    NivelProtecaoAgente? NivelProtecao = null);
+    NivelProtecaoAgente? NivelProtecao = null,
+    /// <summary>
+    /// Patrimônio digitado pelo técnico. É a identidade corporativa do ativo (está na etiqueta) e
+    /// tem precedência no reencontro: diferente do número de série de aparelho sem Device Owner,
+    /// ele não muda quando o app é reinstalado com outra assinatura.
+    /// </summary>
+    string? AssetTag = null);
 
 /// <summary>
 /// Telemetria enviada periodicamente pelo agente. Os campos a partir de BateriaPercentual só

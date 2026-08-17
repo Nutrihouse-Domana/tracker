@@ -172,11 +172,22 @@ cd agents/Tracker.Agent.Android && ./gradlew :app:assembleDebug   # APK assinado
   - **O release liga o R8.** `proguard-rules.pro` preserva `dados.**` (o Gson do SignalR lê os
     campos por nome) e o Device Admin; receivers do manifest o AGP mantém sozinho. DTO novo fora
     de `dados` exige regra nova — sem ela o comando chega vazio e é descartado **em silêncio**.
-- **Identificação Android:** o técnico pode digitar **número de série e IMEI** no enrollment (o
-  Android não os entrega a app comum sem Device Owner). O auto-enrollment casa dispositivo
-  existente por `NumeroSerie` e, se falhar, por `Imei` (religa em vez de duplicar); um arquivado
-  com o mesmo serial devolve 409 com mensagem clara (o índice único não conhece o filtro global).
-  O heartbeat completa o `Imei` só quando o cadastro está vazio — nunca sobrescreve o digitado.
+- **Identificação Android — o `NumeroSerie` provisório NÃO é estável.** Sem Device Owner o agente
+  manda `ANDROID-<ANDROID_ID>`, e o ANDROID_ID é escopado por **chave de assinatura do APK**: ele
+  muda quando o app é reinstalado assinado com outra chave (trocar debug→release faz isso na frota
+  inteira). Já duplicou tablet em produção assim. Consequências:
+  - O `AutoEnrollment` reencontra o ativo nesta ordem: **patrimônio → número de série → IMEI**.
+    O patrimônio é digitado pelo técnico e é o único que atravessa troca de assinatura.
+  - `PromoverNumeroSerieAsync`/`PromoverPatrimonioAsync` só **sobem** a qualidade do dado: serial
+    de fábrica nunca é rebaixado para `ANDROID-*`, patrimônio real nunca volta a `AUTO-*`. As duas
+    checam o índice único **com `IgnoreQueryFilters()`** (arquivado seguraria o UPDATE).
+  - Arquivado com o mesmo serial **ou patrimônio** devolve 409 com mensagem clara.
+  - O heartbeat completa o `Imei` só quando o cadastro está vazio — nunca sobrescreve o digitado.
+- **Ler série/IMEI de fábrica depende da versão do Android:** até o 7.1 `Build.SERIAL` é livre; do
+  8.0 ao 9 exige `READ_PHONE_STATE` (declarada com `maxSdkVersion=28`, pedida no enrollment); do
+  **10 em diante é proibido a app comum — só Device Owner**, e nenhuma permissão contorna. Tablet
+  sem modem (`FEATURE_TELEPHONY` ausente) não tem IMEI algum: o campo some da tela em vez de
+  convidar o técnico a inventar um número.
 - **Agente Android:**
   - **Janela só pode ser criada/removida na thread principal.** O laço de enforcement roda em
     `Dispatchers.IO`; `WindowManager.addView` a partir dele falha ao construir o `Handler` interno

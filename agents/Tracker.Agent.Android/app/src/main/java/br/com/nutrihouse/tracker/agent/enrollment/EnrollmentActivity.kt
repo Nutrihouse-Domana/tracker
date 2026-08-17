@@ -83,15 +83,16 @@ class EnrollmentActivity : AppCompatActivity() {
             return
         }
 
-        // Identificadores fisicos digitados pelo tecnico: ligam o registro ao ativo real quando
-        // o Android nao entrega o serial/IMEI ao app (qualquer aparelho sem Device Owner).
+        // Identificadores digitados pelo tecnico: ligam o registro ao ativo real quando o Android
+        // nao entrega o serial/IMEI ao app (qualquer aparelho sem Device Owner).
+        val patrimonio = binding.campoPatrimonio.text?.toString()?.trim()
         val numeroSerie = binding.campoNumeroSerie.text?.toString()?.trim()
         val imei = binding.campoImei.text?.toString()?.trim()
 
         binding.botaoRegistrar.isEnabled = false
 
         lifecycleScope.launch {
-            val resultado = runCatching { backend.registrar(codigo, numeroSerie, imei) }
+            val resultado = runCatching { backend.registrar(codigo, patrimonio, numeroSerie, imei) }
 
             binding.botaoRegistrar.isEnabled = true
             resultado
@@ -134,6 +135,12 @@ class EnrollmentActivity : AppCompatActivity() {
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissoes += Manifest.permission.POST_NOTIFICATIONS
+        }
+
+        // Ate o Android 9 esta permissao libera o numero de serie e o IMEI de fabrica. Do 10 em
+        // diante o sistema recusa a leitura a app comum, entao pedi-la seria incomodo sem ganho.
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            permissoes += Manifest.permission.READ_PHONE_STATE
         }
 
         pedirLocalizacao.launch(permissoes.toTypedArray())
@@ -235,7 +242,24 @@ class EnrollmentActivity : AppCompatActivity() {
             "✖ Sem permissão de instalar: atualizações do agente não se aplicam"
         }
 
-        linhas += "Série: ${info.numeroSerie}"
+        // Distingue o serial de fabrica do identificador provisorio: o provisorio muda quando o
+        // APK e reinstalado com outra assinatura, e e por isso que o patrimonio precisa ser
+        // digitado — sem ele o aparelho voltaria ao inventario como um ativo novo.
+        val serieReal = info.numeroSerieReal
+        linhas += if (serieReal != null) {
+            "✔ Série de fábrica: $serieReal"
+        } else {
+            "Série provisória: ${info.numeroSerie}\n" +
+                "  (o Android não libera a real sem Device Owner — informe o patrimônio)"
+        }
+
+        if (info.temModemCelular) {
+            linhas += info.imei?.let { "✔ IMEI: $it" }
+                ?: "IMEI não disponível: o Android só o libera com Device Owner"
+        } else {
+            linhas += "Sem modem celular: este aparelho não possui IMEI"
+        }
+
         linhas += "Versão do agente: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
 
         binding.textoStatus.text = linhas.joinToString("\n")
@@ -244,10 +268,15 @@ class EnrollmentActivity : AppCompatActivity() {
         // como diagnóstico do aparelho.
         val precisaRegistrar = !armazenamento.registrado
         binding.blocoChave.visibility = if (precisaRegistrar) View.VISIBLE else View.GONE
+        binding.blocoPatrimonio.visibility = if (precisaRegistrar) View.VISIBLE else View.GONE
         binding.blocoNumeroSerie.visibility = if (precisaRegistrar) View.VISIBLE else View.GONE
-        binding.blocoImei.visibility = if (precisaRegistrar) View.VISIBLE else View.GONE
         binding.botaoRegistrar.visibility = if (precisaRegistrar) View.VISIBLE else View.GONE
         binding.botaoRegistrar.isEnabled = precisaRegistrar
+
+        // Aparelho so Wi-Fi nao tem IMEI em lugar nenhum: pedir o numero ao tecnico so geraria
+        // dado inventado. O campo some, e o serial/patrimonio fazem a identificacao.
+        val pedirImei = precisaRegistrar && info.temModemCelular
+        binding.blocoImei.visibility = if (pedirImei) View.VISIBLE else View.GONE
     }
 
     private fun aviso(mensagem: String) {
