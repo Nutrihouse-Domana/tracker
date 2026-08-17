@@ -19,18 +19,31 @@ import {
   Alert,
   ToggleButton,
   ToggleButtonGroup,
+  IconButton,
+  Tooltip,
 } from '@mui/material'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
+import RestoreIcon from '@mui/icons-material/RestoreOutlined'
+import DeleteForeverIcon from '@mui/icons-material/DeleteForeverOutlined'
 import type { Dispositivo, StatusDispositivo, TipoDispositivo } from '../api/types'
-import { useDispositivos } from '../features/dispositivos/hooks'
+import {
+  useDispositivos,
+  useDispositivosArquivados,
+  useRestaurarDispositivo,
+} from '../features/dispositivos/hooks'
 import { DispositivoFormDialog } from '../features/dispositivos/DispositivoFormDialog'
 import { AtribuirDialog } from '../features/dispositivos/AtribuirDialog'
+import { ExcluirDispositivoDialog } from '../features/dispositivos/ExcluirDispositivoDialog'
 import { corStatus, rotuloStatus } from '../features/dispositivos/status'
+import { useUnidades } from '../features/unidades/hooks'
 
-const abas: { label: string; tipo: TipoDispositivo | undefined }[] = [
+/** A última aba lista os arquivados (tipo indiferente), por isso `arquivados`. */
+const abas: { label: string; tipo?: TipoDispositivo; arquivados?: boolean }[] = [
   { label: 'Todos', tipo: undefined },
   { label: 'Notebooks', tipo: 'Notebook' },
   { label: 'Mobiles', tipo: 'Mobile' },
   { label: 'Periféricos', tipo: 'Periferico' },
+  { label: 'Arquivados', arquivados: true },
 ]
 
 const filtrosStatus: { label: string; status: StatusDispositivo | undefined }[] = [
@@ -53,8 +66,17 @@ export function DispositivosPage() {
   )
   const [dialogAberto, setDialogAberto] = useState(false)
   const [dispositivoParaAtribuir, setDispositivoParaAtribuir] = useState<Dispositivo | null>(null)
+  const [dispositivoParaExcluir, setDispositivoParaExcluir] = useState<Dispositivo | null>(null)
 
-  const { data: dispositivosCarregados, isLoading } = useDispositivos({ tipo: abas[aba].tipo, status })
+  const unidadeId = searchParams.get('unidadeId') ?? undefined
+  const { data: unidades } = useUnidades()
+  const unidadeFiltrada = unidades?.find((u) => u.id === unidadeId)
+  const mostrandoArquivados = !!abas[aba].arquivados
+  const restaurar = useRestaurarDispositivo()
+
+  const listaAtiva = useDispositivos({ tipo: abas[aba].tipo, status, unidadeId })
+  const listaArquivada = useDispositivosArquivados(mostrandoArquivados)
+  const { data: dispositivosCarregados, isLoading } = mostrandoArquivados ? listaArquivada : listaAtiva
 
   // Uma nova busca zera aba e filtro de status: senão o termo "não acha nada" só porque
   // havia um filtro ativo que exclui o dispositivo procurado.
@@ -68,7 +90,16 @@ export function DispositivosPage() {
     if (!termoBusca.trim()) return dispositivosCarregados
     const termo = termoBusca.trim().toLowerCase()
     return dispositivosCarregados?.filter((d) =>
-      [d.numeroSerie, d.assetTag, d.hostname, d.imei, d.usuarioAtualNome, d.sistemaOperacional, d.observacoes]
+      [
+        d.numeroSerie,
+        d.assetTag,
+        d.hostname,
+        d.imei,
+        d.usuarioAtualNome,
+        d.unidadeNome,
+        d.sistemaOperacional,
+        d.observacoes,
+      ]
         .filter(Boolean)
         .some((campo) => campo!.toLowerCase().includes(termo)),
     )
@@ -89,25 +120,41 @@ export function DispositivosPage() {
         </Alert>
       )}
 
-      <Tabs value={aba} onChange={(_, v) => setAba(v)} sx={{ mb: 2 }}>
+      {unidadeFiltrada && (
+        <Alert
+          severity="info"
+          sx={{ mb: 2 }}
+          onClose={() => {
+            searchParams.delete('unidadeId')
+            setSearchParams(searchParams)
+          }}
+        >
+          Mostrando apenas dispositivos da unidade <strong>{unidadeFiltrada.nome}</strong>
+        </Alert>
+      )}
+
+      <Tabs value={aba} onChange={(_, v) => setAba(v)} variant="scrollable" scrollButtons="auto" sx={{ mb: 2 }}>
         {abas.map((a) => (
           <Tab key={a.label} label={a.label} />
         ))}
       </Tabs>
 
-      <ToggleButtonGroup
-        value={status ?? 'Todos'}
-        exclusive
-        size="small"
-        onChange={(_, v) => setStatus(v && v !== 'Todos' ? (v as StatusDispositivo) : undefined)}
-        sx={{ mb: 2, flexWrap: 'wrap' }}
-      >
-        {filtrosStatus.map((f) => (
-          <ToggleButton key={f.label} value={f.status ?? 'Todos'}>
-            {f.label}
-          </ToggleButton>
-        ))}
-      </ToggleButtonGroup>
+      {/* Arquivados não têm filtro de status: o que interessa neles é quando e por que saíram. */}
+      {!mostrandoArquivados && (
+        <ToggleButtonGroup
+          value={status ?? 'Todos'}
+          exclusive
+          size="small"
+          onChange={(_, v) => setStatus(v && v !== 'Todos' ? (v as StatusDispositivo) : undefined)}
+          sx={{ mb: 2, flexWrap: 'wrap' }}
+        >
+          {filtrosStatus.map((f) => (
+            <ToggleButton key={f.label} value={f.status ?? 'Todos'}>
+              {f.label}
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+      )}
 
       {isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -121,8 +168,10 @@ export function DispositivosPage() {
                 <TableCell>Tipo</TableCell>
                 <TableCell>Identificação</TableCell>
                 <TableCell>Patrimônio</TableCell>
-                <TableCell>Usuário atual</TableCell>
-                <TableCell align="center">Status</TableCell>
+                <TableCell>Unidade</TableCell>
+                {/* Usuário nominal ou, nos ativos do local, o nome da unidade. */}
+                <TableCell>Responsável</TableCell>
+                <TableCell align="center">{mostrandoArquivados ? 'Excluído em' : 'Status'}</TableCell>
                 <TableCell align="right">Ações</TableCell>
               </TableRow>
             </TableHead>
@@ -132,28 +181,80 @@ export function DispositivosPage() {
                   <TableCell>{d.tipo}</TableCell>
                   <TableCell>{d.hostname ?? d.numeroSerie}</TableCell>
                   <TableCell>{d.assetTag ?? '—'}</TableCell>
-                  <TableCell>{d.usuarioAtualNome ?? '—'}</TableCell>
+                  <TableCell>{d.unidadeNome ?? '—'}</TableCell>
+                  <TableCell>
+                    {d.responsavelNome ?? '—'}
+                    {!d.pertenceAUsuario && d.responsavelNome && (
+                      <Chip size="small" label="Local" variant="outlined" sx={{ ml: 1 }} />
+                    )}
+                  </TableCell>
                   <TableCell align="center">
-                    <Chip size="small" label={rotuloStatus[d.status] ?? d.status} color={corStatus[d.status] ?? 'default'} />
+                    {mostrandoArquivados ? (
+                      <Tooltip title={d.motivoExclusao ?? 'Sem motivo registrado'}>
+                        <span>{d.excluidoEm ? new Date(d.excluidoEm).toLocaleDateString('pt-BR') : '—'}</span>
+                      </Tooltip>
+                    ) : (
+                      <Chip
+                        size="small"
+                        label={rotuloStatus[d.status] ?? d.status}
+                        color={corStatus[d.status] ?? 'default'}
+                      />
+                    )}
                   </TableCell>
                   <TableCell align="right" onClick={(e) => e.stopPropagation()}>
-                    <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
-                      <Button size="small" onClick={() => setDispositivoParaAtribuir(d)}>
-                        Atribuir
-                      </Button>
-                      <Button size="small" onClick={() => navigate(`/dispositivos/${d.id}`)}>
-                        Ver detalhes
-                      </Button>
+                    <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
+                      {mostrandoArquivados ? (
+                        <>
+                          <Button
+                            size="small"
+                            startIcon={<RestoreIcon />}
+                            disabled={restaurar.isPending}
+                            onClick={() => restaurar.mutate(d.id)}
+                          >
+                            Restaurar
+                          </Button>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            title="Excluir definitivamente"
+                            onClick={() => setDispositivoParaExcluir(d)}
+                          >
+                            <DeleteForeverIcon fontSize="small" />
+                          </IconButton>
+                        </>
+                      ) : (
+                        <>
+                          {/* Ativo do local não tem detentor: atribuir aqui não faz sentido. */}
+                          {d.pertenceAUsuario && (
+                            <Button size="small" onClick={() => setDispositivoParaAtribuir(d)}>
+                              Atribuir
+                            </Button>
+                          )}
+                          <Button size="small" onClick={() => navigate(`/dispositivos/${d.id}`)}>
+                            Ver detalhes
+                          </Button>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            title="Excluir"
+                            onClick={() => setDispositivoParaExcluir(d)}
+                          >
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </>
+                      )}
                     </Stack>
                   </TableCell>
                 </TableRow>
               ))}
               {dispositivos?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
+                  <TableCell colSpan={7} align="center">
                     {termoBusca
                       ? `Nenhum dispositivo encontrado para "${termoBusca}".`
-                      : 'Nenhum dispositivo cadastrado.'}
+                      : mostrandoArquivados
+                        ? 'Nenhum dispositivo arquivado.'
+                        : 'Nenhum dispositivo cadastrado.'}
                   </TableCell>
                 </TableRow>
               )}
@@ -164,6 +265,10 @@ export function DispositivosPage() {
 
       <DispositivoFormDialog open={dialogAberto} onClose={() => setDialogAberto(false)} />
       <AtribuirDialog dispositivo={dispositivoParaAtribuir} onClose={() => setDispositivoParaAtribuir(null)} />
+      <ExcluirDispositivoDialog
+        dispositivo={dispositivoParaExcluir}
+        onClose={() => setDispositivoParaExcluir(null)}
+      />
     </>
   )
 }

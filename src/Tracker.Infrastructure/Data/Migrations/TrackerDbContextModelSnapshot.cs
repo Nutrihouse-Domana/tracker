@@ -262,6 +262,15 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.Property<DateTime>("DataAquisicao")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("ExcluidoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ExcluidoPorAdmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("MotivoExclusao")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("NumeroSerie")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -269,11 +278,17 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.Property<string>("Observacoes")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("PertenceAUsuario")
+                        .HasColumnType("bit");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
                     b.Property<int>("Tipo")
                         .HasColumnType("int");
+
+                    b.Property<Guid?>("UnidadeId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid?>("UsuarioAtualId")
                         .HasColumnType("uniqueidentifier");
@@ -284,8 +299,12 @@ namespace Tracker.Infrastructure.Data.Migrations
                         .IsUnique()
                         .HasFilter("[AssetTag] IS NOT NULL");
 
+                    b.HasIndex("ExcluidoEm");
+
                     b.HasIndex("NumeroSerie")
                         .IsUnique();
+
+                    b.HasIndex("UnidadeId");
 
                     b.HasIndex("UsuarioAtualId");
 
@@ -523,6 +542,35 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.HasIndex("UsuarioId");
 
                     b.ToTable("TermosDeUso");
+                });
+
+            modelBuilder.Entity("Tracker.Domain.Entities.Unidade", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Ativa")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Codigo")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nome")
+                        .IsUnique();
+
+                    b.ToTable("Unidades");
                 });
 
             modelBuilder.Entity("Tracker.Domain.Entities.Usuario", b =>
@@ -860,10 +908,17 @@ namespace Tracker.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("Tracker.Domain.Entities.Dispositivo", b =>
                 {
+                    b.HasOne("Tracker.Domain.Entities.Unidade", "Unidade")
+                        .WithMany("Dispositivos")
+                        .HasForeignKey("UnidadeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Tracker.Domain.Entities.Usuario", "UsuarioAtual")
                         .WithMany("Dispositivos")
                         .HasForeignKey("UsuarioAtualId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Unidade");
 
                     b.Navigation("UsuarioAtual");
                 });
@@ -978,6 +1033,11 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.Navigation("HistoricoMovimentacoes");
 
                     b.Navigation("HistoricoReparos");
+                });
+
+            modelBuilder.Entity("Tracker.Domain.Entities.Unidade", b =>
+                {
+                    b.Navigation("Dispositivos");
                 });
 
             modelBuilder.Entity("Tracker.Domain.Entities.Usuario", b =>

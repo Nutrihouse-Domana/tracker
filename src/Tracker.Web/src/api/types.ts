@@ -46,6 +46,26 @@ export interface AtualizarUsuarioRequest {
   ativo: boolean
 }
 
+/** Unidade da Nutrihouse (matriz, filial) que o dispositivo atende. */
+export interface Unidade {
+  id: string
+  nome: string
+  codigo: string | null
+  ativa: boolean
+  quantidadeDispositivos: number
+}
+
+export interface CriarUnidadeRequest {
+  nome: string
+  codigo?: string | null
+}
+
+export interface AtualizarUnidadeRequest {
+  nome: string
+  codigo?: string | null
+  ativa: boolean
+}
+
 export interface Dispositivo {
   id: string
   tipo: TipoDispositivo
@@ -70,6 +90,30 @@ export interface Dispositivo {
   modelo: string | null
   bateriaPercentual: number | null
   nivelProtecao: NivelProtecaoAgente | null
+  /** Unidade que o dispositivo atende. */
+  unidadeId: string | null
+  unidadeNome: string | null
+  /** False = ativo do local: lotado na unidade, sem detentor individual. */
+  pertenceAUsuario: boolean
+  /** Quem responde pelo ativo: o usuário nominal ou, se for do local, a unidade. */
+  responsavelNome: string | null
+  /** Preenchido só em dispositivos arquivados. */
+  excluidoEm: string | null
+  motivoExclusao: string | null
+}
+
+export interface ExcluirDispositivoRequest {
+  senha: string
+  motivo?: string | null
+  /** false = arquiva (restaurável); true = apaga o registro e todo o histórico, sem volta. */
+  definitiva?: boolean
+}
+
+export interface DefinirPosseDispositivoRequest {
+  pertenceAUsuario: boolean
+  unidadeId?: string | null
+  senha: string
+  motivo?: string | null
 }
 
 export interface CriarNotebookRequest {
@@ -81,6 +125,8 @@ export interface CriarNotebookRequest {
   macAddress?: string | null
   dataAquisicao: string
   observacoes?: string | null
+  unidadeId?: string | null
+  pertenceAUsuario?: boolean
 }
 
 /** Celular ou tablet: mesmo tipo, mesmo agente. */
@@ -94,6 +140,8 @@ export interface CriarMobileRequest {
   macAddress?: string | null
   dataAquisicao: string
   observacoes?: string | null
+  unidadeId?: string | null
+  pertenceAUsuario?: boolean
 }
 
 export interface CriarPerifericoRequest {
@@ -101,6 +149,8 @@ export interface CriarPerifericoRequest {
   tipoPeriferico: TipoPeriferico
   dataAquisicao: string
   observacoes?: string | null
+  unidadeId?: string | null
+  pertenceAUsuario?: boolean
 }
 
 export interface AtribuirDispositivoRequest {
@@ -225,6 +275,8 @@ export interface BuscaDispositivo {
   hostname: string | null
   imei: string | null
   usuarioAtualNome: string | null
+  unidadeNome: string | null
+  responsavelNome: string | null
 }
 
 export interface BuscaUsuario {

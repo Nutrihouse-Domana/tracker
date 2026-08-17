@@ -4,6 +4,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { DispositivosPage } from './pages/DispositivosPage'
 import { DispositivoDetalhePage } from './pages/DispositivoDetalhePage'
 import { UsuariosPage } from './pages/UsuariosPage'
+import { UnidadesPage } from './pages/UnidadesPage'
 import { LoginPage } from './pages/LoginPage'
 import { AuthGuard } from './features/auth/AuthGuard'
 
@@ -17,6 +18,7 @@ function App() {
           <Route path="dispositivos" element={<DispositivosPage />} />
           <Route path="dispositivos/:id" element={<DispositivoDetalhePage />} />
           <Route path="usuarios" element={<UsuariosPage />} />
+          <Route path="unidades" element={<UnidadesPage />} />
         </Route>
       </Route>
     </Routes>
