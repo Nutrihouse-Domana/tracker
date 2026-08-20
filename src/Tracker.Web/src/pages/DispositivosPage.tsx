@@ -36,6 +36,7 @@ import { AtribuirDialog } from '../features/dispositivos/AtribuirDialog'
 import { ExcluirDispositivoDialog } from '../features/dispositivos/ExcluirDispositivoDialog'
 import { corStatus, rotuloStatus } from '../features/dispositivos/status'
 import { useUnidades } from '../features/unidades/hooks'
+import { usePermissoes, PERMISSOES } from '../features/auth/permissoes'
 
 /** A última aba lista os arquivados (tipo indiferente), por isso `arquivados`. */
 const abas: { label: string; tipo?: TipoDispositivo; arquivados?: boolean }[] = [
@@ -67,6 +68,12 @@ export function DispositivosPage() {
   const [dialogAberto, setDialogAberto] = useState(false)
   const [dispositivoParaAtribuir, setDispositivoParaAtribuir] = useState<Dispositivo | null>(null)
   const [dispositivoParaExcluir, setDispositivoParaExcluir] = useState<Dispositivo | null>(null)
+
+  const { tem } = usePermissoes()
+  const podeCadastrar = tem(PERMISSOES.dispositivosCadastrar)
+  const podeMovimentar = tem(PERMISSOES.dispositivosMovimentar)
+  const podeExcluir = tem(PERMISSOES.dispositivosExcluir)
+  const podeExcluirDefinitivo = tem(PERMISSOES.dispositivosExcluirDefinitivo)
 
   const unidadeId = searchParams.get('unidadeId') ?? undefined
   const { data: unidades } = useUnidades()
@@ -109,9 +116,11 @@ export function DispositivosPage() {
     <>
       <Stack direction="row" sx={{ mb: 2, justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h5">Dispositivos</Typography>
-        <Button variant="contained" onClick={() => setDialogAberto(true)}>
-          Novo dispositivo
-        </Button>
+        {podeCadastrar && (
+          <Button variant="contained" onClick={() => setDialogAberto(true)}>
+            Novo dispositivo
+          </Button>
+        )}
       </Stack>
 
       {termoBusca && (
@@ -205,27 +214,31 @@ export function DispositivosPage() {
                     <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
                       {mostrandoArquivados ? (
                         <>
-                          <Button
-                            size="small"
-                            startIcon={<RestoreIcon />}
-                            disabled={restaurar.isPending}
-                            onClick={() => restaurar.mutate(d.id)}
-                          >
-                            Restaurar
-                          </Button>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            title="Excluir definitivamente"
-                            onClick={() => setDispositivoParaExcluir(d)}
-                          >
-                            <DeleteForeverIcon fontSize="small" />
-                          </IconButton>
+                          {podeExcluir && (
+                            <Button
+                              size="small"
+                              startIcon={<RestoreIcon />}
+                              disabled={restaurar.isPending}
+                              onClick={() => restaurar.mutate(d.id)}
+                            >
+                              Restaurar
+                            </Button>
+                          )}
+                          {podeExcluirDefinitivo && (
+                            <IconButton
+                              size="small"
+                              color="error"
+                              title="Excluir definitivamente"
+                              onClick={() => setDispositivoParaExcluir(d)}
+                            >
+                              <DeleteForeverIcon fontSize="small" />
+                            </IconButton>
+                          )}
                         </>
                       ) : (
                         <>
                           {/* Ativo do local não tem detentor: atribuir aqui não faz sentido. */}
-                          {d.pertenceAUsuario && (
+                          {podeMovimentar && d.pertenceAUsuario && (
                             <Button size="small" onClick={() => setDispositivoParaAtribuir(d)}>
                               Atribuir
                             </Button>
@@ -233,14 +246,16 @@ export function DispositivosPage() {
                           <Button size="small" onClick={() => navigate(`/dispositivos/${d.id}`)}>
                             Ver detalhes
                           </Button>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            title="Excluir"
-                            onClick={() => setDispositivoParaExcluir(d)}
-                          >
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
+                          {podeExcluir && (
+                            <IconButton
+                              size="small"
+                              color="error"
+                              title="Excluir"
+                              onClick={() => setDispositivoParaExcluir(d)}
+                            >
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          )}
                         </>
                       )}
                     </Stack>

@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tracker.Api.Seguranca;
 using Tracker.Application.Dtos;
+using Tracker.Application.Seguranca;
 using Tracker.Domain.Entities;
+using Tracker.Domain.Enums;
 using Tracker.Infrastructure.Data;
 using Tracker.Infrastructure.Storage;
 
@@ -15,21 +17,24 @@ namespace Tracker.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/agente-android")]
-[Authorize]
+[Authorize(Policy = Permissoes.AgentePublicar)]
 public class AgenteAndroidController : ControllerBase
 {
     private readonly TrackerDbContext _db;
     private readonly IArmazenamentoPacotesAgenteService _pacotes;
     private readonly ConfirmacaoSenhaAdm _confirmacaoSenha;
+    private readonly IAuditoria _auditoria;
 
     public AgenteAndroidController(
         TrackerDbContext db,
         IArmazenamentoPacotesAgenteService pacotes,
-        ConfirmacaoSenhaAdm confirmacaoSenha)
+        ConfirmacaoSenhaAdm confirmacaoSenha,
+        IAuditoria auditoria)
     {
         _db = db;
         _pacotes = pacotes;
         _confirmacaoSenha = confirmacaoSenha;
+        _auditoria = auditoria;
     }
 
     /// <summary>Pacote vigente, histórico de versões e a situação da frota Android.</summary>
@@ -112,6 +117,9 @@ public class AgenteAndroidController : ControllerBase
             EnviadoPorAdmId = adm.Id,
         };
         _db.PacotesAgenteAndroid.Add(pacote);
+        _auditoria.Registrar(AcaoAuditoria.ApkPublicado,
+            $"Publicou o APK do agente v{pacote.VersaoNome} (código {pacote.VersaoCode}).",
+            "PacoteAgenteAndroid", pacote.Id);
 
         try
         {

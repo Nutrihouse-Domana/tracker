@@ -99,6 +99,18 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   excluir dispositivo e alternar `PertenceAUsuario`. Cookie de sessão não prova quem está na máquina.
 - **Autenticação:** ADM via ASP.NET Core Identity (cookie). **Agente** via token por dispositivo
   no header `X-Agent-Token` (hash SHA-256 guardado em `TokenAgenteHash`), resolvido por `AgentAuth`.
+- **Permissões (autorização):** cada capacidade é uma **permissão granular** gravada como claim
+  `perm` no `UsuarioADM` (tabela AspNetUserClaims) e vira uma **policy homônima** em `Program.cs`.
+  Catálogo central em `src/Tracker.Application/Seguranca/Permissoes.cs` (constantes + rótulos/grupos
+  para a UI) — **novo valor entra aqui e em `Todas`; nunca renomeie um valor já em uso**. Controllers
+  usam `[Authorize(Policy = Permissoes.X)]`. GETs que alimentam formulários (unidades, detentores)
+  pedem `dispositivos.ver`, não a permissão de gestão. `acessos.gerir` (gerir LOGINS) ≠
+  `usuarios.gerir` (gerir DETENTORES); a tela nova de logins chama-se **"Acessos"**, a antiga de
+  detentores continua **"Usuários"**.
+- **Auditoria:** toda ação de escrita de ADM chama `IAuditoria.Registrar(...)`
+  (`src/Tracker.Api/Seguranca/Auditoria.cs`), que grava um `LogAuditoria` (quem/quando/o quê) na
+  mesma transação. O autor vem SEMPRE do usuário logado (`User.AdmId()`/`User.AdmNome()`), nunca do
+  corpo. Leitura em `AuditoriaController` (permissão `auditoria.ver`).
 - **Comandos remotos:** ADM emite via REST; entrega ao agente por **SignalR** (`/hubs/comandos`)
   com fallback pelo **heartbeat** (o agente também busca comandos pendentes a cada heartbeat).
 - **Atualização OTA do agente Android (sem loja):** a TI publica o APK no painel (página Agente,
@@ -231,6 +243,45 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
 - **MUI v9:** use `sx={{ justifyContent, alignItems }}` no `Stack` (não como props soltas);
   `slotProps={{ input: {...} }}` em vez de `InputProps`. Ícones existem só na variante `*Outlined` etc.
 - **Pacotes .NET:** fixe versões **8.x** (o feed resolve 10.x/11.x por padrão, incompatível com net8.0).
+
+- **Permissões e auditoria (não repita):**
+  - **As permissões são recarregadas a cada requisição** por um `IClaimsTransformation`
+    (`PermissoesClaimsTransformation`), lendo do banco — então alterar a permissão de alguém vale já
+    na próxima requisição dele, SEM novo login. **PEGADINHA GRAVE (já corrigida):** o factory padrão
+    do Identity grava as user-claims (inclusive as permissões) DENTRO do cookie no login. Se a
+    transformação apenas ADICIONASSE as permissões frescas, as antigas do cookie sobreviveriam e
+    revogar uma permissão só valeria após relogar (falha de segurança — um usuário zerado continuava
+    agindo). Por isso a transformação **remove toda claim `perm` existente e reescreve a partir do
+    banco**. Ao mexer nela, mantenha esse "strip-then-reload". **Desativar** um login é diferente:
+    além do flag `Ativo` (login recusa), chame `UpdateSecurityStampAsync` — o `SecurityStampValidator`
+    (intervalo de 1 min em `Program.cs`) derruba a sessão aberta.
+  - **`AddColumn<bool>` do `Ativo` veio `defaultValue:false`** e foi corrigido À MÃO para `true` na
+    migração `AcessosEAuditoria` — senão todo login existente nasceria desativado (trancaria a TI).
+    Mesma pegadinha do `PertenceAUsuario`.
+  - **Upgrade de instalação antiga:** `DbSeeder.SeedAsync` faz backfill idempotente concedendo
+    TODAS as permissões a quem está na role `Admin` a cada start. Sem isso, a produção (1 ADM, zero
+    claims) ficaria trancada fora de tudo assim que as policies entrassem em vigor.
+  - **Autoria vem do token, nunca do corpo.** Movimentação/reparo/comentário/termo antes gravavam
+    `RegistradoPorAdmId`/`CriadoPorAdmId` vindos do request (forjável com vários logins) — agora
+    usam `User.AdmId()`. Os DTOs de request perderam esses campos; não os traga de volta.
+  - **`LogAuditoria.EntidadeId` é Guid SOLTO, sem FK** (coberto por teste): é o que faz o registro
+    "excluiu o dispositivo X" sobreviver à exclusão definitiva do alvo. Na exclusão definitiva,
+    `Registrar(...)` é chamado ANTES do `Remove` (mesma transação).
+  - **Nada de `Task.WhenAll` sobre `UserManager`/`DbContext`.** Listar acessos com
+    `Task.WhenAll(users.Select(GetClaimsAsync))` estoura em runtime ("A second operation was started
+    on this context instance") — o DbContext (scoped) não é thread-safe. `AcessosController.Listar`
+    carrega as permissões de todos numa consulta só (`_db.UserClaims` agrupado), sem N+1 concorrente.
+  - **Anti-lockout em Acessos (dois níveis):** `AcessosController` barra (1) **auto-lockout** —
+    remover a PRÓPRIA permissão `acessos.gerir` ou desativar o próprio login (comparando com
+    `User.AdmId()`); e (2) **lockout global** — remover a última permissão `acessos.gerir` ativa /
+    desativar o último gestor. O front reforça (esconde "desativar" para si, trava o checkbox da
+    própria `acessos.gerir`), mas a regra real é no backend. Ações sensíveis (criar/editar/ativar/
+    redefinir senha) pedem a senha do ADM logado (`ConfirmacaoSenhaAdm`) — devolve 400, não 401
+    (senão o axios desloga).
+  - **Frontend: ocultar, não desabilitar.** `usePermissao`/`RequirePermissao`/`PermissaoRoute`
+    (`features/auth`) escondem menu, rotas e botões sem permissão; o que o usuário não pode usar não
+    aparece, e o acesso direto por URL redireciona. Mas isso é só UX — **a autorização real é a
+    policy no backend** (403). Ao criar uma capacidade nova, gate os DOIS lados.
 
 ## Produção / deploy
 

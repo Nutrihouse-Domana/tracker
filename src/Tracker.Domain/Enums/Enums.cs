@@ -90,3 +90,55 @@ public enum StatusReparo
     Concluido,
     Cancelado
 }
+
+/// <summary>
+/// Tipo de alteração registrada na trilha de auditoria. Serializado como TEXTO na coluna Acao —
+/// então a ordem é livre e novos valores podem entrar em qualquer lugar (ao contrário dos enums
+/// usados como discriminador TPH). Um valor por tipo de ação de escrita da TI.
+/// </summary>
+public enum AcaoAuditoria
+{
+    // Dispositivo
+    DispositivoCriado,
+    DispositivoStatusAlterado,
+    DispositivoAtribuido,
+    DispositivoUnidadeDefinida,
+    DispositivoPosseAlterada,
+    DispositivoArquivado,
+    DispositivoExcluidoDefinitivo,
+    DispositivoRestaurado,
+
+    // Reparo / comentário
+    ReparoAberto,
+    ReparoStatusAlterado,
+    ComentarioAdicionado,
+
+    // Agente / comandos
+    ComandoBloquear,
+    ComandoDesbloquear,
+    EnrollmentGerado,
+    AlertaReconhecido,
+    ApkPublicado,
+
+    // Termo de uso
+    TermoRegistrado,
+
+    // Cadastros
+    DetentorCriado,
+    DetentorEditado,
+    DetentorDesativado,
+    UnidadeCriada,
+    UnidadeEditada,
+
+    // Acessos (logins)
+    AcessoCriado,
+    AcessoEditado,
+    AcessoAtivado,
+    AcessoDesativado,
+    AcessoPermissoesAlteradas,
+    AcessoSenhaRedefinida,
+
+    // Autenticação
+    LoginEfetuado,
+    LoginRecusado
+}

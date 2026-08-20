@@ -2,8 +2,11 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Tracker.Api.Seguranca;
 using Tracker.Application.Dtos;
+using Tracker.Application.Seguranca;
 using Tracker.Domain.Entities;
+using Tracker.Domain.Enums;
 using Tracker.Infrastructure.Data;
 
 namespace Tracker.Api.Controllers;
@@ -16,18 +19,24 @@ public class UsuariosController : ControllerBase
     private readonly TrackerDbContext _db;
     private readonly IValidator<CriarUsuarioRequest> _criarValidator;
     private readonly IValidator<AtualizarUsuarioRequest> _atualizarValidator;
+    private readonly IAuditoria _auditoria;
 
     public UsuariosController(
         TrackerDbContext db,
         IValidator<CriarUsuarioRequest> criarValidator,
-        IValidator<AtualizarUsuarioRequest> atualizarValidator)
+        IValidator<AtualizarUsuarioRequest> atualizarValidator,
+        IAuditoria auditoria)
     {
         _db = db;
         _criarValidator = criarValidator;
         _atualizarValidator = atualizarValidator;
+        _auditoria = auditoria;
     }
 
+    // Listar detentores é preciso para os formulários de atribuição e termo, então a leitura pede
+    // "ver dispositivos"; só o CRUD exige "gerir usuários".
     [HttpGet]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<IEnumerable<UsuarioDto>>> Listar([FromQuery] bool incluirInativos = false)
     {
         var query = _db.Usuarios.AsNoTracking();
@@ -41,6 +50,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<UsuarioDto>> ObterPorId(Guid id)
     {
         var usuario = await _db.Usuarios.AsNoTracking()
@@ -52,6 +62,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = Permissoes.UsuariosGerir)]
     public async Task<ActionResult<UsuarioDto>> Criar(CriarUsuarioRequest request)
     {
         var validation = await _criarValidator.ValidateAsync(request);
@@ -69,6 +80,8 @@ public class UsuariosController : ControllerBase
         };
 
         _db.Usuarios.Add(usuario);
+        _auditoria.Registrar(AcaoAuditoria.DetentorCriado,
+            $"Cadastrou o detentor {usuario.Nome}.", "Usuario", usuario.Id);
         await _db.SaveChangesAsync();
 
         var dto = new UsuarioDto(usuario.Id, usuario.Nome, usuario.Cpf, usuario.Email, usuario.Telefone, usuario.Ativo, 0);
@@ -76,6 +89,7 @@ public class UsuariosController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = Permissoes.UsuariosGerir)]
     public async Task<IActionResult> Atualizar(Guid id, AtualizarUsuarioRequest request)
     {
         var validation = await _atualizarValidator.ValidateAsync(request);
@@ -92,17 +106,22 @@ public class UsuariosController : ControllerBase
         usuario.Telefone = request.Telefone;
         usuario.Ativo = request.Ativo;
 
+        _auditoria.Registrar(AcaoAuditoria.DetentorEditado,
+            $"Editou o detentor {usuario.Nome}.", "Usuario", usuario.Id);
         await _db.SaveChangesAsync();
         return NoContent();
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = Permissoes.UsuariosGerir)]
     public async Task<IActionResult> Desativar(Guid id)
     {
         var usuario = await _db.Usuarios.FindAsync(id);
         if (usuario is null) return NotFound();
 
         usuario.Ativo = false;
+        _auditoria.Registrar(AcaoAuditoria.DetentorDesativado,
+            $"Desativou o detentor {usuario.Nome}.", "Usuario", usuario.Id);
         await _db.SaveChangesAsync();
         return NoContent();
     }

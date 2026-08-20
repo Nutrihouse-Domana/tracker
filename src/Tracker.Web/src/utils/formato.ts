@@ -1,4 +1,26 @@
-/** Utilitários de formatação no padrão brasileiro (CPF e telefone). */
+/** Utilitários de formatação no padrão brasileiro (CPF, telefone e data/hora). */
+
+/** Formata uma data/hora ISO como DD/MM/AAAA HH:mm (padrão pt-BR). Vazio se nula/ inválida. */
+export function formatarDataHora(valor: string | null | undefined) {
+  if (!valor) return ''
+  const data = new Date(valor)
+  if (Number.isNaN(data.getTime())) return ''
+  return data.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/** Formata só a data como DD/MM/AAAA (padrão pt-BR). */
+export function formatarData(valor: string | null | undefined) {
+  if (!valor) return ''
+  const data = new Date(valor)
+  if (Number.isNaN(data.getTime())) return ''
+  return data.toLocaleDateString('pt-BR')
+}
 
 /** Mantém apenas os dígitos do texto. */
 export function apenasDigitos(valor: string) {

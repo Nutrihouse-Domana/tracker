@@ -8,6 +8,5 @@ public class CriarComentarioRequestValidator : AbstractValidator<CriarComentario
     public CriarComentarioRequestValidator()
     {
         RuleFor(x => x.Texto).NotEmpty().MaximumLength(2000);
-        RuleFor(x => x.CriadoPorAdmId).NotEmpty();
     }
 }

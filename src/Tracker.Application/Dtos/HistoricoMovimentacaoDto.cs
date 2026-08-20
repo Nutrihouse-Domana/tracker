@@ -24,4 +24,5 @@ public record HistoricoMovimentacaoDto(
     Guid? LocalDestinoId,
     string? LocalDestinoNome,
     DateTime DataMovimentacao,
-    string? Motivo);
+    string? Motivo,
+    string? RegistradoPorAdmNome = null);

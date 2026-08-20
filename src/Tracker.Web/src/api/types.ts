@@ -20,6 +20,83 @@ export interface UsuarioAdm {
   nome: string
   email: string
   roles: string[]
+  /** Permissões do usuário logado (valores do catálogo). Gate da UI. */
+  permissoes: string[]
+}
+
+// --- Acessos (logins da plataforma) e permissões ---
+
+/** Um login gerenciável na tela de Acessos. */
+export interface Acesso {
+  id: string
+  nome: string
+  email: string
+  ativo: boolean
+  ultimoLoginEm: string | null
+  permissoes: string[]
+}
+
+/** Metadados de uma permissão, para montar os checkboxes agrupados. */
+export interface Permissao {
+  valor: string
+  rotulo: string
+  descricao: string
+  grupo: string
+}
+
+export interface CriarAcessoRequest {
+  nome: string
+  email: string
+  cpf?: string | null
+  senha: string
+  permissoes: string[]
+  /** Senha do ADM logado — reconferência da ação sensível. */
+  senhaAdm: string
+}
+
+export interface AtualizarAcessoRequest {
+  nome: string
+  email: string
+  cpf?: string | null
+  permissoes: string[]
+  senhaAdm: string
+}
+
+export interface AlterarAtivoAcessoRequest {
+  ativo: boolean
+  senhaAdm: string
+}
+
+export interface RedefinirSenhaAcessoRequest {
+  novaSenha: string
+  senhaAdm: string
+}
+
+// --- Auditoria ---
+
+export interface LogAuditoria {
+  id: string
+  dataHora: string
+  admId: string | null
+  admNome: string
+  acao: string
+  entidadeTipo: string | null
+  entidadeId: string | null
+  descricao: string
+  detalhes: string | null
+  enderecoIp: string | null
+}
+
+export interface PaginaAuditoria {
+  itens: LogAuditoria[]
+  total: number
+  pagina: number
+  tamanhoPagina: number
+}
+
+export interface AcaoAuditoriaOpcao {
+  valor: string
+  rotulo: string
 }
 
 export interface Usuario {
@@ -157,7 +234,6 @@ export interface AtribuirDispositivoRequest {
   usuarioId: string
   localDestinoId?: string | null
   motivo?: string | null
-  registradoPorAdmId: string
 }
 
 export interface HistoricoMovimentacao {
@@ -173,6 +249,7 @@ export interface HistoricoMovimentacao {
   localDestinoNome: string | null
   dataMovimentacao: string
   motivo: string | null
+  registradoPorAdmNome: string | null
 }
 
 export interface TermoDeUso {
@@ -207,12 +284,12 @@ export interface HistoricoReparo {
   dataAbertura: string
   dataConclusao: string | null
   registradoPorAdmId: string
+  registradoPorAdmNome: string | null
 }
 
 export interface CriarReparoRequest {
   descricao: string
   custoEstimado?: number | null
-  registradoPorAdmId: string
 }
 
 export interface ComentarioDispositivo {
@@ -226,7 +303,6 @@ export interface ComentarioDispositivo {
 
 export interface CriarComentarioRequest {
   texto: string
-  criadoPorAdmId: string
 }
 
 export interface EnrollmentResponse {

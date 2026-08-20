@@ -13,7 +13,6 @@ import {
 import type { Dispositivo } from '../../api/types'
 import { useAtribuirDispositivo } from './hooks'
 import { useUsuarios } from '../usuarios/hooks'
-import { useMe } from '../auth/useAuth'
 
 interface Props {
   dispositivo: Dispositivo | null
@@ -24,7 +23,6 @@ export function AtribuirDialog({ dispositivo, onClose }: Props) {
   const [usuarioId, setUsuarioId] = useState('')
   const [motivo, setMotivo] = useState('')
   const { data: usuarios } = useUsuarios()
-  const { data: adm } = useMe()
   const atribuir = useAtribuirDispositivo()
 
   const handleClose = () => {
@@ -36,11 +34,11 @@ export function AtribuirDialog({ dispositivo, onClose }: Props) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!dispositivo || !adm) return
+    if (!dispositivo) return
     atribuir.mutate(
       {
         id: dispositivo.id,
-        data: { usuarioId, motivo, registradoPorAdmId: adm.id },
+        data: { usuarioId, motivo },
       },
       { onSuccess: handleClose },
     )

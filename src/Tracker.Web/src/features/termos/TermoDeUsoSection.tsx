@@ -4,7 +4,8 @@ import VisibilityIcon from '@mui/icons-material/VisibilityOutlined'
 import type { Dispositivo } from '../../api/types'
 import { useGerarPdfTermo, useTermosPorDispositivo, useUploadTermo, useVisualizarTermo } from './hooks'
 import { abrirPdfEmNovaAba, baixarPdfComoArquivo } from './api'
-import { useMe } from '../auth/useAuth'
+import { usePermissao, PERMISSOES } from '../auth/permissoes'
+import { formatarDataHora } from '../../utils/formato'
 
 interface Props {
   dispositivo: Dispositivo
@@ -15,8 +16,8 @@ export function TermoDeUsoSection({ dispositivo }: Props) {
   const [estadoDispositivo, setEstadoDispositivo] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const { data: adm } = useMe()
   const { data: termos } = useTermosPorDispositivo(dispositivo.id)
+  const podeMovimentar = usePermissao(PERMISSOES.dispositivosMovimentar)
   const gerarPdf = useGerarPdfTermo()
   const upload = useUploadTermo()
   const visualizar = useVisualizarTermo()
@@ -33,9 +34,9 @@ export function TermoDeUsoSection({ dispositivo }: Props) {
   }
 
   const handleUpload = () => {
-    if (!usuarioId || !arquivo || !adm) return
+    if (!usuarioId || !arquivo) return
     upload.mutate(
-      { dispositivoId: dispositivo.id, usuarioId, versaoTermo, registradoPorAdmId: adm.id, arquivo },
+      { dispositivoId: dispositivo.id, usuarioId, versaoTermo, arquivo },
       {
         onSuccess: () => {
           setArquivo(null)
@@ -47,48 +48,52 @@ export function TermoDeUsoSection({ dispositivo }: Props) {
 
   return (
     <Stack spacing={2} sx={{ mt: 1 }}>
-      {!usuarioId && (
+      {podeMovimentar && !usuarioId && (
         <Alert severity="warning">
           Este dispositivo ainda não foi atribuído a um usuário — atribua antes de gerar o termo.
         </Alert>
       )}
 
-      <Typography variant="subtitle2">1. Gerar termo para impressão</Typography>
-      <TextField
-        label="Estado do dispositivo"
-        placeholder="Ex.: Novo, sem avarias; ou: usado, risco na tampa."
-        value={estadoDispositivo}
-        onChange={(e) => setEstadoDispositivo(e.target.value)}
-        multiline
-        minRows={2}
-        fullWidth
-        disabled={!usuarioId}
-        slotProps={{ htmlInput: { maxLength: 500 } }}
-      />
-      <Button variant="outlined" disabled={!usuarioId || gerarPdf.isPending} onClick={handleGerar} sx={{ alignSelf: 'flex-start' }}>
-        {gerarPdf.isPending ? 'Gerando...' : 'Gerar e baixar PDF'}
-      </Button>
+      {podeMovimentar && (
+        <>
+          <Typography variant="subtitle2">1. Gerar termo para impressão</Typography>
+          <TextField
+            label="Estado do dispositivo"
+            placeholder="Ex.: Novo, sem avarias; ou: usado, risco na tampa."
+            value={estadoDispositivo}
+            onChange={(e) => setEstadoDispositivo(e.target.value)}
+            multiline
+            minRows={2}
+            fullWidth
+            disabled={!usuarioId}
+            slotProps={{ htmlInput: { maxLength: 500 } }}
+          />
+          <Button variant="outlined" disabled={!usuarioId || gerarPdf.isPending} onClick={handleGerar} sx={{ alignSelf: 'flex-start' }}>
+            {gerarPdf.isPending ? 'Gerando...' : 'Gerar e baixar PDF'}
+          </Button>
 
-      <Divider />
+          <Divider />
 
-      <Typography variant="subtitle2">2. Anexar termo assinado (escaneado)</Typography>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="application/pdf"
-        onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
-      />
-      {upload.isError && <Alert severity="error">Falha ao enviar o arquivo. Confirme que é um PDF.</Alert>}
-      <Button
-        variant="contained"
-        disabled={!usuarioId || !arquivo || upload.isPending}
-        onClick={handleUpload}
-        sx={{ alignSelf: 'flex-start' }}
-      >
-        {upload.isPending ? 'Enviando...' : 'Enviar termo assinado'}
-      </Button>
+          <Typography variant="subtitle2">2. Anexar termo assinado (escaneado)</Typography>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="application/pdf"
+            onChange={(e) => setArquivo(e.target.files?.[0] ?? null)}
+          />
+          {upload.isError && <Alert severity="error">Falha ao enviar o arquivo. Confirme que é um PDF.</Alert>}
+          <Button
+            variant="contained"
+            disabled={!usuarioId || !arquivo || upload.isPending}
+            onClick={handleUpload}
+            sx={{ alignSelf: 'flex-start' }}
+          >
+            {upload.isPending ? 'Enviando...' : 'Enviar termo assinado'}
+          </Button>
 
-      <Divider />
+          <Divider />
+        </>
+      )}
 
       <Typography variant="subtitle2">Termos já anexados</Typography>
       <List dense>
@@ -107,7 +112,7 @@ export function TermoDeUsoSection({ dispositivo }: Props) {
           >
             <ListItemText
               primary={`${t.usuarioNome} — v${t.versaoTermo}`}
-              secondary={new Date(t.dataAceite).toLocaleString('pt-BR')}
+              secondary={formatarDataHora(t.dataAceite)}
             />
           </ListItem>
         ))}

@@ -29,6 +29,8 @@ import {
   useReconhecerAlerta,
 } from './hooks'
 import { rotuloStatus } from './status'
+import { usePermissoes, PERMISSOES } from '../auth/permissoes'
+import { formatarDataHora } from '../../utils/formato'
 
 interface Props {
   dispositivo: Dispositivo
@@ -82,6 +84,9 @@ export function AgenteSection({ dispositivo }: Props) {
   const emitir = useEmitirComando(dispositivo.id)
   const enrollment = useGerarEnrollment(dispositivo.id)
   const reconhecer = useReconhecerAlerta(dispositivo.id)
+  const { tem } = usePermissoes()
+  const podeBloquear = tem(PERMISSOES.dispositivosBloquear)
+  const podeCadastrar = tem(PERMISSOES.dispositivosCadastrar)
 
   const gerarToken = () => {
     enrollment.mutate(undefined, { onSuccess: (r) => setToken(r.token) })
@@ -100,9 +105,7 @@ export function AgenteSection({ dispositivo }: Props) {
           <Chip label={rotuloStatus[dispositivo.status] ?? dispositivo.status} color={dispositivo.status === 'Bloqueado' ? 'error' : 'default'} />
           <Typography variant="body2" color="text.secondary">
             Último heartbeat:{' '}
-            {dispositivo.ultimoHeartbeatEm
-              ? new Date(dispositivo.ultimoHeartbeatEm).toLocaleString('pt-BR')
-              : 'nunca'}
+            {dispositivo.ultimoHeartbeatEm ? formatarDataHora(dispositivo.ultimoHeartbeatEm) : 'nunca'}
           </Typography>
           {dispositivo.agenteVersao && (
             <Typography variant="body2" color="text.secondary">
@@ -157,20 +160,20 @@ export function AgenteSection({ dispositivo }: Props) {
                   key={a.id}
                   divider
                   secondaryAction={
-                    <Button
-                      size="small"
-                      disabled={reconhecer.isPending}
-                      onClick={() => reconhecer.mutate(a.id)}
-                    >
-                      Tratar
-                    </Button>
+                    podeBloquear ? (
+                      <Button
+                        size="small"
+                        disabled={reconhecer.isPending}
+                        onClick={() => reconhecer.mutate(a.id)}
+                      >
+                        Tratar
+                      </Button>
+                    ) : null
                   }
                 >
                   <ListItemText
                     primary={rotuloAlerta[a.tipo] ?? a.tipo}
-                    secondary={`${new Date(a.criadoEm).toLocaleString('pt-BR')}${
-                      a.detalhe ? ` — ${a.detalhe}` : ''
-                    }`}
+                    secondary={`${formatarDataHora(a.criadoEm)}${a.detalhe ? ` — ${a.detalhe}` : ''}`}
                   />
                 </ListItem>
               ))}
@@ -179,62 +182,68 @@ export function AgenteSection({ dispositivo }: Props) {
         </>
       )}
 
-      <Divider />
-
-      <Box>
-        <Typography variant="subtitle2" gutterBottom>
-          Bloqueio remoto
-        </Typography>
-        <Stack direction="row" spacing={1}>
-          <Button
-            variant="contained"
-            color="error"
-            startIcon={<LockIcon />}
-            disabled={emitir.isPending}
-            onClick={() => emitir.mutate('Bloquear')}
-          >
-            Bloquear
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<LockOpenIcon />}
-            disabled={emitir.isPending}
-            onClick={() => emitir.mutate('Desbloquear')}
-          >
-            Desbloquear
-          </Button>
-        </Stack>
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-          O comando é entregue ao agente em tempo real (ou no próximo heartbeat, se offline).
-        </Typography>
-      </Box>
-
-      <Divider />
-
-      <Box>
-        <Typography variant="subtitle2" gutterBottom>
-          Instalação do agente
-        </Typography>
-        <Button variant="outlined" onClick={gerarToken} disabled={enrollment.isPending}>
-          {enrollment.isPending ? 'Gerando...' : 'Gerar token do agente'}
-        </Button>
-        {token && (
-          <Alert severity="success" sx={{ mt: 1 }}>
-            <Typography variant="body2" sx={{ mb: 1 }}>
-              {dispositivo.tipo === 'Notebook'
-                ? 'Copie este token e cole no appsettings.json do agente na máquina. Ele aparece só uma vez:'
-                : 'Token individual do aparelho. No Android o agente costuma se registrar sozinho pela chave da empresa; use este token só para reconectar um aparelho manualmente. Aparece só uma vez:'}
+      {podeBloquear && (
+        <>
+          <Divider />
+          <Box>
+            <Typography variant="subtitle2" gutterBottom>
+              Bloqueio remoto
             </Typography>
-            <TextField
-              value={token}
-              fullWidth
-              size="small"
-              slotProps={{ input: { readOnly: true } }}
-              onFocus={(e) => e.target.select()}
-            />
-          </Alert>
-        )}
-      </Box>
+            <Stack direction="row" spacing={1}>
+              <Button
+                variant="contained"
+                color="error"
+                startIcon={<LockIcon />}
+                disabled={emitir.isPending}
+                onClick={() => emitir.mutate('Bloquear')}
+              >
+                Bloquear
+              </Button>
+              <Button
+                variant="outlined"
+                startIcon={<LockOpenIcon />}
+                disabled={emitir.isPending}
+                onClick={() => emitir.mutate('Desbloquear')}
+              >
+                Desbloquear
+              </Button>
+            </Stack>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              O comando é entregue ao agente em tempo real (ou no próximo heartbeat, se offline).
+            </Typography>
+          </Box>
+        </>
+      )}
+
+      {podeCadastrar && (
+        <>
+          <Divider />
+          <Box>
+            <Typography variant="subtitle2" gutterBottom>
+              Instalação do agente
+            </Typography>
+            <Button variant="outlined" onClick={gerarToken} disabled={enrollment.isPending}>
+              {enrollment.isPending ? 'Gerando...' : 'Gerar token do agente'}
+            </Button>
+            {token && (
+              <Alert severity="success" sx={{ mt: 1 }}>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  {dispositivo.tipo === 'Notebook'
+                    ? 'Copie este token e cole no appsettings.json do agente na máquina. Ele aparece só uma vez:'
+                    : 'Token individual do aparelho. No Android o agente costuma se registrar sozinho pela chave da empresa; use este token só para reconectar um aparelho manualmente. Aparece só uma vez:'}
+                </Typography>
+                <TextField
+                  value={token}
+                  fullWidth
+                  size="small"
+                  slotProps={{ input: { readOnly: true } }}
+                  onFocus={(e) => e.target.select()}
+                />
+              </Alert>
+            )}
+          </Box>
+        </>
+      )}
 
       <Divider />
 
@@ -249,10 +258,7 @@ export function AgenteSection({ dispositivo }: Props) {
               divider
               secondaryAction={<Chip size="small" label={c.status} color={corStatusComando[c.status]} />}
             >
-              <ListItemText
-                primary={c.tipoComando}
-                secondary={new Date(c.dataEmissao).toLocaleString('pt-BR')}
-              />
+              <ListItemText primary={c.tipoComando} secondary={formatarDataHora(c.dataEmissao)} />
             </ListItem>
           ))}
           {comandos?.length === 0 && (

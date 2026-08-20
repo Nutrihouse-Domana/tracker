@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Tracker.Api.Agente;
+using Tracker.Api.Seguranca;
 using Tracker.Application.Dtos;
+using Tracker.Application.Seguranca;
 using Tracker.Domain.Entities;
 using Tracker.Domain.Enums;
 using Tracker.Infrastructure.Data;
@@ -27,21 +29,25 @@ public class DispositivosAgenteController : ControllerBase
     private readonly AgentTokenService _tokenService;
     private readonly UserManager<UsuarioADM> _userManager;
     private readonly IHubContext<ComandoRemotoHub> _hub;
+    private readonly IAuditoria _auditoria;
 
     public DispositivosAgenteController(
         TrackerDbContext db,
         AgentTokenService tokenService,
         UserManager<UsuarioADM> userManager,
-        IHubContext<ComandoRemotoHub> hub)
+        IHubContext<ComandoRemotoHub> hub,
+        IAuditoria auditoria)
     {
         _db = db;
         _tokenService = tokenService;
         _userManager = userManager;
         _hub = hub;
+        _auditoria = auditoria;
     }
 
     /// <summary>Gera (ou regenera) o token do agente. Retorna o token em texto uma única vez.</summary>
     [HttpPost("{id:guid}/enrollment")]
+    [Authorize(Policy = Permissoes.DispositivosCadastrar)]
     public async Task<ActionResult<EnrollmentResponse>> GerarEnrollment(Guid id)
     {
         if (await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id) is not DispositivoComAgente dispositivo)
@@ -49,6 +55,8 @@ public class DispositivosAgenteController : ControllerBase
 
         var (token, hash) = _tokenService.Gerar();
         dispositivo.TokenAgenteHash = hash;
+        _auditoria.Registrar(AcaoAuditoria.EnrollmentGerado,
+            $"Gerou o token do agente de {dispositivo.NumeroSerie}.", "Dispositivo", dispositivo.Id);
         await _db.SaveChangesAsync();
 
         return Ok(new EnrollmentResponse(dispositivo.Id, token, dispositivo.AssetTag));
@@ -56,12 +64,13 @@ public class DispositivosAgenteController : ControllerBase
 
     /// <summary>Emite um comando de bloqueio/desbloqueio e faz push imediato via SignalR.</summary>
     [HttpPost("{id:guid}/comandos")]
+    [Authorize(Policy = Permissoes.DispositivosBloquear)]
     public async Task<ActionResult<ComandoRemotoDto>> EmitirComando(Guid id, EmitirComandoRequest request)
     {
         if (await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id) is not DispositivoComAgente dispositivo)
             return NotFound(new { message = "Dispositivo com agente não encontrado." });
 
-        var admId = Guid.Parse(_userManager.GetUserId(User)!);
+        var admId = User.AdmId()!.Value;
 
         var comando = new ComandoRemoto
         {
@@ -72,6 +81,10 @@ public class DispositivosAgenteController : ControllerBase
         };
         _db.ComandosRemotos.Add(comando);
         dispositivo.StatusUltimoComando = StatusComandoRemoto.Pendente;
+        _auditoria.Registrar(
+            request.TipoComando == TipoComandoRemoto.Bloquear ? AcaoAuditoria.ComandoBloquear : AcaoAuditoria.ComandoDesbloquear,
+            $"{(request.TipoComando == TipoComandoRemoto.Bloquear ? "Bloqueou" : "Desbloqueou")} o dispositivo {dispositivo.NumeroSerie}.",
+            "Dispositivo", dispositivo.Id);
         await _db.SaveChangesAsync();
 
         // Push em tempo real para o agente (se estiver conectado). O heartbeat é a rede de
@@ -85,6 +98,7 @@ public class DispositivosAgenteController : ControllerBase
     }
 
     [HttpGet("{id:guid}/comandos")]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<IEnumerable<ComandoRemotoDto>>> ListarComandos(Guid id)
     {
         var comandos = await _db.ComandosRemotos.AsNoTracking()
@@ -98,6 +112,7 @@ public class DispositivosAgenteController : ControllerBase
 
     /// <summary>Alertas reportados pelo agente (ex.: admin desativado no Android), recentes antes.</summary>
     [HttpGet("{id:guid}/alertas")]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<IEnumerable<AlertaDispositivoDto>>> ListarAlertas(Guid id)
     {
         var alertas = await _db.AlertasDispositivo.AsNoTracking()
@@ -113,6 +128,7 @@ public class DispositivosAgenteController : ControllerBase
 
     /// <summary>Marca o alerta como tratado pela TI, tirando-o das pendências do dispositivo.</summary>
     [HttpPost("{id:guid}/alertas/{alertaId:guid}/reconhecer")]
+    [Authorize(Policy = Permissoes.DispositivosBloquear)]
     public async Task<IActionResult> ReconhecerAlerta(Guid id, Guid alertaId)
     {
         var alerta = await _db.AlertasDispositivo
@@ -121,8 +137,10 @@ public class DispositivosAgenteController : ControllerBase
 
         alerta.Reconhecido = true;
         alerta.ReconhecidoEm = DateTime.UtcNow;
-        alerta.ReconhecidoPorAdmId = Guid.Parse(_userManager.GetUserId(User)!);
+        alerta.ReconhecidoPorAdmId = User.AdmId()!.Value;
 
+        _auditoria.Registrar(AcaoAuditoria.AlertaReconhecido,
+            "Reconheceu um alerta do dispositivo.", "Dispositivo", id, alerta.Tipo.ToString());
         await _db.SaveChangesAsync();
         return NoContent();
     }

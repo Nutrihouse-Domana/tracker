@@ -8,4 +8,5 @@ public record ComentarioDispositivoDto(
     string CriadoPorAdmNome,
     DateTime CriadoEm);
 
-public record CriarComentarioRequest(string Texto, Guid CriadoPorAdmId);
+// Autoria vem do ADM logado no servidor, não do corpo.
+public record CriarComentarioRequest(string Texto);
