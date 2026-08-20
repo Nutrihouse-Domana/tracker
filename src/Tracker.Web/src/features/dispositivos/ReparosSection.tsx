@@ -13,7 +13,8 @@ import {
 } from '@mui/material'
 import type { StatusReparo } from '../../api/types'
 import { useCriarReparo, useAtualizarStatusReparo, useReparos } from './hooks'
-import { useMe } from '../auth/useAuth'
+import { formatarDataHora } from '../../utils/formato'
+import { usePermissao, PERMISSOES } from '../auth/permissoes'
 
 interface Props {
   dispositivoId: string
@@ -31,18 +32,16 @@ export function ReparosSection({ dispositivoId }: Props) {
   const [custoEstimado, setCustoEstimado] = useState('')
 
   const { data: reparos } = useReparos(dispositivoId)
-  const { data: adm } = useMe()
+  const podeMovimentar = usePermissao(PERMISSOES.dispositivosMovimentar)
   const criar = useCriarReparo(dispositivoId)
   const atualizarStatus = useAtualizarStatusReparo(dispositivoId)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!adm) return
     criar.mutate(
       {
         descricao,
         custoEstimado: custoEstimado ? Number(custoEstimado) : null,
-        registradoPorAdmId: adm.id,
       },
       { onSuccess: () => { setDescricao(''); setCustoEstimado('') } },
     )
@@ -50,27 +49,29 @@ export function ReparosSection({ dispositivoId }: Props) {
 
   return (
     <Stack spacing={2} sx={{ mt: 1 }}>
-      <Stack component="form" onSubmit={handleSubmit} direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-        <TextField
-          label="Descrição do reparo"
-          value={descricao}
-          onChange={(e) => setDescricao(e.target.value)}
-          required
-          fullWidth
-          size="small"
-        />
-        <TextField
-          label="Custo estimado (R$)"
-          type="number"
-          value={custoEstimado}
-          onChange={(e) => setCustoEstimado(e.target.value)}
-          size="small"
-          sx={{ width: { xs: '100%', sm: 200 } }}
-        />
-        <Button type="submit" variant="contained" disabled={criar.isPending}>
-          Abrir reparo
-        </Button>
-      </Stack>
+      {podeMovimentar && (
+        <Stack component="form" onSubmit={handleSubmit} direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <TextField
+            label="Descrição do reparo"
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            required
+            fullWidth
+            size="small"
+          />
+          <TextField
+            label="Custo estimado (R$)"
+            type="number"
+            value={custoEstimado}
+            onChange={(e) => setCustoEstimado(e.target.value)}
+            size="small"
+            sx={{ width: { xs: '100%', sm: 200 } }}
+          />
+          <Button type="submit" variant="contained" disabled={criar.isPending}>
+            Abrir reparo
+          </Button>
+        </Stack>
+      )}
 
       <List dense>
         {reparos?.map((r) => (
@@ -78,18 +79,20 @@ export function ReparosSection({ dispositivoId }: Props) {
             key={r.id}
             divider
             secondaryAction={
-              <Select
-                size="small"
-                value={r.status}
-                onChange={(e) =>
-                  atualizarStatus.mutate({ reparoId: r.id, status: e.target.value as StatusReparo })
-                }
-              >
-                <MenuItem value="Aberto">Aberto</MenuItem>
-                <MenuItem value="EmAndamento">Em andamento</MenuItem>
-                <MenuItem value="Concluido">Concluído</MenuItem>
-                <MenuItem value="Cancelado">Cancelado</MenuItem>
-              </Select>
+              podeMovimentar ? (
+                <Select
+                  size="small"
+                  value={r.status}
+                  onChange={(e) =>
+                    atualizarStatus.mutate({ reparoId: r.id, status: e.target.value as StatusReparo })
+                  }
+                >
+                  <MenuItem value="Aberto">Aberto</MenuItem>
+                  <MenuItem value="EmAndamento">Em andamento</MenuItem>
+                  <MenuItem value="Concluido">Concluído</MenuItem>
+                  <MenuItem value="Cancelado">Cancelado</MenuItem>
+                </Select>
+              ) : null
             }
           >
             <ListItemText
@@ -101,9 +104,10 @@ export function ReparosSection({ dispositivoId }: Props) {
               }
               secondary={
                 <>
-                  Aberto em {new Date(r.dataAbertura).toLocaleString('pt-BR')}
+                  Aberto em {formatarDataHora(r.dataAbertura)}
+                  {r.registradoPorAdmNome ? ` por ${r.registradoPorAdmNome}` : ''}
                   {r.custoEstimado != null ? ` — R$ ${r.custoEstimado.toFixed(2)}` : ''}
-                  {r.dataConclusao ? ` — concluído em ${new Date(r.dataConclusao).toLocaleString('pt-BR')}` : ''}
+                  {r.dataConclusao ? ` — concluído em ${formatarDataHora(r.dataConclusao)}` : ''}
                 </>
               }
             />

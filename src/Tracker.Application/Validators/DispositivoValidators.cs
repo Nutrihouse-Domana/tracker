@@ -43,7 +43,6 @@ public class AtribuirDispositivoRequestValidator : AbstractValidator<AtribuirDis
     public AtribuirDispositivoRequestValidator()
     {
         RuleFor(x => x.UsuarioId).NotEmpty();
-        RuleFor(x => x.RegistradoPorAdmId).NotEmpty();
     }
 }
 

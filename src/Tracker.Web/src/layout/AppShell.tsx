@@ -20,38 +20,66 @@ import MenuIcon from '@mui/icons-material/MenuOutlined'
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useMe, useLogout } from '../features/auth/useAuth'
+import { usePermissoes, PERMISSOES, type Permissao } from '../features/auth/permissoes'
 import { WaveFooter } from './WaveFooter'
 import { BarraDeBusca } from '../features/busca/BarraDeBusca'
 import { nutrihouseColors } from '../theme'
 
-type NavLink = { label: string; path: string }
+type NavLink = { label: string; path: string; perm: Permissao }
 type NavGroup = { label: string; itens: NavLink[] }
 type NavItem = NavLink | NavGroup
 
 const ehGrupo = (item: NavItem): item is NavGroup => 'itens' in item
 
-const navItems: NavItem[] = [
-  { label: 'Dashboard', path: '/' },
-  { label: 'Dispositivos', path: '/dispositivos' },
+// Toda a navegação com a permissão exigida por item. A filtragem por permissão acontece no render:
+// o que o usuário não pode ver, ele não vê (princípio "ocultar, não desabilitar").
+const navItemsBase: NavItem[] = [
+  { label: 'Dashboard', path: '/', perm: PERMISSOES.dispositivosVer },
+  { label: 'Dispositivos', path: '/dispositivos', perm: PERMISSOES.dispositivosVer },
   {
     label: 'Cadastros',
     itens: [
-      { label: 'Usuários', path: '/usuarios' },
-      { label: 'Unidades', path: '/unidades' },
+      { label: 'Usuários', path: '/usuarios', perm: PERMISSOES.usuariosGerir },
+      { label: 'Unidades', path: '/unidades', perm: PERMISSOES.unidadesGerir },
     ],
   },
 ]
 
-const agenteItem: NavLink = { label: 'Agente', path: '/agente-android' }
+// Itens do menu da conta (aberto pela foto/avatar): agente e administração ficam aqui, não no topo.
+const menuContaItens: NavLink[] = [
+  { label: 'Agente', path: '/agente-android', perm: PERMISSOES.agentePublicar },
+  { label: 'Acessos', path: '/acessos', perm: PERMISSOES.acessosGerir },
+  { label: 'Auditoria', path: '/auditoria', perm: PERMISSOES.auditoriaVer },
+]
+
+/** Remove itens sem permissão e grupos que ficaram vazios. */
+function filtrarNav(itens: NavItem[], tem: (p: Permissao) => boolean): NavItem[] {
+  return itens
+    .map((item) => {
+      if (ehGrupo(item)) {
+        const visiveis = item.itens.filter((sub) => tem(sub.perm))
+        return visiveis.length > 0 ? { ...item, itens: visiveis } : null
+      }
+      return tem(item.perm) ? item : null
+    })
+    .filter((item): item is NavItem => item !== null)
+}
 
 export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const { data: usuarioAdm } = useMe()
+  const { tem } = usePermissoes()
   const logout = useLogout()
   const [menuAberto, setMenuAberto] = useState(false)
-  const [cadastrosEl, setCadastrosEl] = useState<null | HTMLElement>(null)
+  // Menu de grupo aberto (Cadastros/Administração): guarda o label e o elemento âncora, já que há
+  // mais de um grupo e eles não podem compartilhar a mesma âncora.
+  const [grupoMenu, setGrupoMenu] = useState<{ label: string; el: HTMLElement } | null>(null)
   const [usuarioEl, setUsuarioEl] = useState<null | HTMLElement>(null)
+
+  const navItems = filtrarNav(navItemsBase, tem)
+  const contaItens = menuContaItens.filter((i) => tem(i.perm))
+  const podeBuscar = tem(PERMISSOES.dispositivosVer)
 
   const handleLogout = () => {
     logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) })
@@ -100,7 +128,7 @@ export function AppShell() {
             </Typography>
           </Stack>
 
-          <BarraDeBusca />
+          {podeBuscar && <BarraDeBusca />}
 
           <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'block' } }} />
 
@@ -111,7 +139,7 @@ export function AppShell() {
                 return (
                   <Box key={item.label}>
                     <Box
-                      onClick={(e) => setCadastrosEl(e.currentTarget)}
+                      onClick={(e) => setGrupoMenu({ label: item.label, el: e.currentTarget })}
                       sx={{
                         cursor: 'pointer',
                         display: 'flex',
@@ -138,9 +166,9 @@ export function AppShell() {
                       />
                     </Box>
                     <Menu
-                      anchorEl={cadastrosEl}
-                      open={Boolean(cadastrosEl)}
-                      onClose={() => setCadastrosEl(null)}
+                      anchorEl={grupoMenu?.el}
+                      open={grupoMenu?.label === item.label}
+                      onClose={() => setGrupoMenu(null)}
                       anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
                       transformOrigin={{ vertical: 'top', horizontal: 'left' }}
                     >
@@ -150,7 +178,7 @@ export function AppShell() {
                           selected={location.pathname === sub.path}
                           onClick={() => {
                             navigate(sub.path)
-                            setCadastrosEl(null)
+                            setGrupoMenu(null)
                           }}
                         >
                           {sub.label}
@@ -237,16 +265,19 @@ export function AppShell() {
                   </Typography>
                 </Box>
               )}
-              <Divider />
-              <MenuItem
-                selected={location.pathname === agenteItem.path}
-                onClick={() => {
-                  setUsuarioEl(null)
-                  navigate(agenteItem.path)
-                }}
-              >
-                {agenteItem.label}
-              </MenuItem>
+              {contaItens.length > 0 && <Divider />}
+              {contaItens.map((item) => (
+                <MenuItem
+                  key={item.path}
+                  selected={location.pathname === item.path}
+                  onClick={() => {
+                    setUsuarioEl(null)
+                    navigate(item.path)
+                  }}
+                >
+                  {item.label}
+                </MenuItem>
+              ))}
               <Divider />
               <MenuItem
                 onClick={() => {
@@ -311,12 +342,15 @@ export function AppShell() {
           </List>
           <Divider />
           <List>
-            <ListItemButton
-              selected={location.pathname === agenteItem.path}
-              onClick={() => irPara(agenteItem.path)}
-            >
-              <ListItemText primary={agenteItem.label} />
-            </ListItemButton>
+            {contaItens.map((item) => (
+              <ListItemButton
+                key={item.path}
+                selected={location.pathname === item.path}
+                onClick={() => irPara(item.path)}
+              >
+                <ListItemText primary={item.label} />
+              </ListItemButton>
+            ))}
             <ListItemButton onClick={handleLogout}>
               <ListItemText primary="Sair" />
             </ListItemButton>

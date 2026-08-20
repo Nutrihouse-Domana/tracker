@@ -90,8 +90,9 @@ public record CriarPerifericoRequest(
 
 public record AtualizarStatusDispositivoRequest(StatusDispositivo Status);
 
+// A autoria (quem registrou) vem do ADM logado no servidor, não do corpo — por isso não há
+// RegistradoPorAdmId aqui.
 public record AtribuirDispositivoRequest(
     Guid UsuarioId,
     Guid? LocalDestinoId,
-    string? Motivo,
-    Guid RegistradoPorAdmId);
+    string? Motivo);

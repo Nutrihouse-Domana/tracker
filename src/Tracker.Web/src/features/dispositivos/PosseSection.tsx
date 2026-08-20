@@ -18,6 +18,7 @@ import type { Dispositivo } from '../../api/types'
 import { useDefinirPosseDispositivo, useDefinirUnidadeDispositivo } from './hooks'
 import { useUnidades } from '../unidades/hooks'
 import { mensagemErroApi } from '../../utils/erroApi'
+import { usePermissoes, PERMISSOES } from '../auth/permissoes'
 
 interface Props {
   dispositivo: Dispositivo
@@ -29,6 +30,9 @@ interface Props {
  */
 export function PosseSection({ dispositivo }: Props) {
   const { data: unidades } = useUnidades()
+  const { tem } = usePermissoes()
+  const podeCadastrar = tem(PERMISSOES.dispositivosCadastrar)
+  const podeMovimentar = tem(PERMISSOES.dispositivosMovimentar)
   const definirUnidade = useDefinirUnidadeDispositivo()
   const [dialogAberto, setDialogAberto] = useState(false)
 
@@ -75,7 +79,8 @@ export function PosseSection({ dispositivo }: Props) {
           label="Unidade que o dispositivo atende"
           value={dispositivo.unidadeId ?? ''}
           onChange={(e) => definirUnidade.mutate({ id: dispositivo.id, unidadeId: e.target.value || null })}
-          disabled={definirUnidade.isPending}
+          disabled={!podeCadastrar || definirUnidade.isPending}
+          helperText={!podeCadastrar ? 'Somente leitura.' : undefined}
           fullWidth
           sx={{ maxWidth: 360 }}
         >
@@ -99,10 +104,16 @@ export function PosseSection({ dispositivo }: Props) {
       </Stack>
 
       <Stack spacing={0.5}>
-        <FormControlLabel
-          control={<Switch checked={pertenceAUsuario} onChange={() => setDialogAberto(true)} />}
-          label={pertenceAUsuario ? 'Pertence a um usuário' : 'Pertence ao local (unidade)'}
-        />
+        {podeMovimentar ? (
+          <FormControlLabel
+            control={<Switch checked={pertenceAUsuario} onChange={() => setDialogAberto(true)} />}
+            label={pertenceAUsuario ? 'Pertence a um usuário' : 'Pertence ao local (unidade)'}
+          />
+        ) : (
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {pertenceAUsuario ? 'Pertence a um usuário' : 'Pertence ao local (unidade)'}
+          </Typography>
+        )}
         <Typography variant="caption" color="text.secondary">
           {pertenceAUsuario
             ? 'O ativo tem um detentor nominal: segue o fluxo de atribuição e termo de uso.'

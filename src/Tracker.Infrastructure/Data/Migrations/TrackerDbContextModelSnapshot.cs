@@ -466,6 +466,56 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.ToTable("Locais");
                 });
 
+            modelBuilder.Entity("Tracker.Domain.Entities.LogAuditoria", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Acao")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("AdmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AdmNome")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Descricao")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Detalhes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EnderecoIp")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid?>("EntidadeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EntidadeTipo")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdmId");
+
+                    b.HasIndex("CriadoEm");
+
+                    b.HasIndex("EntidadeId");
+
+                    b.ToTable("LogsAuditoria");
+                });
+
             modelBuilder.Entity("Tracker.Domain.Entities.PacoteAgenteAndroid", b =>
                 {
                     b.Property<Guid>("Id")
@@ -663,6 +713,9 @@ namespace Tracker.Infrastructure.Data.Migrations
 
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
+
+                    b.Property<bool>("Ativo")
+                        .HasColumnType("bit");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()

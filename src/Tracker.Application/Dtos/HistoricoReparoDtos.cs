@@ -10,11 +10,12 @@ public record HistoricoReparoDto(
     decimal? CustoEstimado,
     DateTime DataAbertura,
     DateTime? DataConclusao,
-    Guid RegistradoPorAdmId);
+    Guid RegistradoPorAdmId,
+    string? RegistradoPorAdmNome = null);
 
+// Autoria vem do ADM logado no servidor, não do corpo.
 public record CriarReparoRequest(
     string Descricao,
-    decimal? CustoEstimado,
-    Guid RegistradoPorAdmId);
+    decimal? CustoEstimado);
 
 public record AtualizarStatusReparoRequest(StatusReparo Status);

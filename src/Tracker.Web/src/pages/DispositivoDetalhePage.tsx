@@ -23,6 +23,8 @@ import { ComentariosSection } from '../features/dispositivos/ComentariosSection'
 import { AgenteSection } from '../features/dispositivos/AgenteSection'
 import { LocalizacaoSection } from '../features/dispositivos/LocalizacaoSection'
 import { TermoDeUsoSection } from '../features/termos/TermoDeUsoSection'
+import { usePermissoes, PERMISSOES } from '../features/auth/permissoes'
+import { formatarDataHora } from '../utils/formato'
 
 export function DispositivoDetalhePage() {
   const { id } = useParams<{ id: string }>()
@@ -30,6 +32,7 @@ export function DispositivoDetalhePage() {
   const [aba, setAba] = useState(0)
   const [excluirAberto, setExcluirAberto] = useState(false)
   const { data: dispositivo, isLoading } = useDispositivo(id)
+  const { tem } = usePermissoes()
 
   if (isLoading) {
     return (
@@ -82,15 +85,19 @@ export function DispositivoDetalhePage() {
             </Typography>
           </Box>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <StatusDispositivoAcoes dispositivoId={dispositivo.id} status={dispositivo.status} />
-            <Button
-              size="small"
-              color="error"
-              startIcon={<DeleteOutlineIcon />}
-              onClick={() => setExcluirAberto(true)}
-            >
-              Excluir
-            </Button>
+            {tem(PERMISSOES.dispositivosMovimentar) && (
+              <StatusDispositivoAcoes dispositivoId={dispositivo.id} status={dispositivo.status} />
+            )}
+            {tem(PERMISSOES.dispositivosExcluir) && (
+              <Button
+                size="small"
+                color="error"
+                startIcon={<DeleteOutlineIcon />}
+                onClick={() => setExcluirAberto(true)}
+              >
+                Excluir
+              </Button>
+            )}
           </Stack>
         </Stack>
 
@@ -133,7 +140,7 @@ export function DispositivoDetalhePage() {
           <Grid size={{ xs: 6, sm: 3 }}>
             <Typography variant="caption" color="text.secondary">Último heartbeat</Typography>
             <Typography variant="body2">
-              {dispositivo.ultimoHeartbeatEm ? new Date(dispositivo.ultimoHeartbeatEm).toLocaleString('pt-BR') : '—'}
+              {dispositivo.ultimoHeartbeatEm ? formatarDataHora(dispositivo.ultimoHeartbeatEm) : '—'}
             </Typography>
           </Grid>
         </Grid>

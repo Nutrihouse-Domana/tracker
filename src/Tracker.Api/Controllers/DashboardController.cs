@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tracker.Application.Dtos;
+using Tracker.Application.Seguranca;
 using Tracker.Domain.Enums;
 using Tracker.Infrastructure.Data;
 
@@ -9,7 +10,7 @@ namespace Tracker.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = Permissoes.DispositivosVer)]
 public class DashboardController : ControllerBase
 {
     private readonly TrackerDbContext _db;
