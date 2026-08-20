@@ -8,6 +8,7 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  TableSortLabel,
   Paper,
   TableContainer,
   Chip,
@@ -56,6 +57,28 @@ const filtrosStatus: { label: string; status: StatusDispositivo | undefined }[] 
   { label: 'Baixado', status: 'Baixado' },
 ]
 
+type ColunaOrdenavel = 'identificacao' | 'patrimonio' | 'unidade' | 'responsavel' | 'status'
+type Direcao = 'asc' | 'desc'
+
+/**
+ * Chave de comparação de cada coluna. Na aba Arquivados a última coluna é a data de
+ * exclusão (ISO string, que ordena cronologicamente); nas demais é o rótulo do status.
+ */
+function valorOrdenacao(d: Dispositivo, coluna: ColunaOrdenavel, arquivados: boolean): string {
+  switch (coluna) {
+    case 'identificacao':
+      return d.hostname ?? d.numeroSerie ?? ''
+    case 'patrimonio':
+      return d.assetTag ?? ''
+    case 'unidade':
+      return d.unidadeNome ?? ''
+    case 'responsavel':
+      return d.responsavelNome ?? ''
+    case 'status':
+      return arquivados ? (d.excluidoEm ?? '') : (rotuloStatus[d.status] ?? d.status)
+  }
+}
+
 export function DispositivosPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -65,6 +88,8 @@ export function DispositivosPage() {
   const [status, setStatus] = useState<StatusDispositivo | undefined>(
     (searchParams.get('status') as StatusDispositivo | null) ?? undefined,
   )
+  const [ordenarPor, setOrdenarPor] = useState<ColunaOrdenavel>('identificacao')
+  const [direcao, setDirecao] = useState<Direcao>('asc')
   const [dialogAberto, setDialogAberto] = useState(false)
   const [dispositivoParaAtribuir, setDispositivoParaAtribuir] = useState<Dispositivo | null>(null)
   const [dispositivoParaExcluir, setDispositivoParaExcluir] = useState<Dispositivo | null>(null)
@@ -111,6 +136,42 @@ export function DispositivosPage() {
         .some((campo) => campo!.toLowerCase().includes(termo)),
     )
   }, [dispositivosCarregados, termoBusca])
+
+  // Ordenação client-side (o filtro de busca já é client-side). Valores vazios vão sempre
+  // para o fim, independente da direção, para não empurrar linhas em branco ao topo.
+  const dispositivosOrdenados = useMemo(() => {
+    if (!dispositivos) return dispositivos
+    const fator = direcao === 'asc' ? 1 : -1
+    return [...dispositivos].sort((a, b) => {
+      const va = valorOrdenacao(a, ordenarPor, mostrandoArquivados)
+      const vb = valorOrdenacao(b, ordenarPor, mostrandoArquivados)
+      if (!va && !vb) return 0
+      if (!va) return 1
+      if (!vb) return -1
+      return va.localeCompare(vb, 'pt-BR', { numeric: true, sensitivity: 'base' }) * fator
+    })
+  }, [dispositivos, ordenarPor, direcao, mostrandoArquivados])
+
+  const alternarOrdenacao = (coluna: ColunaOrdenavel) => {
+    if (ordenarPor === coluna) {
+      setDirecao((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setOrdenarPor(coluna)
+      setDirecao('asc')
+    }
+  }
+
+  const cabecalho = (coluna: ColunaOrdenavel, label: string, align: 'left' | 'center' = 'left') => (
+    <TableCell align={align} sortDirection={ordenarPor === coluna ? direcao : false}>
+      <TableSortLabel
+        active={ordenarPor === coluna}
+        direction={ordenarPor === coluna ? direcao : 'asc'}
+        onClick={() => alternarOrdenacao(coluna)}
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  )
 
   return (
     <>
@@ -174,20 +235,18 @@ export function DispositivosPage() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Tipo</TableCell>
-                <TableCell>Identificação</TableCell>
-                <TableCell>Patrimônio</TableCell>
-                <TableCell>Unidade</TableCell>
+                {cabecalho('identificacao', 'Identificação')}
+                {cabecalho('patrimonio', 'Patrimônio')}
+                {cabecalho('unidade', 'Unidade')}
                 {/* Usuário nominal ou, nos ativos do local, o nome da unidade. */}
-                <TableCell>Responsável</TableCell>
-                <TableCell align="center">{mostrandoArquivados ? 'Excluído em' : 'Status'}</TableCell>
+                {cabecalho('responsavel', 'Responsável')}
+                {cabecalho('status', mostrandoArquivados ? 'Excluído em' : 'Status', 'center')}
                 <TableCell align="right">Ações</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {dispositivos?.map((d) => (
+              {dispositivosOrdenados?.map((d) => (
                 <TableRow key={d.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/dispositivos/${d.id}`)}>
-                  <TableCell>{d.tipo}</TableCell>
                   <TableCell>{d.hostname ?? d.numeroSerie}</TableCell>
                   <TableCell>{d.assetTag ?? '—'}</TableCell>
                   <TableCell>{d.unidadeNome ?? '—'}</TableCell>
@@ -262,9 +321,9 @@ export function DispositivosPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {dispositivos?.length === 0 && (
+              {dispositivosOrdenados?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={6} align="center">
                     {termoBusca
                       ? `Nenhum dispositivo encontrado para "${termoBusca}".`
                       : mostrandoArquivados
