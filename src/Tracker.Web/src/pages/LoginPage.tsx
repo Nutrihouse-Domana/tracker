@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Box, Button, Paper, TextField, Typography, Alert } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
 import { useLogin } from '../features/auth/useAuth'
+import logoTracker from '../assets/tracker-logo.jpg'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
@@ -28,10 +29,16 @@ export function LoginPage() {
       }}
     >
       <Paper component="form" onSubmit={handleSubmit} sx={{ p: 4, width: 360 }}>
-        <Typography variant="h5" gutterBottom>
+        <Box
+          component="img"
+          src={logoTracker}
+          alt="Tracker Nutrihouse"
+          sx={{ width: 72, height: 72, borderRadius: 2, objectFit: 'cover', mb: 1, mx: 'auto', display: 'block' }}
+        />
+        <Typography variant="h5" gutterBottom align="center">
           Tracker Nutrihouse
         </Typography>
-        <Typography variant="body2" color="text.secondary" gutterBottom>
+        <Typography variant="body2" color="text.secondary" gutterBottom align="center">
           Acesso restrito à equipe de TI
         </Typography>
 

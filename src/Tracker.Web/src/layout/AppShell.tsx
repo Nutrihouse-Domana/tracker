@@ -15,7 +15,6 @@ import {
   Menu,
   MenuItem,
 } from '@mui/material'
-import InventoryIcon from '@mui/icons-material/Inventory2Outlined'
 import MenuIcon from '@mui/icons-material/MenuOutlined'
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
@@ -23,6 +22,7 @@ import { useMe, useLogout } from '../features/auth/useAuth'
 import { usePermissoes, PERMISSOES, type Permissao } from '../features/auth/permissoes'
 import { WaveFooter } from './WaveFooter'
 import { BarraDeBusca } from '../features/busca/BarraDeBusca'
+import logoTracker from '../assets/tracker-logo.jpg'
 import { nutrihouseColors } from '../theme'
 
 type NavLink = { label: string; path: string; perm: Permissao }
@@ -110,19 +110,17 @@ export function AppShell() {
             onClick={() => navigate('/')}
           >
             <Box
+              component="img"
+              src={logoTracker}
+              alt="Tracker Nutrihouse"
               sx={{
                 width: 40,
                 height: 40,
                 borderRadius: '10px',
-                bgcolor: nutrihouseColors.terracota,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                objectFit: 'cover',
                 flexShrink: 0,
               }}
-            >
-              <InventoryIcon sx={{ color: '#fff' }} />
-            </Box>
+            />
             <Typography variant="h6" noWrap sx={{ fontWeight: 700, display: { xs: 'none', sm: 'block' } }}>
               Tracker <Box component="span" sx={{ color: nutrihouseColors.terracota }}>Nutrihouse</Box>
             </Typography>
