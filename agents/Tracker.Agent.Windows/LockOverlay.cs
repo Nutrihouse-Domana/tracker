@@ -254,21 +254,42 @@ internal sealed class LockForm : Form
 
     private void AtualizarRedes()
     {
+        // A varredura nativa (WlanScan) bloqueia até ~5s. Rodamos fora da thread de UI para não
+        // congelar a tela de bloqueio, e devolvemos o resultado por Invoke.
         _lstRedes.Items.Clear();
         _lblStatusWifi.Text = "Procurando redes...";
-        try
+
+        Task.Run(() =>
         {
-            if (!WifiConnect.TemInterfaceWifi()) { _lblStatusWifi.Text = "Nenhum adaptador Wi-Fi neste dispositivo."; return; }
-            var redes = WifiConnect.ListarRedes();
-            foreach (var r in redes) _lstRedes.Items.Add(r);
-            if (_lstRedes.Items.Count > 0)
+            List<string> redes;
+            string? erro = null;
+            bool temAdaptador = true;
+            try
             {
-                _lstRedes.SelectedIndex = 0;
-                _lblStatusWifi.Text = $"{redes.Count} rede(s) encontrada(s). Selecione e conecte.";
+                temAdaptador = WifiConnect.TemInterfaceWifi();
+                redes = temAdaptador ? WifiConnect.ListarRedes() : [];
             }
-            else _lblStatusWifi.Text = "Nenhuma rede encontrada. Tente 'Atualizar lista'.";
-        }
-        catch (Exception ex) { _lblStatusWifi.Text = "Erro ao listar redes: " + ex.Message; }
+            catch (Exception ex) { redes = []; erro = ex.Message; }
+
+            try
+            {
+                BeginInvoke(() =>
+                {
+                    if (erro != null) { _lblStatusWifi.Text = "Erro ao listar redes: " + erro; return; }
+                    if (!temAdaptador) { _lblStatusWifi.Text = "Nenhum adaptador Wi-Fi neste dispositivo."; return; }
+
+                    _lstRedes.Items.Clear();
+                    foreach (var r in redes) _lstRedes.Items.Add(r);
+                    if (_lstRedes.Items.Count > 0)
+                    {
+                        _lstRedes.SelectedIndex = 0;
+                        _lblStatusWifi.Text = $"{redes.Count} rede(s) encontrada(s). Selecione e conecte.";
+                    }
+                    else _lblStatusWifi.Text = "Nenhuma rede encontrada. Tente 'Atualizar lista'.";
+                });
+            }
+            catch { /* form já fechado */ }
+        });
     }
 
     private void ConectarWifi()
