@@ -163,6 +163,24 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   - Bloqueio é **persistente**: arquivo-sinal `%ProgramData%\TrackerAgent\locked.flag`. O agente
     re-trava sozinho (timer de 2s) mesmo offline/após reiniciar; só a TI remove o sinal (Desbloquear).
   - A tela de bloqueio é **uma janela por monitor** e se reconstrói ao trocar de monitor (hotplug).
+- **Token inválido re-cadastra sozinho (401).** Antes, o agente usava o `token.dat` cegamente e,
+  se o backend rejeitasse (agente atualizado ou apontado para outro servidor), repetia **401** para
+  sempre e o aparelho nunca aparecia no inventário. Agora `BackendClient` lança `TokenInvalidoException`
+  no 401, o `Worker` chama `EnrollmentService.ReenrollarAsync` (apaga `token.dat` → auto-cadastro) e
+  reconecta o hub com o token novo. Não duplica: o `AutoEnrollment` reencontra o dispositivo por
+  patrimônio→série→IMEI e só regenera o token. Diagnóstico manual continua valendo: apagar
+  `C:\TrackerAgent\token.dat` e reiniciar o serviço força o re-cadastro na hora.
+- **Wi-Fi na tela de bloqueio: NÃO liste redes com `netsh wlan show networks`.** O netsh só devolve
+  o **cache** da última varredura e **nunca dispara uma nova** — numa máquina ociosa/desconectada
+  (o caso exato da trava) ele retorna só a rede conectada, ou nada, e o usuário fica sem opção para
+  reconectar e receber o "Desbloquear". Pior: builds do Windows sem `netsh wlan scan` não têm como
+  forçar a busca por linha de comando. `WifiConnect.ListarRedes` usa a **Native Wifi API**
+  (`wlanapi.dll`): `WlanScan` (varredura real) → espera a notificação ACM `scan_complete` (até 5s) →
+  `WlanGetAvailableNetworkList`. Medido na prática: netsh via 1 rede, a API nativa 5. O netsh fica
+  só como fallback e para **conectar** (que funciona uma vez que se tem o SSID). O scan bloqueia
+  ~5s, então `AtualizarRedes` (em `LockOverlay`) roda em `Task.Run` e devolve por `BeginInvoke` —
+  senão a tela de bloqueio congela durante a varredura. O delegate de notificação precisa ficar
+  vivo (`GC.KeepAlive`) durante a espera.
 - **SignalR serializa enums de forma DIFERENTE dos controllers.** O `JsonStringEnumConverter`
   registrado em `AddControllers().AddJsonOptions(...)` **não vale para o hub**: é preciso
   `AddSignalR().AddJsonProtocol(...)` separado. Sem isso o heartbeat entrega
@@ -291,6 +309,16 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   de **variáveis de ambiente** (`ConnectionStrings__TrackerDb`, `Encryption__CpfKeyBase64`,
   `Enrollment__CompanyKey`, `Seed__*`).
 - Gerar pacote: `deploy/publicar-servidor.ps1`. Guia completo: `docs/deploy-servidor-onpremises.md`.
+- **CI (`.github/workflows/deploy-producao.yml`)** roda num **runner self-hosted no próprio servidor**,
+  dispara em tag `v*` (build → testes → publica site+API no IIS). O último passo **regera o
+  instalador do agente Windows SÓ quando o agente mudou nesta release** (diff contra a tag anterior
+  em `agents/Tracker.Agent.Windows`, `deploy/gerar-pendrive.ps1`, `deploy/Instalador`). Roda
+  **depois** do deploy (falha aqui não desfaz o site). Saída em `C:\TrackerAgentDist`
+  (`Instalar-Agente.exe` + cópia versionada pela tag) — **fora do `wwwroot`, pois o `.exe` embute a
+  EnrollmentKey**. Depende de `Enrollment__CompanyKey` estar na env da máquina do runner (mesma da
+  API); `TRACKER_BACKEND_URL` e `TRACKER_AGENTE_DIST` são env opcionais (default: URL de produção e
+  `C:\TrackerAgentDist`). O checkout usa `fetch-depth: 0` para o diff enxergar a tag anterior.
+  (Auto-update OTA da frota Windows ainda NÃO existe — a TI baixa o `.exe` e reinstala.)
 
 ## Nunca versionar
 

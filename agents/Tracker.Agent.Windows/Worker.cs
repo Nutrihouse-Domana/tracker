@@ -73,6 +73,19 @@ public class Worker : BackgroundService
                 }
             }
             catch (OperationCanceledException) { break; }
+            catch (TokenInvalidoException)
+            {
+                // Token rejeitado (agente atualizado ou apontado para outro servidor): re-cadastra
+                // sozinho. O backend reaproveita o registro pela série/patrimônio (sem duplicar) e
+                // devolve um token novo; reconecta o hub, que carrega o token na URL.
+                _logger.LogWarning("Heartbeat 401 — token inválido. Re-cadastrando o agente...");
+                if (await _enrollment.ReenrollarAsync(stoppingToken))
+                {
+                    _logger.LogInformation("Re-cadastro concluído. Reconectando ao hub.");
+                    if (_hub is not null) await _hub.DisposeAsync();
+                    await ConectarHubAsync(stoppingToken);
+                }
+            }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Falha no heartbeat — nova tentativa no próximo ciclo.");

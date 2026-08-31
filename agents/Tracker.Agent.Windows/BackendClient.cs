@@ -7,6 +7,9 @@ namespace Tracker.Agent.Windows;
 public record ComandoPendente(Guid Id, string TipoComando);
 public record HeartbeatResposta(List<ComandoPendente> ComandosPendentes);
 
+/// <summary>O backend rejeitou o token (401). Sinaliza ao Worker que é hora de re-cadastrar.</summary>
+public class TokenInvalidoException : Exception;
+
 /// <summary>
 /// Comunicação REST com o backend. O token é lido do TokenHolder a cada requisição, pois ele
 /// só é conhecido após a resolução/auto-cadastro no início da execução.
@@ -46,6 +49,7 @@ public class BackendClient
 
         var http = _factory.CreateClient("backend");
         var resp = await http.SendAsync(Requisicao(HttpMethod.Post, "/api/agente/heartbeat", corpo), ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized) throw new TokenInvalidoException();
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<HeartbeatResposta>(cancellationToken: ct);
     }
