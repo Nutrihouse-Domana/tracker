@@ -309,6 +309,16 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   de **variáveis de ambiente** (`ConnectionStrings__TrackerDb`, `Encryption__CpfKeyBase64`,
   `Enrollment__CompanyKey`, `Seed__*`).
 - Gerar pacote: `deploy/publicar-servidor.ps1`. Guia completo: `docs/deploy-servidor-onpremises.md`.
+- **CI (`.github/workflows/deploy-producao.yml`)** roda num **runner self-hosted no próprio servidor**,
+  dispara em tag `v*` (build → testes → publica site+API no IIS). O último passo **regera o
+  instalador do agente Windows SÓ quando o agente mudou nesta release** (diff contra a tag anterior
+  em `agents/Tracker.Agent.Windows`, `deploy/gerar-pendrive.ps1`, `deploy/Instalador`). Roda
+  **depois** do deploy (falha aqui não desfaz o site). Saída em `C:\TrackerAgentDist`
+  (`Instalar-Agente.exe` + cópia versionada pela tag) — **fora do `wwwroot`, pois o `.exe` embute a
+  EnrollmentKey**. Depende de `Enrollment__CompanyKey` estar na env da máquina do runner (mesma da
+  API); `TRACKER_BACKEND_URL` e `TRACKER_AGENTE_DIST` são env opcionais (default: URL de produção e
+  `C:\TrackerAgentDist`). O checkout usa `fetch-depth: 0` para o diff enxergar a tag anterior.
+  (Auto-update OTA da frota Windows ainda NÃO existe — a TI baixa o `.exe` e reinstala.)
 
 ## Nunca versionar
 

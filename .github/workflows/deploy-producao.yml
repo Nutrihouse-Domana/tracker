@@ -30,6 +30,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Historico completo + tags: o passo final compara com a tag anterior para saber
+          # se o agente Windows mudou nesta release (e so entao o regera).
+          fetch-depth: 0
+          fetch-tags: true
 
       # O egress da rede bloqueia o CDN de download da Microsoft/Node, entao NAO usamos
       # setup-dotnet/setup-node. O .NET 8 SDK e o Node ficam PRE-INSTALADOS no servidor.
@@ -64,3 +69,43 @@ jobs:
       - name: Publicar no IIS (producao)
         # Sem -Destino: o script publica na pasta real que o site 'Tracker' serve (PhysicalPath do IIS).
         run: .\deploy\atualizar-servidor.ps1 -Origem "$env:GITHUB_WORKSPACE\publish" -Site "Tracker"
+
+      # ---------------------------------------------------------------------------
+      # Regera o instalador do agente Windows SO quando o codigo do agente mudou nesta
+      # release (diff contra a tag anterior). Roda DEPOIS do deploy: uma falha aqui nao
+      # desfaz o site ja publicado. O .exe embute a EnrollmentKey de producao, entao fica
+      # numa pasta do servidor acessivel so pela TI (NUNCA no wwwroot).
+      # ---------------------------------------------------------------------------
+      - name: Gerar agente Windows (se o agente mudou)
+        # A EnrollmentKey vem da variavel de ambiente da MAQUINA do runner (mesma da API de
+        # producao), herdada automaticamente pelo step — nao declare via contexto do Actions
+        # (viria vazia e sobrescreveria a real).
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $prev = git describe --tags --abbrev=0 "HEAD^" 2>$null
+          if ([string]::IsNullOrWhiteSpace($prev)) {
+            Write-Host "Sem tag anterior: gerando o agente."
+            $mudou = $true
+          } else {
+            $diff = git diff --name-only "$prev" HEAD -- agents/Tracker.Agent.Windows deploy/gerar-pendrive.ps1 deploy/Instalador
+            $mudou = -not [string]::IsNullOrWhiteSpace(($diff | Out-String))
+            Write-Host ("Comparando com " + $prev + " -> agente " + $(if ($mudou) { "MUDOU" } else { "inalterado" }))
+          }
+          if (-not $mudou) { Write-Host "Agente inalterado; pulando a geracao."; exit 0 }
+
+          $chave = $env:Enrollment__CompanyKey
+          if ([string]::IsNullOrWhiteSpace($chave)) {
+            throw "Enrollment__CompanyKey ausente no runner. Configure a variavel de ambiente da maquina (mesma da API)."
+          }
+
+          # Defaults de producao; sobrescreva com variaveis de ambiente no runner se precisar.
+          $backend = if ($env:TRACKER_BACKEND_URL) { $env:TRACKER_BACKEND_URL } else { 'https://tracker.foodsacademy.com.br' }
+          $destino = if ($env:TRACKER_AGENTE_DIST) { $env:TRACKER_AGENTE_DIST } else { 'C:\TrackerAgentDist' }
+
+          .\deploy\gerar-pendrive.ps1 -Destino $destino -BackendUrl $backend -EnrollmentKey $chave -Tipo Notebook
+
+          # Mantem o 'Instalar-Agente.exe' (ultimo) e uma copia versionada pela tag.
+          $tag = "${{ github.ref_name }}"
+          Copy-Item (Join-Path $destino 'Instalar-Agente.exe') (Join-Path $destino ("Instalar-Agente-" + $tag + ".exe")) -Force
+          Write-Host ("Agente gerado em " + $destino + ": Instalar-Agente.exe e Instalar-Agente-" + $tag + ".exe")
