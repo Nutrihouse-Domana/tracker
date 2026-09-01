@@ -1,5 +1,6 @@
 using MigraDocCore.DocumentObjectModel;
 using MigraDocCore.Rendering;
+using PdfSharpCore.Fonts;
 using Tracker.Application.Dtos;
 
 namespace Tracker.Infrastructure.Pdf;
@@ -7,6 +8,53 @@ namespace Tracker.Infrastructure.Pdf;
 public interface ITermoDeUsoPdfService
 {
     byte[] Gerar(DadosTermoDeUso dados);
+}
+
+/// <summary>
+/// Resolve a fonte do termo lendo os arquivos do próprio Windows (nada é versionado no repositório).
+/// Preferência: Calibri Light — fiel ao modelo oficial em Word. Fallback: Arial, que está SEMPRE
+/// presente no Windows Server. Assim a geração do PDF nunca estoura por falta de fonte em produção,
+/// mesmo que a Calibri não esteja instalada no servidor IIS. Ver pegadinha no CLAUDE.md.
+/// </summary>
+internal sealed class TermoFontResolver : IFontResolver
+{
+    public static readonly TermoFontResolver Instancia = new();
+
+    public string DefaultFontName => "TermoFont#regular";
+
+    public FontResolverInfo ResolveTypeface(string familyName, bool isBold, bool isItalic)
+    {
+        var estilo = (isBold, isItalic) switch
+        {
+            (true, true) => "bolditalic",
+            (true, false) => "bold",
+            (false, true) => "italic",
+            _ => "regular",
+        };
+        return new FontResolverInfo($"TermoFont#{estilo}");
+    }
+
+    public byte[] GetFont(string faceName)
+    {
+        var estilo = faceName.Split('#')[^1];
+        // Calibri Light (fiel ao modelo) -> Arial (sempre no Windows Server) como fallback por estilo.
+        var candidatos = estilo switch
+        {
+            "bold" => new[] { "calibrib.ttf", "arialbd.ttf" },        // Calibri Light não tem negrito próprio: usa Calibri Bold
+            "italic" => new[] { "calibrili.ttf", "ariali.ttf" },
+            "bolditalic" => new[] { "calibriz.ttf", "arialbi.ttf" },
+            _ => new[] { "calibril.ttf", "arial.ttf" },
+        };
+
+        var fontsDir = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+        foreach (var arquivo in candidatos)
+        {
+            var caminho = Path.Combine(fontsDir, arquivo);
+            if (File.Exists(caminho)) return File.ReadAllBytes(caminho);
+        }
+        throw new FileNotFoundException(
+            $"Nenhuma fonte disponível para o termo (estilo '{estilo}'). Instale a Calibri ou a Arial no servidor.");
+    }
 }
 
 /// <summary>
@@ -59,8 +107,13 @@ public class TermoDeUsoPdfService : ITermoDeUsoPdfService
         "(_) Em perfeito estado (_) Apresentando defeito (_) Faltando peças ou acessórios (assinatura) " +
         "(nome do responsável pelo recebimento do Termo de Responsabilidade).";
 
+    private static readonly object _lockFonte = new();
+    private static bool _fontResolverRegistrado;
+
     public byte[] Gerar(DadosTermoDeUso dados)
     {
+        GarantirFontResolver();
+
         var document = new Document();
         document.Info.Title = $"Termo de Responsabilidade - {dados.NumeroSerie}";
 
@@ -137,6 +190,18 @@ public class TermoDeUsoPdfService : ITermoDeUsoPdfService
         using var stream = new MemoryStream();
         renderer.PdfDocument.Save(stream);
         return stream.ToArray();
+    }
+
+    /// <summary>Registra o resolver de fonte uma única vez (é global no PdfSharpCore).</summary>
+    private static void GarantirFontResolver()
+    {
+        if (_fontResolverRegistrado) return;
+        lock (_lockFonte)
+        {
+            if (_fontResolverRegistrado) return;
+            GlobalFontSettings.FontResolver = TermoFontResolver.Instancia;
+            _fontResolverRegistrado = true;
+        }
     }
 
     /// <summary>Linha em branco usada como espaçador vertical (como no modelo Word).</summary>
