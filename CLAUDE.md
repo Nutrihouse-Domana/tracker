@@ -258,6 +258,16 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
 - **Scripts PowerShell (.ps1):** escreva em **ASCII puro** (sem acentos/travessão) — o Windows
   PowerShell 5.1 lê `.ps1` sem BOM na codepage do sistema e quebra com caracteres especiais.
 - **MigraDoc:** o pacote é `MigraDocCore.*` (namespaces `MigraDocCore.DocumentObjectModel`/`.Rendering`).
+- **Termo de uso (PDF):** `TermoDeUsoPdfService` replica FIELMENTE o modelo oficial em Word (`NOVO
+  MODELO DE TERMO DE RESPONSABILIDADE.doc`): página **Carta** (não A4), Calibri Light 10,5pt,
+  entrelinha simples, espaçamento por linhas em branco, rótulos sem negrito, sem rodapé de versão.
+  O texto legal é transcrito LITERALMENTE (inclui o "com endereço com endereço" e as junções
+  "locadora.6."/"regular.7." sem espaço do original — não "corrigir" sem RH/jurídico). Versão do
+  termo bumpada para **2.0** no front (`TermoDeUsoSection.tsx`); termos antigos ficam v1.0.
+  **PEGADINHA de produção:** o PdfSharpCore resolve a fonte pelas fontes do SISTEMA. A Calibri
+  existe onde há Office; se o servidor IIS não tiver Calibri, a geração do PDF ESTOURA em runtime
+  (ou substitui a fonte). Confirmar a fonte no servidor ou registrar `GlobalFontSettings.FontResolver`
+  com fallback embutido antes de confiar nisso em produção.
 - **MUI v9:** use `sx={{ justifyContent, alignItems }}` no `Stack` (não como props soltas);
   `slotProps={{ input: {...} }}` em vez de `InputProps`. Ícones existem só na variante `*Outlined` etc.
 - **Pacotes .NET:** fixe versões **8.x** (o feed resolve 10.x/11.x por padrão, incompatível com net8.0).
