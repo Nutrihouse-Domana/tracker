@@ -23,7 +23,9 @@ export function TermoDeUsoSection({ dispositivo }: Props) {
   const visualizar = useVisualizarTermo()
 
   const usuarioId = dispositivo.usuarioAtualId
-  const versaoTermo = '1.0'
+  // v2.0: texto legal ampliado (7 cláusulas, equipamento próprio/locado, art. 462 §1º da CLT).
+  // Termos assinados sob o texto anterior permanecem gravados como v1.0.
+  const versaoTermo = '2.0'
 
   const handleGerar = () => {
     if (!usuarioId) return
