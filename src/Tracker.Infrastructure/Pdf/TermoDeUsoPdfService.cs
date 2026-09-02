@@ -69,13 +69,14 @@ public class TermoDeUsoPdfService : ITermoDeUsoPdfService
     private const string Fonte = "Calibri Light";
     private const double TamanhoFonte = 10.5;
 
-    // Texto legal fixo da empresa (grupo NUTRIHOUSE) que emite o termo. Transcrito LITERALMENTE do
-    // modelo oficial em Word — inclusive o "com endereço com endereço" e as quebras "locadora.6."/
-    // "regular.7." sem espaço. Não "corrigir" sem validar com o RH/jurídico (é o texto assinado).
+    // Texto legal fixo da empresa (grupo NUTRIHOUSE) que emite o termo. Baseado no modelo oficial em
+    // Word, com 3 correções de digitação do original já aplicadas (validadas pela TI): "com endereço"
+    // não mais duplicado, vírgula após o CEP e espaço antes de "6."/"7.". Não alterar o texto legal
+    // sem validar com o RH/jurídico (é o texto assinado pelo colaborador).
     private const string TextoLegal =
         "Recebi da empresa MCP REFEIÇÕES LTDA, empresa do grupo empresarial NUTRIHOUSE, com endereço " +
-        "com endereço na Av. Dr Júlio Maranhão, nº 1210, Guararapes, Jaboatão dos Guararapes-PE, CEP " +
-        "54340-000 inscrita no CNPJ nº 06.088.039/0001-99, a título de empréstimo, para meu uso " +
+        "na Av. Dr Júlio Maranhão, nº 1210, Guararapes, Jaboatão dos Guararapes-PE, CEP " +
+        "54340-000, inscrita no CNPJ nº 06.088.039/0001-99, a título de empréstimo, para meu uso " +
         "exclusivo, conforme determinado na lei, os equipamentos especificados neste termo de " +
         "responsabilidade, comprometendo-me a mantê-los em perfeito estado de conservação, ficando " +
         "ciente de que: 1. O equipamento poderá ser de propriedade da MCP REFEIÇÕES LTDA., de empresa " +
@@ -94,10 +95,10 @@ public class TermoDeUsoPdfService : ITermoDeUsoPdfService
         "Tratando-se de equipamento locado ou pertencente a terceiro, eventual custo de reparo ou " +
         "reposição somente poderá ser atribuído ao colaborador quando comprovadamente decorrente de " +
         "sua conduta dolosa ou culposa, não sendo automaticamente transferidas ao empregado cobranças, " +
-        "multas ou encargos próprios do contrato mantido entre a empresa e a locadora.6. Comprometo-me " +
+        "multas ou encargos próprios do contrato mantido entre a empresa e a locadora. 6. Comprometo-me " +
         "a devolver o equipamento e seus acessórios sempre que solicitado, por ocasião de substituição, " +
         "mudança de função ou desligamento, em condições compatíveis com o estado em que foi recebido, " +
-        "ressalvado o desgaste natural decorrente do uso regular.7. Enquanto o equipamento permanecer " +
+        "ressalvado o desgaste natural decorrente do uso regular. 7. Enquanto o equipamento permanecer " +
         "sob minha responsabilidade, poderá ser submetido a inspeções, inventários e verificações " +
         "técnicas pela empresa.";
 
