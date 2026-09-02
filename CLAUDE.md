@@ -261,9 +261,10 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
 - **Termo de uso (PDF):** `TermoDeUsoPdfService` replica FIELMENTE o modelo oficial em Word (`NOVO
   MODELO DE TERMO DE RESPONSABILIDADE.doc`): página **Carta** (não A4), Calibri Light 10,5pt,
   entrelinha simples, espaçamento por linhas em branco, rótulos sem negrito, sem rodapé de versão.
-  O texto legal é transcrito LITERALMENTE (inclui o "com endereço com endereço" e as junções
-  "locadora.6."/"regular.7." sem espaço do original — não "corrigir" sem RH/jurídico). Versão do
-  termo bumpada para **2.0** no front (`TermoDeUsoSection.tsx`); termos antigos ficam v1.0.
+  O texto legal segue o modelo oficial, com 3 correções de digitação do original já aplicadas
+  (duplicação "com endereço", vírgula após o CEP, espaço antes de "6."/"7."). Não alterar o texto
+  sem validar com RH/jurídico (é o texto assinado). Versão do termo bumpada para **2.0** no front
+  (`TermoDeUsoSection.tsx`); termos antigos ficam v1.0.
   **PEGADINHA de produção (RESOLVIDA):** o PdfSharpCore resolve a fonte pelas fontes do SISTEMA e,
   sem resolver, ESTOURA em runtime se a Calibri faltar. Há um `TermoFontResolver` (no mesmo arquivo,
   registrado 1x em `GlobalFontSettings.FontResolver`) que lê os `.ttf` do `%WINDIR%\Fonts`: prefere
