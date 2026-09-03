@@ -10,11 +10,14 @@ import {
   CircularProgress,
   Button,
   Grid,
+  IconButton,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBackOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import { useDispositivo } from '../features/dispositivos/hooks'
 import { PosseSection } from '../features/dispositivos/PosseSection'
+import { EditarIdentificacaoInternaDialog } from '../features/dispositivos/EditarIdentificacaoInternaDialog'
 import { ExcluirDispositivoDialog } from '../features/dispositivos/ExcluirDispositivoDialog'
 import { StatusDispositivoAcoes } from '../features/dispositivos/StatusDispositivoAcoes'
 import { MovimentacaoSection } from '../features/dispositivos/MovimentacaoSection'
@@ -31,6 +34,7 @@ export function DispositivoDetalhePage() {
   const navigate = useNavigate()
   const [aba, setAba] = useState(0)
   const [excluirAberto, setExcluirAberto] = useState(false)
+  const [identificacaoAberta, setIdentificacaoAberta] = useState(false)
   const { data: dispositivo, isLoading } = useDispositivo(id)
   const { tem } = usePermissoes()
 
@@ -79,7 +83,21 @@ export function DispositivoDetalhePage() {
       <Paper sx={{ p: 3, mb: 2 }}>
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
           <Box>
-            <Typography variant="h5">{dispositivo.hostname ?? dispositivo.numeroSerie}</Typography>
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+              {/* Identificação interna da TI tem prioridade sobre o hostname reportado pelo agente. */}
+              <Typography variant="h5">
+                {dispositivo.identificacaoInterna ?? dispositivo.hostname ?? dispositivo.numeroSerie}
+              </Typography>
+              {tem(PERMISSOES.dispositivosCadastrar) && (
+                <IconButton
+                  size="small"
+                  aria-label="Editar identificação interna"
+                  onClick={() => setIdentificacaoAberta(true)}
+                >
+                  <EditOutlinedIcon fontSize="small" />
+                </IconButton>
+              )}
+            </Stack>
             <Typography variant="body2" color="text.secondary">
               {dispositivo.tipo} — {dispositivo.assetTag ?? dispositivo.numeroSerie}
             </Typography>
@@ -106,6 +124,14 @@ export function DispositivoDetalhePage() {
             <Typography variant="caption" color="text.secondary">Número de série</Typography>
             <Typography variant="body2">{dispositivo.numeroSerie}</Typography>
           </Grid>
+          {/* Com identificação interna definida, o título deixa de mostrar o hostname técnico —
+              então ele aparece aqui para não se perder. */}
+          {dispositivo.identificacaoInterna && dispositivo.hostname && (
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Typography variant="caption" color="text.secondary">Hostname</Typography>
+              <Typography variant="body2">{dispositivo.hostname}</Typography>
+            </Grid>
+          )}
           <Grid size={{ xs: 6, sm: 3 }}>
             {/* Ativo do local não tem detentor: o rótulo e o valor passam a ser da unidade. */}
             <Typography variant="caption" color="text.secondary">
@@ -160,6 +186,11 @@ export function DispositivoDetalhePage() {
         </Tabs>
         <Box sx={{ p: 3 }}>{tabs[aba]?.render()}</Box>
       </Paper>
+
+      <EditarIdentificacaoInternaDialog
+        dispositivo={identificacaoAberta ? dispositivo : null}
+        onClose={() => setIdentificacaoAberta(false)}
+      />
 
       <ExcluirDispositivoDialog
         dispositivo={excluirAberto ? dispositivo : null}

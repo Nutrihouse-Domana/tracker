@@ -74,6 +74,7 @@ public class AuditoriaController : ControllerBase
         AcaoAuditoria.DispositivoStatusAlterado => "Status do dispositivo alterado",
         AcaoAuditoria.DispositivoAtribuido => "Dispositivo atribuído",
         AcaoAuditoria.DispositivoUnidadeDefinida => "Unidade do dispositivo definida",
+        AcaoAuditoria.DispositivoIdentificacaoInternaDefinida => "Identificação interna do dispositivo alterada",
         AcaoAuditoria.DispositivoPosseAlterada => "Posse do dispositivo alterada",
         AcaoAuditoria.DispositivoArquivado => "Dispositivo arquivado",
         AcaoAuditoria.DispositivoExcluidoDefinitivo => "Dispositivo excluído definitivo",

@@ -7,6 +7,8 @@ public record DispositivoDto(
     TipoDispositivo Tipo,
     string NumeroSerie,
     string? AssetTag,
+    // Apelido/rótulo definido pela TI. Quando presente, é a identificação exibida do aparelho.
+    string? IdentificacaoInterna,
     StatusDispositivo Status,
     DateTime DataAquisicao,
     string? Observacoes,
@@ -54,6 +56,16 @@ public record DefinirPosseDispositivoRequest(
     string? Motivo);
 
 public record DefinirUnidadeDispositivoRequest(Guid? UnidadeId);
+
+/// <summary>
+/// Define (ou limpa) a identificação interna do dispositivo — um rótulo próprio da TI, à parte do
+/// hostname reportado pelo agente. Exige a senha do ADM logado: passa a ser o nome exibido do ativo.
+/// <c>IdentificacaoInterna = null/vazio</c> volta a exibir o hostname/número de série.
+/// </summary>
+public record DefinirIdentificacaoInternaRequest(
+    string? IdentificacaoInterna,
+    string Senha,
+    string? Motivo);
 
 public record CriarNotebookRequest(
     string NumeroSerie,

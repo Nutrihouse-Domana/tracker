@@ -268,6 +268,9 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.Property<Guid?>("ExcluidoPorAdmId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("IdentificacaoInterna")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("MotivoExclusao")
                         .HasColumnType("nvarchar(max)");
 

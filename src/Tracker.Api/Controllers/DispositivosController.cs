@@ -29,6 +29,7 @@ public class DispositivosController : ControllerBase
     private readonly IValidator<CriarComentarioRequest> _comentarioValidator;
     private readonly IValidator<ExcluirDispositivoRequest> _excluirValidator;
     private readonly IValidator<DefinirPosseDispositivoRequest> _posseValidator;
+    private readonly IValidator<DefinirIdentificacaoInternaRequest> _identificacaoInternaValidator;
     private readonly ConfirmacaoSenhaAdm _confirmacaoSenha;
     private readonly IArmazenamentoArquivosService _arquivos;
     private readonly IAuditoria _auditoria;
@@ -45,6 +46,7 @@ public class DispositivosController : ControllerBase
         IValidator<CriarComentarioRequest> comentarioValidator,
         IValidator<ExcluirDispositivoRequest> excluirValidator,
         IValidator<DefinirPosseDispositivoRequest> posseValidator,
+        IValidator<DefinirIdentificacaoInternaRequest> identificacaoInternaValidator,
         ConfirmacaoSenhaAdm confirmacaoSenha,
         IArmazenamentoArquivosService arquivos,
         IAuditoria auditoria,
@@ -62,6 +64,7 @@ public class DispositivosController : ControllerBase
         _comentarioValidator = comentarioValidator;
         _excluirValidator = excluirValidator;
         _posseValidator = posseValidator;
+        _identificacaoInternaValidator = identificacaoInternaValidator;
         _confirmacaoSenha = confirmacaoSenha;
         _auditoria = auditoria;
     }
@@ -74,6 +77,7 @@ public class DispositivosController : ControllerBase
         d.Tipo,
         d.NumeroSerie,
         d.AssetTag,
+        d.IdentificacaoInterna,
         d.Status,
         d.DataAquisicao,
         d.Observacoes,
@@ -404,6 +408,41 @@ public class DispositivosController : ControllerBase
         dispositivo.UnidadeId = request.UnidadeId;
         _auditoria.Registrar(AcaoAuditoria.DispositivoUnidadeDefinida,
             $"Definiu a unidade de {dispositivo.NumeroSerie}.", "Dispositivo", dispositivo.Id);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Define (ou limpa) a identificação interna do dispositivo: um rótulo próprio da TI, à parte do
+    /// hostname que o agente reporta. Exige a senha do ADM logado — passa a ser o nome exibido do
+    /// ativo nas telas. Enviar vazio limpa o campo e volta a exibir o hostname/número de série.
+    /// </summary>
+    [HttpPut("{id:guid}/identificacao-interna")]
+    [Authorize(Policy = Permissoes.DispositivosCadastrar)]
+    public async Task<IActionResult> DefinirIdentificacaoInterna(Guid id, DefinirIdentificacaoInternaRequest request)
+    {
+        var validation = await _identificacaoInternaValidator.ValidateAsync(request);
+        if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+
+        var adm = await _confirmacaoSenha.ConferirAsync(User, request.Senha);
+        // 400, e não 401: o 401 faria o site tratar como sessão expirada e deslogar o ADM.
+        if (adm is null) return BadRequest(new { message = "Senha incorreta." });
+
+        var dispositivo = await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id);
+        if (dispositivo is null) return NotFound();
+
+        // Campo em branco significa "sem identificação interna", não string vazia no banco: assim o
+        // fallback para hostname/número de série volta a valer.
+        var valor = string.IsNullOrWhiteSpace(request.IdentificacaoInterna)
+            ? null
+            : request.IdentificacaoInterna.Trim();
+        dispositivo.IdentificacaoInterna = valor;
+
+        _auditoria.Registrar(AcaoAuditoria.DispositivoIdentificacaoInternaDefinida,
+            valor is null
+                ? $"Removeu a identificação interna de {dispositivo.NumeroSerie}."
+                : $"Definiu a identificação interna de {dispositivo.NumeroSerie} como \"{valor}\".",
+            "Dispositivo", dispositivo.Id, request.Motivo);
         await _db.SaveChangesAsync();
         return NoContent();
     }

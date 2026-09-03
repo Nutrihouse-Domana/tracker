@@ -3,6 +3,7 @@ import { dispositivosApi } from './api'
 import type {
   AtribuirDispositivoRequest,
   CriarComentarioRequest,
+  DefinirIdentificacaoInternaRequest,
   DefinirPosseDispositivoRequest,
   ExcluirDispositivoRequest,
   CriarNotebookRequest,
@@ -115,6 +116,16 @@ export function useDefinirPosseDispositivo() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: DefinirPosseDispositivoRequest }) =>
       dispositivosApi.definirPosse(id, data),
+    onSuccess: invalidate,
+  })
+}
+
+/** Define ou limpa a identificação interna (rótulo da TI). Exige a senha do ADM. */
+export function useDefinirIdentificacaoInterna() {
+  const invalidate = useInvalidateDispositivos()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: DefinirIdentificacaoInternaRequest }) =>
+      dispositivosApi.definirIdentificacaoInterna(id, data),
     onSuccess: invalidate,
   })
 }
