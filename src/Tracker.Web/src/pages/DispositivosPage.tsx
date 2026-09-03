@@ -67,7 +67,7 @@ type Direcao = 'asc' | 'desc'
 function valorOrdenacao(d: Dispositivo, coluna: ColunaOrdenavel, arquivados: boolean): string {
   switch (coluna) {
     case 'identificacao':
-      return d.hostname ?? d.numeroSerie ?? ''
+      return d.identificacaoInterna ?? d.hostname ?? d.numeroSerie ?? ''
     case 'patrimonio':
       return d.assetTag ?? ''
     case 'unidade':
@@ -125,6 +125,7 @@ export function DispositivosPage() {
       [
         d.numeroSerie,
         d.assetTag,
+        d.identificacaoInterna,
         d.hostname,
         d.imei,
         d.usuarioAtualNome,
@@ -247,7 +248,7 @@ export function DispositivosPage() {
             <TableBody>
               {dispositivosOrdenados?.map((d) => (
                 <TableRow key={d.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/dispositivos/${d.id}`)}>
-                  <TableCell>{d.hostname ?? d.numeroSerie}</TableCell>
+                  <TableCell>{d.identificacaoInterna ?? d.hostname ?? d.numeroSerie}</TableCell>
                   <TableCell>{d.assetTag ?? '—'}</TableCell>
                   <TableCell>{d.unidadeNome ?? '—'}</TableCell>
                   <TableCell>

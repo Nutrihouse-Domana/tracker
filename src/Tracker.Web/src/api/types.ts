@@ -149,6 +149,8 @@ export interface Dispositivo {
   numeroSerie: string
   /** Patrimônio. Nulo em periféricos, que não recebem etiqueta. */
   assetTag: string | null
+  /** Rótulo interno definido pela TI. Quando preenchido, é a identificação exibida do aparelho. */
+  identificacaoInterna: string | null
   status: StatusDispositivo
   dataAquisicao: string
   observacoes: string | null
@@ -189,6 +191,13 @@ export interface ExcluirDispositivoRequest {
 export interface DefinirPosseDispositivoRequest {
   pertenceAUsuario: boolean
   unidadeId?: string | null
+  senha: string
+  motivo?: string | null
+}
+
+export interface DefinirIdentificacaoInternaRequest {
+  /** Vazio/null limpa o campo e volta a exibir o hostname/número de série. */
+  identificacaoInterna: string | null
   senha: string
   motivo?: string | null
 }

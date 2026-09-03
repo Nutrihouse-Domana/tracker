@@ -92,11 +92,21 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   `DispositivoComAgente`) e `Periferico`. Discriminador `Tipo`.
 - **`Mobile` cobre celular E tablet.** Não existe tipo separado para tablet: o agente é o mesmo e
   separá-los não mudava nada no controle de ativos. `Mobile.Imei` é nulo em aparelhos só-Wi-Fi.
+- **`Dispositivo.IdentificacaoInterna` é o rótulo MANUAL da TI** (nulo por padrão, na base → todos os
+  tipos). É a única identificação editável depois do cadastro: série/patrimônio/hostname só entram na
+  criação ou vêm do agente. **Existe porque o hostname NÃO serve como identificação editável — o
+  heartbeat o sobrescreve a cada ciclo** (`AgenteController.Heartbeat`); este campo é da TI e o agente
+  nunca o toca. Quando preenchido, é a identificação EXIBIDA (`identificacaoInterna ?? hostname ??
+  numeroSerie`) na lista e no título do detalhe; o hostname técnico então reaparece numa célula
+  própria. Endpoint `PUT /api/dispositivos/{id}/identificacao-interna` (`DefinirIdentificacaoInterna`)
+  exige `dispositivos.cadastrar` **e a senha do ADM** (400, não 401, em senha errada) e audita
+  (`DispositivoIdentificacaoInternaDefinida`). Enviar vazio limpa o campo (volta ao fallback).
 - **DTOs** são `record` na camada Application. Enums serializados como string na API.
 - **Validação** com FluentValidation, injetada nos controllers via `IValidator<T>`.
 - **CPF** é criptografado em repouso (AES-GCM) via `EncryptedStringConverter` no DbContext.
 - **Ações sensíveis pedem a senha do ADM logado** (`ConfirmacaoSenhaAdm` em `src/Tracker.Api/Seguranca`):
-  excluir dispositivo e alternar `PertenceAUsuario`. Cookie de sessão não prova quem está na máquina.
+  excluir dispositivo, alternar `PertenceAUsuario` e definir `IdentificacaoInterna`. Cookie de sessão
+  não prova quem está na máquina.
 - **Autenticação:** ADM via ASP.NET Core Identity (cookie). **Agente** via token por dispositivo
   no header `X-Agent-Token` (hash SHA-256 guardado em `TokenAgenteHash`), resolvido por `AgentAuth`.
 - **Permissões (autorização):** cada capacidade é uma **permissão granular** gravada como claim

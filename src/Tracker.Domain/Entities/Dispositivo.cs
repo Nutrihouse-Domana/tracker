@@ -13,6 +13,14 @@ public abstract class Dispositivo : EntidadeBase
     public string NumeroSerie { get; set; } = string.Empty;
     /// <summary>Patrimônio. Nulo em periféricos, que não recebem etiqueta.</summary>
     public string? AssetTag { get; set; }
+
+    /// <summary>
+    /// Identificação interna definida MANUALMENTE pela TI (um apelido/rótulo próprio do inventário).
+    /// Diferente do <see cref="DispositivoComAgente.Hostname"/>, que o agente reporta e sobrescreve a
+    /// cada heartbeat: este campo é da TI e nunca é tocado pelo agente. Quando preenchido, é ele que
+    /// aparece como a identificação do dispositivo nas telas; nulo = usa hostname/número de série.
+    /// </summary>
+    public string? IdentificacaoInterna { get; set; }
     public StatusDispositivo Status { get; set; } = StatusDispositivo.EmEstoque;
     public DateTime DataAquisicao { get; set; }
     public string? Observacoes { get; set; }

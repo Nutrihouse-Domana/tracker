@@ -103,6 +103,7 @@ public enum AcaoAuditoria
     DispositivoStatusAlterado,
     DispositivoAtribuido,
     DispositivoUnidadeDefinida,
+    DispositivoIdentificacaoInternaDefinida,
     DispositivoPosseAlterada,
     DispositivoArquivado,
     DispositivoExcluidoDefinitivo,
