@@ -17,18 +17,24 @@ import {
   Box,
   FormControlLabel,
   Switch,
+  TableSortLabel,
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import type { Unidade } from '../api/types'
 import { useUnidades } from '../features/unidades/hooks'
 import { UnidadeFormDialog } from '../features/unidades/UnidadeFormDialog'
+import { useOrdenacao } from '../utils/ordenacao'
 
 export function UnidadesPage() {
   const navigate = useNavigate()
   const [incluirInativas, setIncluirInativas] = useState(false)
   const [dialogAberto, setDialogAberto] = useState(false)
   const [unidadeEmEdicao, setUnidadeEmEdicao] = useState<Unidade | null>(null)
-  const { data: unidades, isLoading } = useUnidades(incluirInativas)
+  const { data: unidadesCarregadas, isLoading } = useUnidades(incluirInativas)
+  const { ordenados: unidades, coluna, direcao, ordenarPor } = useOrdenacao(
+    unidadesCarregadas,
+    'nome',
+  )
 
   return (
     <>
@@ -59,10 +65,42 @@ export function UnidadesPage() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Nome</TableCell>
-                <TableCell>Código</TableCell>
-                <TableCell align="center">Dispositivos</TableCell>
-                <TableCell align="center">Status</TableCell>
+                <TableCell sortDirection={coluna === 'nome' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'nome'}
+                    direction={coluna === 'nome' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('nome')}
+                  >
+                    Nome
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={coluna === 'codigo' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'codigo'}
+                    direction={coluna === 'codigo' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('codigo')}
+                  >
+                    Código
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center" sortDirection={coluna === 'quantidadeDispositivos' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'quantidadeDispositivos'}
+                    direction={coluna === 'quantidadeDispositivos' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('quantidadeDispositivos')}
+                  >
+                    Dispositivos
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center" sortDirection={coluna === 'ativa' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'ativa'}
+                    direction={coluna === 'ativa' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('ativa')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell align="right" />
               </TableRow>
             </TableHead>
