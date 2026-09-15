@@ -282,6 +282,13 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   Server) — nunca versione fonte no repositório. Só funciona em Windows (dev e prod são Windows).
 - **MUI v9:** use `sx={{ justifyContent, alignItems }}` no `Stack` (não como props soltas);
   `slotProps={{ input: {...} }}` em vez de `InputProps`. Ícones existem só na variante `*Outlined` etc.
+- **Ordenação de tabelas no cliente:** hook único `useOrdenacao(itens, colunaInicial, direcao?)`
+  em `src/Tracker.Web/src/utils/ordenacao.ts` (estado coluna+direção, alterna asc/desc no clique,
+  comparador estável que joga `null`/`undefined` para o fim e compara texto com `localeCompare('pt-BR',
+  { numeric: true })`). Cabeçalho usa `TableSortLabel` (`active`/`direction`/`onClick`). Ordena
+  SEMPRE sobre a lista já filtrada (aplique busca/filtro antes de passar ao hook). O genérico é só
+  `<T>` com `keyof T` — NÃO reintroduza um segundo parâmetro de tipo `K extends keyof T`: o TS o
+  infere no literal da coluna inicial e recusa as demais colunas. Usado em `UsuariosPage`/`UnidadesPage`.
 - **Pacotes .NET:** fixe versões **8.x** (o feed resolve 10.x/11.x por padrão, incompatível com net8.0).
 
 - **Permissões e auditoria (não repita):**
