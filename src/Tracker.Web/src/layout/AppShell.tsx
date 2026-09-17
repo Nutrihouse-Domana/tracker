@@ -14,15 +14,19 @@ import {
   Divider,
   Menu,
   MenuItem,
+  Tooltip,
 } from '@mui/material'
 import MenuIcon from '@mui/icons-material/MenuOutlined'
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
+import DarkModeIcon from '@mui/icons-material/DarkModeOutlined'
+import LightModeIcon from '@mui/icons-material/LightModeOutlined'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useMe, useLogout } from '../features/auth/useAuth'
 import { usePermissoes, PERMISSOES, type Permissao } from '../features/auth/permissoes'
+import { useModoTema } from '../features/tema/ModoTemaProvider'
 import { WaveFooter } from './WaveFooter'
 import { BarraDeBusca } from '../features/busca/BarraDeBusca'
-import logoTracker from '../assets/tracker-logo.jpg'
+import { LogoTracker } from './LogoTracker'
 import { nutrihouseColors } from '../theme'
 
 type NavLink = { label: string; path: string; perm: Permissao }
@@ -70,6 +74,7 @@ export function AppShell() {
   const location = useLocation()
   const { data: usuarioAdm } = useMe()
   const { tem } = usePermissoes()
+  const { modo, alternar } = useModoTema()
   const logout = useLogout()
   const [menuAberto, setMenuAberto] = useState(false)
   // Menu de grupo aberto (Cadastros/Administração): guarda o label e o elemento âncora, já que há
@@ -109,18 +114,7 @@ export function AppShell() {
             sx={{ alignItems: 'center', cursor: 'pointer' }}
             onClick={() => navigate('/')}
           >
-            <Box
-              component="img"
-              src={logoTracker}
-              alt="Tracker Nutrihouse"
-              sx={{
-                width: 40,
-                height: 40,
-                borderRadius: '10px',
-                objectFit: 'cover',
-                flexShrink: 0,
-              }}
-            />
+            <LogoTracker tamanho={40} />
             <Typography variant="h6" noWrap sx={{ fontWeight: 700, display: { xs: 'none', sm: 'block' } }}>
               Tracker <Box component="span" sx={{ color: nutrihouseColors.terracota }}>Nutrihouse</Box>
             </Typography>
@@ -213,6 +207,12 @@ export function AppShell() {
           </Stack>
 
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexShrink: 0 }}>
+            {/* Alterna claro/escuro; a escolha é persistida (localStorage). */}
+            <Tooltip title={modo === 'dark' ? 'Tema claro' : 'Tema escuro'}>
+              <IconButton onClick={alternar} aria-label="Alternar tema claro/escuro">
+                {modo === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+              </IconButton>
+            </Tooltip>
             {/* Nome + foto: o conjunto inteiro abre o menu do usuário (só em telas >= sm) */}
             <Stack
               direction="row"

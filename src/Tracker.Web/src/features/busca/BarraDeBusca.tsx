@@ -118,7 +118,10 @@ export function BarraDeBusca() {
           sx={{
             display: 'flex',
             alignItems: 'center',
-            bgcolor: 'grey.100',
+            // Pílula sensível ao tema: cinza-claro sólido no claro, cinza-escuro SÓLIDO no escuro.
+            // (grey.100 é fixo e ficava branco sobre a AppBar escura; um translúcido mudava de tom
+            // conforme o fundo e parecia "manchado" — precisa ser uma cor só, como no claro.)
+            bgcolor: (theme) => (theme.palette.mode === 'dark' ? '#2A2A2A' : 'grey.100'),
             borderRadius: 999,
             px: 2,
             py: 0.5,
@@ -153,7 +156,20 @@ export function BarraDeBusca() {
           placement="bottom-start"
           style={{ zIndex: 1300, width: ancoraRef.current?.clientWidth }}
         >
-          <Paper elevation={4} sx={{ mt: 0.5, maxHeight: 420, overflowY: 'auto' }}>
+          <Paper
+            elevation={4}
+            sx={{
+              mt: 0.5,
+              maxHeight: 420,
+              overflowY: 'auto',
+              // No escuro o MUI clareia o Paper com um degradê de elevação, mas o ListSubheader
+              // pinta o fundo sólido por cima → painel com dois tons. Removendo o degradê o painel
+              // fica de uma cor só (como no claro); a borda o separa do fundo escuro.
+              backgroundImage: 'none',
+              border: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
             {semResultados ? (
               <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
                 Nada encontrado para "{termo.trim()}".
