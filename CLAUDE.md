@@ -282,6 +282,38 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   Server) — nunca versione fonte no repositório. Só funciona em Windows (dev e prod são Windows).
 - **MUI v9:** use `sx={{ justifyContent, alignItems }}` no `Stack` (não como props soltas);
   `slotProps={{ input: {...} }}` em vez de `InputProps`. Ícones existem só na variante `*Outlined` etc.
+- **Tema claro/escuro (dark mode):** `theme.ts` NÃO exporta um tema fixo pronto — exporta
+  `criarTema(modo: 'light' | 'dark')` (factory) e um `theme` claro só para fora do provider (testes).
+  O runtime usa `ModoTemaProvider` (`src/Tracker.Web/src/features/tema/`), que segura o modo, monta
+  `ThemeProvider` + `CssBaseline`, persiste a escolha em `localStorage['tracker.tema']` e, sem escolha,
+  segue `prefers-color-scheme` do SO. Ele também escreve `document.documentElement.style.colorScheme`
+  (senão inputs nativos e scrollbar ficam fora de sintonia). Alterna via `useModoTema().alternar`
+  (botão sol/lua no `AppShell`). **As telas quase todas já usam tokens** (`text.primary`,
+  `background.default`/`paper`, `divider`, `action.hover`, `Paper`) e viram no escuro sozinhas — ao
+  criar tela nova, use tokens, NÃO fixe `#fff`/hex de fundo/texto. Exceções que fixam cor de
+  propósito: os cards-gradiente coloridos do Dashboard (texto branco sobre cor de status, ok nos dois
+  modos) e a `AppBar`, cujo override de cor é resolvido por modo dentro de `criarTema`. Dois pontos
+  que precisaram de tratamento por modo (não são token e não invertem sozinhos): a **pílula da barra
+  de busca** (`BarraDeBusca.tsx` — `grey.100` é cinza-claro FIXO e ficava branca sobre a AppBar
+  escura; agora `theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'grey.100'`) e o **mapa
+  Leaflet** (`LocalizacaoSection.tsx` — tiles OSM são claros; no escuro usa CARTO `dark_all` com
+  `key` no `TileLayer` p/ trocar ao alternar). `cinza.100`/`grey.*` e `common.white` são FIXOS: não
+  os use como fundo de algo que precise virar no escuro. **Pegadinha do `Paper` com `elevation` no
+  escuro:** o MUI clareia a superfície com um **degradê de elevação** (`backgroundImage`), e se
+  houver dentro um `ListSubheader` (pinta `background.paper` sólido) o painel fica com DOIS tons
+  brigando — visível no dropdown da busca. Conserto: `sx={{ backgroundImage: 'none' }}` no `Paper`
+  (some o degradê → cor só, como no claro) + `border: 1px solid divider` p/ separar do fundo. Vale
+  para qualquer menu/popover elevado com subheaders no escuro. **Chips coloridos ficam pastel no
+  escuro** (o MUI clareia as cores semânticas): escurecidos SÓ no escuro por override em `criarTema`
+  (`MuiChip.styleOverrides.root`) — success `#2E7D32`, primary `#8C4142`, error `#B23B3B`, texto
+  branco. **Botões `contained`** têm o mesmo problema (usam o primary clareado) e são escurecidos
+  igual no `MuiButton.styleOverrides.root` (primary `#8C4142`, error `#B23B3B`, success `#2E7D32`,
+  texto branco + `:hover` mais escuro) — mas o primary claro segue valendo para texto/realce fora
+  de botão (nav, links). **PEGADINHA:** o slot combinado `filledSuccess`/`containedPrimary` NÃO
+  existe nesta versão do MUI (erro de tipo); e as classes combinadas `.MuiChip-filledSuccess`/
+  `.MuiButton-containedPrimary` também não — o runtime usa DUAS classes separadas. Selecione dentro
+  do slot `root` com `'&.MuiChip-filled.MuiChip-colorSuccess'` /
+  `'&.MuiButton-contained.MuiButton-colorPrimary'`.
 - **Ordenação de tabelas no cliente:** hook único `useOrdenacao(itens, colunaInicial, direcao?)`
   em `src/Tracker.Web/src/utils/ordenacao.ts` (estado coluna+direção, alterna asc/desc no clique,
   comparador estável que joga `null`/`undefined` para o fim e compara texto com `localeCompare('pt-BR',

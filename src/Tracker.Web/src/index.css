@@ -15,7 +15,9 @@ body,
   flex-direction: column;
 }
 
-/* Segue o tema claro do app; evita que o SO force esquema escuro nos inputs nativos. */
+/* O modo (claro/escuro) é definido em runtime pelo ModoTemaProvider, que ajusta
+   `color-scheme` no <html> conforme a escolha do usuário. O valor abaixo é só o
+   padrão antes do React montar. */
 :root {
   color-scheme: light;
 }
