@@ -158,6 +158,12 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   seria deslogado só por errar a senha no diálogo de exclusão.
 - **`Unidade` ≠ `Local`.** Unidade é a lotação organizacional do ativo (matriz/filial) e alimenta a
   coluna "Responsável" quando `PertenceAUsuario = false`; `Local` é ponto geográfico de geofence.
+- **`StatusDispositivo.EmUso` NÃO é transição manual livre.** Ele entra automaticamente ao atribuir
+  detentor (`AtribuirUsuario`) ou concluir reparo. O menu manual (`StatusDispositivoAcoes.tsx`) só
+  oferece estoque/manutenção/baixa — e mais **"Colocar em uso" apenas para ativo de local**
+  (`PertenceAUsuario = false`) **com unidade definida** (o de detentor já vira "Em uso" na
+  atribuição). O backend (`AtualizarStatus`, `DispositivosController.cs`) reforça a mesma regra:
+  recusa `EmUso` se for de usuário sem detentor OU de local sem unidade. Gate os DOIS lados.
 - **Novos valores de enum vão no FIM, e valores existentes NUNCA mudam de número.** O número é
   gravado como discriminador na tabela: `Mobile` = 1 (era `Telefone`) e mexer nisso reclassificaria
   todos os dispositivos já cadastrados. Coberto por `MobileTphTests`.
