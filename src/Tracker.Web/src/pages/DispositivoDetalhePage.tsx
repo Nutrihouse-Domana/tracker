@@ -104,7 +104,12 @@ export function DispositivoDetalhePage() {
           </Box>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             {tem(PERMISSOES.dispositivosMovimentar) && (
-              <StatusDispositivoAcoes dispositivoId={dispositivo.id} status={dispositivo.status} />
+              <StatusDispositivoAcoes
+                dispositivoId={dispositivo.id}
+                status={dispositivo.status}
+                pertenceAUsuario={dispositivo.pertenceAUsuario}
+                unidadeId={dispositivo.unidadeId}
+              />
             )}
             {tem(PERMISSOES.dispositivosExcluir) && (
               <Button
