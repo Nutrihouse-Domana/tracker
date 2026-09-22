@@ -17,6 +17,7 @@ import {
   Box,
   Alert,
   TableSortLabel,
+  TablePagination,
 } from '@mui/material'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import EditIcon from '@mui/icons-material/EditOutlined'
@@ -25,6 +26,7 @@ import { useUsuarios, useDesativarUsuario } from '../features/usuarios/hooks'
 import { UsuarioFormDialog } from '../features/usuarios/UsuarioFormDialog'
 import { formatarCpf, formatarTelefone } from '../utils/formato'
 import { useOrdenacao } from '../utils/ordenacao'
+import { usePaginacao } from '../utils/paginacao'
 
 export function UsuariosPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -46,11 +48,12 @@ export function UsuariosPage() {
     usuariosFiltrados,
     'nome',
   )
+  const { itensPagina, total, paginacaoProps } = usePaginacao(usuarios)
 
   return (
     <>
       <Stack direction="row" sx={{ mb: 2, justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h5">Usuários</Typography>
+        <Typography variant="h5">Usuários ({total})</Typography>
         <Button variant="contained" onClick={() => setDialogAberto(true)}>
           Novo usuário
         </Button>
@@ -129,7 +132,7 @@ export function UsuariosPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {usuarios?.map((u) => (
+              {itensPagina?.map((u) => (
                 <TableRow key={u.id} hover>
                   <TableCell>{u.nome}</TableCell>
                   <TableCell>{formatarCpf(u.cpf)}</TableCell>
@@ -171,6 +174,7 @@ export function UsuariosPage() {
               )}
             </TableBody>
           </Table>
+          {total > 0 && <TablePagination {...paginacaoProps} />}
         </TableContainer>
       )}
 

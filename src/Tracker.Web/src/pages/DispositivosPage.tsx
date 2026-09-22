@@ -22,6 +22,7 @@ import {
   ToggleButtonGroup,
   IconButton,
   Tooltip,
+  TablePagination,
 } from '@mui/material'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import RestoreIcon from '@mui/icons-material/RestoreOutlined'
@@ -38,6 +39,7 @@ import { ExcluirDispositivoDialog } from '../features/dispositivos/ExcluirDispos
 import { corStatus, rotuloStatus } from '../features/dispositivos/status'
 import { useUnidades } from '../features/unidades/hooks'
 import { usePermissoes, PERMISSOES } from '../features/auth/permissoes'
+import { usePaginacao } from '../utils/paginacao'
 
 /** A última aba lista os arquivados (tipo indiferente), por isso `arquivados`. */
 const abas: { label: string; tipo?: TipoDispositivo; arquivados?: boolean }[] = [
@@ -153,6 +155,14 @@ export function DispositivosPage() {
     })
   }, [dispositivos, ordenarPor, direcao, mostrandoArquivados])
 
+  const { itensPagina, total, setPagina, paginacaoProps } = usePaginacao(dispositivosOrdenados)
+
+  // Trocar de aba, status, unidade ou busca reinicia a paginação (senão ficaria numa página
+  // que não existe mais na nova lista).
+  useEffect(() => {
+    setPagina(0)
+  }, [aba, status, unidadeId, termoBusca, setPagina])
+
   const alternarOrdenacao = (coluna: ColunaOrdenavel) => {
     if (ordenarPor === coluna) {
       setDirecao((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -177,7 +187,7 @@ export function DispositivosPage() {
   return (
     <>
       <Stack direction="row" sx={{ mb: 2, justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h5">Dispositivos</Typography>
+        <Typography variant="h5">Dispositivos ({total})</Typography>
         {podeCadastrar && (
           <Button variant="contained" onClick={() => setDialogAberto(true)}>
             Novo dispositivo
@@ -246,7 +256,7 @@ export function DispositivosPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {dispositivosOrdenados?.map((d) => (
+              {itensPagina?.map((d) => (
                 <TableRow key={d.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/dispositivos/${d.id}`)}>
                   <TableCell>{d.identificacaoInterna ?? d.hostname ?? d.numeroSerie}</TableCell>
                   <TableCell>{d.assetTag ?? '—'}</TableCell>
@@ -335,6 +345,7 @@ export function DispositivosPage() {
               )}
             </TableBody>
           </Table>
+          {total > 0 && <TablePagination {...paginacaoProps} />}
         </TableContainer>
       )}
 

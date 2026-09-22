@@ -18,12 +18,14 @@ import {
   FormControlLabel,
   Switch,
   TableSortLabel,
+  TablePagination,
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import type { Unidade } from '../api/types'
 import { useUnidades } from '../features/unidades/hooks'
 import { UnidadeFormDialog } from '../features/unidades/UnidadeFormDialog'
 import { useOrdenacao } from '../utils/ordenacao'
+import { usePaginacao } from '../utils/paginacao'
 
 export function UnidadesPage() {
   const navigate = useNavigate()
@@ -35,11 +37,12 @@ export function UnidadesPage() {
     unidadesCarregadas,
     'nome',
   )
+  const { itensPagina, total, paginacaoProps } = usePaginacao(unidades)
 
   return (
     <>
       <Stack direction="row" sx={{ mb: 2, justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h5">Unidades</Typography>
+        <Typography variant="h5">Unidades ({total})</Typography>
         <Button variant="contained" onClick={() => setDialogAberto(true)}>
           Nova unidade
         </Button>
@@ -105,7 +108,7 @@ export function UnidadesPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {unidades?.map((u) => (
+              {itensPagina?.map((u) => (
                 <TableRow key={u.id} hover>
                   <TableCell>{u.nome}</TableCell>
                   <TableCell>{u.codigo ?? '—'}</TableCell>
@@ -137,6 +140,7 @@ export function UnidadesPage() {
               )}
             </TableBody>
           </Table>
+          {total > 0 && <TablePagination {...paginacaoProps} />}
         </TableContainer>
       )}
 

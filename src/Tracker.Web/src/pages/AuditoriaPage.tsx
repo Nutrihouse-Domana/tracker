@@ -25,7 +25,7 @@ export function AuditoriaPage() {
   const [de, setDe] = useState('')
   const [ate, setAte] = useState('')
   const [pagina, setPagina] = useState(0) // 0-based (TablePagination)
-  const [tamanho, setTamanho] = useState(50)
+  const [tamanho, setTamanho] = useState(10)
 
   const { data: acoes } = useAcoesAuditoria()
   const { data, isLoading, isFetching } = useAuditoria({
@@ -52,7 +52,7 @@ export function AuditoriaPage() {
   return (
     <>
       <Typography variant="h5" sx={{ mb: 2 }}>
-        Auditoria
+        Auditoria ({data?.total ?? 0})
       </Typography>
 
       <Paper sx={{ p: 2, mb: 2 }}>
@@ -152,7 +152,7 @@ export function AuditoriaPage() {
               setTamanho(parseInt(e.target.value, 10))
               setPagina(0)
             }}
-            rowsPerPageOptions={[25, 50, 100]}
+            rowsPerPageOptions={[10, 25, 50, 100]}
             labelRowsPerPage="Por página"
             labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
           />
