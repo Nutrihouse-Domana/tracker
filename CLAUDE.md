@@ -340,6 +340,18 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   chamando `setPagina(0)`. Usado em Dispositivos/Usuários/Unidades/Acessos. A `AuditoriaPage` NÃO usa
   este hook — ela pagina no SERVIDOR (`useAuditoria` com `pagina`/`tamanho`, `count={data.total}`);
   só o padrão foi alinhado para 10.
+  **Também serve fora de tabela:** o diálogo de atribuição (`AtribuirDialog.tsx`) troca o `select` de
+  usuários por busca (nome/e-mail, sem acento) + `List` paginada de **5** com as setas do
+  `TablePagination`; passe `rowsPerPageOptions={[]}` **depois** do spread para esconder o seletor
+  "Por página" (não cabe no diálogo). O rótulo "Selecionado: X" lê a lista COMPLETA, não a filtrada —
+  senão o usuário escolhido some da tela ao digitar outra busca (o id continua submetido). A escolha
+  é **única com cara de checkbox** (clicar no marcado desmarca; marcar outro troca) — `Checkbox`
+  `color="default"`, e o `Mui-selected` do `ListItemButton` é sobrescrito para `action.selected`
+  porque o realce padrão puxa o primary (vermelho) e o ADM pediu a lista toda em cinza. No escuro o
+  `background.paper` do tema é quase preto (#1E1E1E) e o diálogo ficava um bloco preto só: aqui ele
+  fixa cinza por modo (diálogo #2E2E2E / lista #3A3A3A no escuro) via `slotProps.paper` do `Dialog`
+  — exceção consciente à regra de só usar tokens, restrita a este diálogo. `Checkbox`
+  no MUI v9 não aceita `inputProps`: use `slotProps={{ input: { 'aria-label': ... } }}`.
 - **Pacotes .NET:** fixe versões **8.x** (o feed resolve 10.x/11.x por padrão, incompatível com net8.0).
 
 - **Permissões e auditoria (não repita):**
