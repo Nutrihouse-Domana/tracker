@@ -20,6 +20,7 @@ import {
   DialogActions,
   TextField,
   Alert,
+  TablePagination,
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import KeyIcon from '@mui/icons-material/VpnKeyOutlined'
@@ -32,6 +33,7 @@ import { PERMISSOES } from '../features/auth/permissoes'
 import { useMe } from '../features/auth/useAuth'
 import { mensagemErroApi } from '../utils/erroApi'
 import { formatarDataHora } from '../utils/formato'
+import { usePaginacao } from '../utils/paginacao'
 
 export function AcessosPage() {
   const [dialogAberto, setDialogAberto] = useState(false)
@@ -41,12 +43,13 @@ export function AcessosPage() {
 
   const { data: acessos, isLoading } = useAcessos()
   const { data: eu } = useMe()
+  const { itensPagina, total, paginacaoProps } = usePaginacao(acessos)
 
   return (
     <>
       <Stack direction="row" sx={{ mb: 2, justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
-          <Typography variant="h5">Acessos</Typography>
+          <Typography variant="h5">Acessos ({total})</Typography>
           <Typography variant="body2" color="text.secondary">
             Logins da plataforma e suas permissões. (Detentores de dispositivos ficam em "Usuários".)
           </Typography>
@@ -74,7 +77,7 @@ export function AcessosPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {acessos?.map((a) => (
+              {itensPagina?.map((a) => (
                 <TableRow key={a.id} hover>
                   <TableCell>{a.nome}</TableCell>
                   <TableCell>{a.email}</TableCell>
@@ -124,6 +127,7 @@ export function AcessosPage() {
               )}
             </TableBody>
           </Table>
+          {total > 0 && <TablePagination {...paginacaoProps} />}
         </TableContainer>
       )}
 

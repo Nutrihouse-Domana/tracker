@@ -329,6 +329,17 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   SEMPRE sobre a lista já filtrada (aplique busca/filtro antes de passar ao hook). O genérico é só
   `<T>` com `keyof T` — NÃO reintroduza um segundo parâmetro de tipo `K extends keyof T`: o TS o
   infere no literal da coluna inicial e recusa as demais colunas. Usado em `UsuariosPage`/`UnidadesPage`.
+- **Paginação de tabelas no cliente:** hook `usePaginacao(itens, tamanhoInicial?)` em
+  `src/Tracker.Web/src/utils/paginacao.ts` (padrão **10** por página, opções 10/25/50/100). Devolve
+  `itensPagina` (fatia da página — mapeie ESTA no `TableBody`), `total` (tamanho da lista completa,
+  usado na contagem do título "Dispositivos ({total})") e `paginacaoProps` prontos para
+  `<TablePagination {...paginacaoProps} />` (renderize DENTRO do `TableContainer`, depois do `Table`,
+  gate com `total > 0`). Recebe a lista **já filtrada E ordenada** (aplique busca/`useOrdenacao`
+  antes). Já recua sozinho se a página atual ficar além do fim quando a lista encolhe; mas troca de
+  aba/filtro que muda a lista SEM encolher (ex.: `DispositivosPage`) precisa de um `useEffect` extra
+  chamando `setPagina(0)`. Usado em Dispositivos/Usuários/Unidades/Acessos. A `AuditoriaPage` NÃO usa
+  este hook — ela pagina no SERVIDOR (`useAuditoria` com `pagina`/`tamanho`, `count={data.total}`);
+  só o padrão foi alinhado para 10.
 - **Pacotes .NET:** fixe versões **8.x** (o feed resolve 10.x/11.x por padrão, incompatível com net8.0).
 
 - **Permissões e auditoria (não repita):**
