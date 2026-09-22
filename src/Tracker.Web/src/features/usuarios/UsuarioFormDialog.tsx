@@ -14,6 +14,7 @@ import {
 import type { Usuario } from '../../api/types'
 import { useAtualizarUsuario, useCriarUsuario } from './hooks'
 import { apenasDigitos, formatarCpf, formatarTelefone } from '../../utils/formato'
+import { mensagemErroApi } from '../../utils/erroApi'
 
 interface Props {
   open: boolean
@@ -74,9 +75,12 @@ export function UsuarioFormDialog({ open, onClose, usuario }: Props) {
           <Stack spacing={2} sx={{ mt: 1 }}>
             {mutacao.isError && (
               <Alert severity="error">
-                {edicao
-                  ? 'Não foi possível salvar as alterações. Verifique os dados (o email pode já estar em uso).'
-                  : 'Não foi possível criar o usuário. Verifique os dados (CPF/email podem já estar cadastrados).'}
+                {mensagemErroApi(
+                  mutacao.error,
+                  edicao
+                    ? 'Não foi possível salvar as alterações. Verifique os dados (o email pode já estar em uso).'
+                    : 'Não foi possível criar o usuário. Verifique os dados (CPF/email podem já estar cadastrados).',
+                )}
               </Alert>
             )}
             <TextField label="Nome" value={nome} onChange={(e) => setNome(e.target.value)} required fullWidth />
