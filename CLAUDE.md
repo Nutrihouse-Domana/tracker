@@ -101,6 +101,14 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   própria. Endpoint `PUT /api/dispositivos/{id}/identificacao-interna` (`DefinirIdentificacaoInterna`)
   exige `dispositivos.cadastrar` **e a senha do ADM** (400, não 401, em senha errada) e audita
   (`DispositivoIdentificacaoInternaDefinida`). Enviar vazio limpa o campo (volta ao fallback).
+- **Alugado x próprio é CONVENÇÃO DE NOME, não campo do cadastro.** A identificação EXIBIDA
+  começando com `MAQ` (sem diferenciar maiúsculas) marca equipamento alugado — regra centralizada em
+  `src/Tracker.Web/src/features/dispositivos/aluguel.ts` (`ehAlugado`, `rotuloAluguel`,
+  `identificacaoExibida`), usada na coluna "Aluguel" de `DispositivosPage`. Use `identificacaoExibida`
+  em vez de repetir `identificacaoInterna ?? hostname ?? numeroSerie`. Consequência a lembrar: como o
+  fallback inclui o **hostname**, e o heartbeat sobrescreve o hostname a cada ciclo, um aparelho SEM
+  `IdentificacaoInterna` pode mudar de classificação sozinho — só o rótulo manual da TI é estável.
+  Se um dia a origem virar dado de verdade, isso vira campo no `Dispositivo` e a função sai daqui.
 - **DTOs** são `record` na camada Application. Enums serializados como string na API.
 - **Validação** com FluentValidation, injetada nos controllers via `IValidator<T>`.
 - **CPF** é criptografado em repouso (AES-GCM) via `EncryptedStringConverter` no DbContext.

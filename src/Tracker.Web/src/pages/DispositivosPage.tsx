@@ -37,6 +37,7 @@ import { DispositivoFormDialog } from '../features/dispositivos/DispositivoFormD
 import { AtribuirDialog } from '../features/dispositivos/AtribuirDialog'
 import { ExcluirDispositivoDialog } from '../features/dispositivos/ExcluirDispositivoDialog'
 import { corStatus, rotuloStatus } from '../features/dispositivos/status'
+import { ehAlugado, identificacaoExibida, rotuloAluguel } from '../features/dispositivos/aluguel'
 import { useUnidades } from '../features/unidades/hooks'
 import { usePermissoes, PERMISSOES } from '../features/auth/permissoes'
 import { usePaginacao } from '../utils/paginacao'
@@ -59,7 +60,7 @@ const filtrosStatus: { label: string; status: StatusDispositivo | undefined }[] 
   { label: 'Baixado', status: 'Baixado' },
 ]
 
-type ColunaOrdenavel = 'identificacao' | 'patrimonio' | 'unidade' | 'responsavel' | 'status'
+type ColunaOrdenavel = 'identificacao' | 'patrimonio' | 'aluguel' | 'unidade' | 'responsavel' | 'status'
 type Direcao = 'asc' | 'desc'
 
 /**
@@ -69,9 +70,11 @@ type Direcao = 'asc' | 'desc'
 function valorOrdenacao(d: Dispositivo, coluna: ColunaOrdenavel, arquivados: boolean): string {
   switch (coluna) {
     case 'identificacao':
-      return d.identificacaoInterna ?? d.hostname ?? d.numeroSerie ?? ''
+      return identificacaoExibida(d)
     case 'patrimonio':
       return d.assetTag ?? ''
+    case 'aluguel':
+      return rotuloAluguel(d)
     case 'unidade':
       return d.unidadeNome ?? ''
     case 'responsavel':
@@ -248,6 +251,8 @@ export function DispositivosPage() {
               <TableRow>
                 {cabecalho('identificacao', 'Identificação')}
                 {cabecalho('patrimonio', 'Patrimônio')}
+                {/* Alugado x próprio: derivado do prefixo "MAQ" na identificação. */}
+                {cabecalho('aluguel', 'Aluguel', 'center')}
                 {cabecalho('unidade', 'Unidade')}
                 {/* Usuário nominal ou, nos ativos do local, o nome da unidade. */}
                 {cabecalho('responsavel', 'Responsável')}
@@ -258,8 +263,16 @@ export function DispositivosPage() {
             <TableBody>
               {itensPagina?.map((d) => (
                 <TableRow key={d.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/dispositivos/${d.id}`)}>
-                  <TableCell>{d.identificacaoInterna ?? d.hostname ?? d.numeroSerie}</TableCell>
+                  <TableCell>{identificacaoExibida(d)}</TableCell>
                   <TableCell>{d.assetTag ?? '—'}</TableCell>
+                  <TableCell align="center">
+                    <Chip
+                      size="small"
+                      label={rotuloAluguel(d)}
+                      color={ehAlugado(d) ? 'warning' : 'default'}
+                      variant={ehAlugado(d) ? 'filled' : 'outlined'}
+                    />
+                  </TableCell>
                   <TableCell>{d.unidadeNome ?? '—'}</TableCell>
                   <TableCell>
                     {d.responsavelNome ?? '—'}
@@ -334,7 +347,7 @@ export function DispositivosPage() {
               ))}
               {dispositivosOrdenados?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} align="center">
+                  <TableCell colSpan={7} align="center">
                     {termoBusca
                       ? `Nenhum dispositivo encontrado para "${termoBusca}".`
                       : mostrandoArquivados
