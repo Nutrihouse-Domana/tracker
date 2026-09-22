@@ -302,8 +302,10 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   que precisaram de tratamento por modo (não são token e não invertem sozinhos): a **pílula da barra
   de busca** (`BarraDeBusca.tsx` — `grey.100` é cinza-claro FIXO e ficava branca sobre a AppBar
   escura; agora `theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'grey.100'`) e o **mapa
-  Leaflet** (`LocalizacaoSection.tsx` — tiles OSM são claros; no escuro usa CARTO `dark_all` com
-  `key` no `TileLayer` p/ trocar ao alternar). `cinza.100`/`grey.*` e `common.white` são FIXOS: não
+  Leaflet** (`LocalizacaoSection.tsx` — o mapa fica SEMPRE claro, com tiles do OpenStreetMap,
+  inclusive no modo escuro do site. **NÃO use `basemaps.cartocdn.com/dark_all`: a CARTO passou a
+  exigir chave de API e carimba "API KEY REQUIRED" sobre o mapa** — foi o motivo de largar o dark
+  tile). `cinza.100`/`grey.*` e `common.white` são FIXOS: não
   os use como fundo de algo que precise virar no escuro. **Pegadinha do `Paper` com `elevation` no
   escuro:** o MUI clareia a superfície com um **degradê de elevação** (`backgroundImage`), e se
   houver dentro um `ListSubheader` (pinta `background.paper` sólido) o painel fica com DOIS tons

@@ -1,4 +1,4 @@
-import { Box, Typography, Stack, useTheme } from '@mui/material'
+import { Box, Typography, Stack } from '@mui/material'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import { Icon } from 'leaflet'
 import markerIcon from 'leaflet/dist/images/marker-icon.png'
@@ -20,17 +20,12 @@ interface Props {
 export function LocalizacaoSection({ dispositivoId }: Props) {
   const { data: historico } = useHistoricoLocalizacao(dispositivoId)
   const ultima = historico?.[0]
-  const escuro = useTheme().palette.mode === 'dark'
-  // Tiles escuros no modo escuro (CARTO dark) para o mapa não ficar branco no meio da UI escura.
-  const tiles = escuro
-    ? {
-        url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        attribution: '&copy; OpenStreetMap &copy; CARTO',
-      }
-    : {
-        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        attribution: '&copy; OpenStreetMap',
-      }
+  // Mapa sempre claro (OpenStreetMap, sem chave de API), inclusive no modo escuro do site.
+  // A CARTO dark_all passou a exigir chave e carimbava "API KEY REQUIRED" sobre o mapa.
+  const tiles = {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap',
+  }
 
   if (!ultima) {
     return (
@@ -58,7 +53,7 @@ export function LocalizacaoSection({ dispositivoId }: Props) {
           zoom={11}
           style={{ height: '100%', width: '100%' }}
         >
-          <TileLayer key={escuro ? 'dark' : 'light'} attribution={tiles.attribution} url={tiles.url} />
+          <TileLayer attribution={tiles.attribution} url={tiles.url} />
           <Marker position={[ultima.latitude, ultima.longitude]} icon={icone}>
             <Popup>{ultima.enderecoAproximado ?? 'Dispositivo'}</Popup>
           </Marker>
