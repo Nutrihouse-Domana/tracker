@@ -13,21 +13,11 @@ import {
 import type { Dispositivo } from '../../api/types'
 import { useDefinirVencimentoAluguel } from './hooks'
 import { mensagemErroApi } from '../../utils/erroApi'
-import { DIAS_DE_ALERTA } from './vencimento'
+import { DIAS_DE_ALERTA, paraCampoData } from './vencimento'
 
 interface Props {
   dispositivo: Dispositivo | null
   onClose: () => void
-}
-
-/** ISO do backend ("2026-10-01T00:00:00") para o formato do input date ("2026-10-01"). */
-function paraCampoData(iso: string | null): string {
-  if (!iso) return ''
-  const data = new Date(iso)
-  if (Number.isNaN(data.getTime())) return ''
-  const mes = `${data.getMonth() + 1}`.padStart(2, '0')
-  const dia = `${data.getDate()}`.padStart(2, '0')
-  return `${data.getFullYear()}-${mes}-${dia}`
 }
 
 /**
@@ -56,8 +46,9 @@ export function VencimentoAluguelDialog({ dispositivo, onClose }: Props) {
       {
         id: dispositivo.id,
         data: {
-          // Campo vazio limpa o vencimento (ativo sem contrato). A hora vai zerada: só a data conta.
-          vencimentoAluguel: vencimento ? `${vencimento}T00:00:00` : null,
+          // Campo vazio limpa o vencimento (ativo sem contrato). Vai como data pura ("aaaa-mm-dd"),
+          // que é o formato do DateOnly: anexar hora traria o fuso de volta para o problema.
+          vencimentoAluguel: vencimento || null,
           motivo: motivo.trim() || null,
         },
       },

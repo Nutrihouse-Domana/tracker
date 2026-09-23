@@ -179,7 +179,11 @@ export interface Dispositivo {
   /** Preenchido só em dispositivos arquivados. */
   excluidoEm: string | null
   motivoExclusao: string | null
-  /** Vencimento do contrato de aluguel (ISO). Nulo nos ativos próprios, sem contrato registrado. */
+  /**
+   * Vencimento do contrato de aluguel como data pura ("aaaa-mm-dd", DateOnly no backend). Nulo nos
+   * ativos próprios. Não faça `new Date(...)` neste valor: JS lê só-data como UTC e, em UTC-3, o
+   * dia exibido volta um. Use os helpers de features/dispositivos/vencimento.ts.
+   */
   vencimentoAluguel: string | null
 }
 
@@ -198,7 +202,7 @@ export interface DefinirPosseDispositivoRequest {
 }
 
 export interface DefinirVencimentoAluguelRequest {
-  /** Data ISO do vencimento; null limpa o campo. Não exige senha do ADM. */
+  /** Data pura "aaaa-mm-dd"; null limpa o campo. Não exige senha do ADM. */
   vencimentoAluguel: string | null
   motivo?: string | null
 }

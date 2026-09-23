@@ -25,12 +25,14 @@ public abstract class Dispositivo : EntidadeBase
     public DateTime DataAquisicao { get; set; }
 
     /// <summary>
-    /// Data em que o CONTRATO DE ALUGUEL do equipamento vence (só a data importa, sem hora).
+    /// Data em que o CONTRATO DE ALUGUEL do equipamento vence. É <c>DateOnly</c> de propósito:
+    /// data civil não tem hora nem fuso. Como <c>DateTime</c>, o conversor de JSON da API
+    /// (que carimba todo DateTime com 'Z') fazia o navegador em UTC-3 exibir o dia ANTERIOR.
     /// Nulo = sem contrato registrado, que é o caso dos ativos próprios. O campo existe em todos os
     /// tipos porque a TI pode alugar qualquer um deles; quem indica que o ativo é alugado continua
     /// sendo o prefixo da identificação (ver CLAUDE.md), não este campo.
     /// </summary>
-    public DateTime? VencimentoAluguel { get; set; }
+    public DateOnly? VencimentoAluguel { get; set; }
     public string? Observacoes { get; set; }
 
     public Guid? UsuarioAtualId { get; set; }

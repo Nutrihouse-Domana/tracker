@@ -296,8 +296,8 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.Property<Guid?>("UsuarioAtualId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTime?>("VencimentoAluguel")
-                        .HasColumnType("datetime2");
+                    b.Property<DateOnly?>("VencimentoAluguel")
+                        .HasColumnType("date");
 
                     b.HasKey("Id");
 

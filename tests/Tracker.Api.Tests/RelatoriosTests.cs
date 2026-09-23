@@ -12,6 +12,8 @@ namespace Tracker.Api.Tests;
 /// </summary>
 public class RelatoriosTests
 {
+    private static DateOnly Hoje => DateOnly.FromDateTime(DateTime.Today);
+
     private static ResumoRelatoriosDto ResumoFake(int total = 3, int alugados = 1) =>
         new(
             TotalAtivos: total,
@@ -22,7 +24,7 @@ public class RelatoriosTests
             PorStatus: new[] { new ContagemDto("Em estoque", total) },
             GeradoEm: new DateTime(2026, 9, 23, 14, 30, 0));
 
-    private static LinhaInventarioDto Linha(string identificacao, string origem = "Próprio", DateTime? vencimento = null) =>
+    private static LinhaInventarioDto Linha(string identificacao, string origem = "Próprio", DateOnly? vencimento = null) =>
         new(identificacao, "Notebook", origem, "SN-1", "PAT-1", "Matriz", "Fulano", "Em estoque",
             new DateTime(2025, 1, 10), vencimento);
 
@@ -101,8 +103,8 @@ public class RelatoriosTests
     {
         var alugados = new[]
         {
-            Linha("MAQ-0142", "Alugado", DateTime.Today.AddDays(10)),   // dentro da janela de alerta
-            Linha("MAQ-0187", "Alugado", DateTime.Today.AddDays(-5)),   // vencido
+            Linha("MAQ-0142", "Alugado", Hoje.AddDays(10)),   // dentro da janela de alerta
+            Linha("MAQ-0187", "Alugado", Hoje.AddDays(-5)),   // vencido
             Linha("MAQ-0200", "Alugado"),                               // sem contrato registrado
         };
         var resumo = ResumoFake(total: 3, alugados: 3);

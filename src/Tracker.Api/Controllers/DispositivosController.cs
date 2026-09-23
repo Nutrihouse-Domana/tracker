@@ -460,9 +460,9 @@ public class DispositivosController : ControllerBase
         var dispositivo = await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id);
         if (dispositivo is null) return NotFound();
 
-        // Só a data importa: guardar a hora faria "vence hoje" depender do horário do clique, e a
-        // contagem de dias restantes oscilaria conforme o fuso de quem cadastrou.
-        var valor = request.VencimentoAluguel?.Date;
+        // DateOnly: sem hora e sem fuso. Com DateTime, o conversor de JSON carimbava 'Z' e o
+        // navegador em UTC-3 exibia o dia anterior.
+        var valor = request.VencimentoAluguel;
         dispositivo.VencimentoAluguel = valor;
 
         _auditoria.Registrar(AcaoAuditoria.DispositivoVencimentoAluguelDefinido,

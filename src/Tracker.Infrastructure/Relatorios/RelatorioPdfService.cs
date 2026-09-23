@@ -240,10 +240,10 @@ public class RelatorioPdfService : IRelatorioPdfService
     /// Data do vencimento com a situação junto: no papel não há cor nem chip, então "(vencido)" e
     /// "(faltam N dias)" é o que permite bater o olho e achar o contrato que pede ação.
     /// </summary>
-    private static string TextoVencimento(DateTime? vencimento)
+    private static string TextoVencimento(DateOnly? vencimento)
     {
         if (vencimento is null) return "—";
-        var dias = (vencimento.Value.Date - DateTime.Today).Days;
+        var dias = vencimento.Value.DayNumber - DateOnly.FromDateTime(DateTime.Today).DayNumber;
         var situacao = dias < 0 ? $"vencido há {Math.Abs(dias)}d"
             : dias == 0 ? "vence hoje"
             : dias <= 30 ? $"faltam {dias}d"
