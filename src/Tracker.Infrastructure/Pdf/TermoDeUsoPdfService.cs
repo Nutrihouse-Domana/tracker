@@ -108,9 +108,6 @@ public class TermoDeUsoPdfService : ITermoDeUsoPdfService
         "(_) Em perfeito estado (_) Apresentando defeito (_) Faltando peças ou acessórios (assinatura) " +
         "(nome do responsável pelo recebimento do Termo de Responsabilidade).";
 
-    private static readonly object _lockFonte = new();
-    private static bool _fontResolverRegistrado;
-
     public byte[] Gerar(DadosTermoDeUso dados)
     {
         GarantirFontResolver();
@@ -193,17 +190,11 @@ public class TermoDeUsoPdfService : ITermoDeUsoPdfService
         return stream.ToArray();
     }
 
-    /// <summary>Registra o resolver de fonte uma única vez (é global no PdfSharpCore).</summary>
-    private static void GarantirFontResolver()
-    {
-        if (_fontResolverRegistrado) return;
-        lock (_lockFonte)
-        {
-            if (_fontResolverRegistrado) return;
-            GlobalFontSettings.FontResolver = TermoFontResolver.Instancia;
-            _fontResolverRegistrado = true;
-        }
-    }
+    /// <summary>
+    /// Registra o resolver de fonte uma única vez (é global no PdfSharpCore). O registro em si mora
+    /// em <see cref="PdfFontes"/>, compartilhado com os demais geradores de PDF.
+    /// </summary>
+    private static void GarantirFontResolver() => PdfFontes.Garantir();
 
     /// <summary>Linha em branco usada como espaçador vertical (como no modelo Word).</summary>
     private static void LinhaVazia(Section section) => section.AddParagraph();

@@ -28,6 +28,7 @@ import { WaveFooter } from './WaveFooter'
 import { BarraDeBusca } from '../features/busca/BarraDeBusca'
 import { LogoTracker } from './LogoTracker'
 import { nutrihouseColors } from '../theme'
+import { MenuRelatorios } from '../features/relatorios/MenuRelatorios'
 
 type NavLink = { label: string; path: string; perm: Permissao }
 type NavGroup = { label: string; itens: NavLink[] }
@@ -85,6 +86,8 @@ export function AppShell() {
   const navItems = filtrarNav(navItemsBase, tem)
   const contaItens = menuContaItens.filter((i) => tem(i.perm))
   const podeBuscar = tem(PERMISSOES.dispositivosVer)
+  // Os relatórios leem o inventário: mesma permissão da lista de dispositivos.
+  const podeVerRelatorios = tem(PERMISSOES.dispositivosVer)
 
   const handleLogout = () => {
     logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) })
@@ -263,6 +266,19 @@ export function AppShell() {
                   </Typography>
                 </Box>
               )}
+              <Divider />
+              {/* Perfil é a conta de quem está logado: aparece para todos, sem filtro de permissão. */}
+              <MenuItem
+                selected={location.pathname === '/perfil'}
+                onClick={() => {
+                  setUsuarioEl(null)
+                  navigate('/perfil')
+                }}
+              >
+                Perfil
+              </MenuItem>
+              {/* Baixa os relatórios sem sair da tela; os mesmos estão na página de Perfil. */}
+              {podeVerRelatorios && <MenuRelatorios onBaixou={() => setUsuarioEl(null)} />}
               {contaItens.length > 0 && <Divider />}
               {contaItens.map((item) => (
                 <MenuItem
@@ -340,6 +356,9 @@ export function AppShell() {
           </List>
           <Divider />
           <List>
+            <ListItemButton selected={location.pathname === '/perfil'} onClick={() => irPara('/perfil')}>
+              <ListItemText primary="Perfil" />
+            </ListItemButton>
             {contaItens.map((item) => (
               <ListItemButton
                 key={item.path}
