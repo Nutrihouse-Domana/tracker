@@ -179,6 +179,8 @@ export interface Dispositivo {
   /** Preenchido só em dispositivos arquivados. */
   excluidoEm: string | null
   motivoExclusao: string | null
+  /** Vencimento do contrato de aluguel (ISO). Nulo nos ativos próprios, sem contrato registrado. */
+  vencimentoAluguel: string | null
 }
 
 export interface ExcluirDispositivoRequest {
@@ -192,6 +194,12 @@ export interface DefinirPosseDispositivoRequest {
   pertenceAUsuario: boolean
   unidadeId?: string | null
   senha: string
+  motivo?: string | null
+}
+
+export interface DefinirVencimentoAluguelRequest {
+  /** Data ISO do vencimento; null limpa o campo. Não exige senha do ADM. */
+  vencimentoAluguel: string | null
   motivo?: string | null
 }
 

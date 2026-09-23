@@ -112,6 +112,16 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   fallback inclui o **hostname**, e o heartbeat sobrescreve o hostname a cada ciclo, um aparelho SEM
   `IdentificacaoInterna` pode mudar de classificação sozinho — só o rótulo manual da TI é estável.
   Se um dia a origem virar dado de verdade, isso vira campo no `Dispositivo` e a função sai daqui.
+- **`Dispositivo.VencimentoAluguel` (DateTime?) é o fim do CONTRATO DE ALUGUEL**, não garantia nem
+  vida útil. Nulo = sem contrato (o caso dos próprios); o campo existe em todos os tipos, mas quem
+  diz que o ativo é alugado continua sendo o prefixo `MAQ` da identificação. Endpoint
+  `PUT /api/dispositivos/{id}/vencimento-aluguel` exige `dispositivos.cadastrar` e **NÃO pede a
+  senha do ADM** (é dado operacional do contrato, não mudança de responsabilidade) — mas audita
+  (`DispositivoVencimentoAluguelDefinido`). O controller **zera a hora** (`.Date`): com hora, "vence
+  hoje" dependeria do horário do clique e a contagem de dias oscilaria. No site, a regra de situação
+  (vencido / vence em ≤30 dias / em dia) fica em `features/dispositivos/vencimento.ts` e alimenta a
+  coluna "Vence em", o chip do detalhe e o alerta do topo da lista — que conta sobre a lista inteira,
+  não a página visível, senão o aviso sumiria ao paginar.
 - **Relatórios do inventário** (`RelatoriosController`, `GET /api/relatorios/{tipo}/{pdf|xlsx}` com
   tipo = `inventario`/`aluguel`/`unidades`): dados em `Tracker.Infrastructure/Relatorios`
   (`RelatorioInventarioService` monta as linhas; `RelatorioPdfService` e `RelatorioExcelService`

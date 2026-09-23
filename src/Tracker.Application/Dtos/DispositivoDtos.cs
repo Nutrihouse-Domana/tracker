@@ -33,7 +33,9 @@ public record DispositivoDto(
     // Quem responde pelo ativo: o usuário nominal ou, se for do local, a unidade.
     string? ResponsavelNome = null,
     DateTime? ExcluidoEm = null,
-    string? MotivoExclusao = null);
+    string? MotivoExclusao = null,
+    // Vencimento do contrato de aluguel. Nulo nos ativos próprios (sem contrato registrado).
+    DateTime? VencimentoAluguel = null);
 
 /// <summary>
 /// Remove o dispositivo do inventário. Exige a senha do ADM logado.
@@ -56,6 +58,13 @@ public record DefinirPosseDispositivoRequest(
     string? Motivo);
 
 public record DefinirUnidadeDispositivoRequest(Guid? UnidadeId);
+
+/// <summary>
+/// Define (ou limpa, enviando nulo) a data de vencimento do contrato de aluguel do equipamento.
+/// Diferente da identificação interna e da posse, NÃO pede a senha do ADM: é um dado operacional
+/// do contrato, não uma ação que muda a responsabilidade sobre o ativo.
+/// </summary>
+public record DefinirVencimentoAluguelRequest(DateTime? VencimentoAluguel, string? Motivo);
 
 /// <summary>
 /// Define (ou limpa) a identificação interna do dispositivo — um rótulo próprio da TI, à parte do

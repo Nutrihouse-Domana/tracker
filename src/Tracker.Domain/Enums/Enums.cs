@@ -104,6 +104,7 @@ public enum AcaoAuditoria
     DispositivoAtribuido,
     DispositivoUnidadeDefinida,
     DispositivoIdentificacaoInternaDefinida,
+    DispositivoVencimentoAluguelDefinido,
     DispositivoPosseAlterada,
     DispositivoArquivado,
     DispositivoExcluidoDefinitivo,

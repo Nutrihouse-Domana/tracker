@@ -22,8 +22,9 @@ public class RelatoriosTests
             PorStatus: new[] { new ContagemDto("Em estoque", total) },
             GeradoEm: new DateTime(2026, 9, 23, 14, 30, 0));
 
-    private static LinhaInventarioDto Linha(string identificacao, string origem = "Próprio") =>
-        new(identificacao, "Notebook", origem, "SN-1", "PAT-1", "Matriz", "Fulano", "Em estoque", new DateTime(2025, 1, 10));
+    private static LinhaInventarioDto Linha(string identificacao, string origem = "Próprio", DateTime? vencimento = null) =>
+        new(identificacao, "Notebook", origem, "SN-1", "PAT-1", "Matriz", "Fulano", "Em estoque",
+            new DateTime(2025, 1, 10), vencimento);
 
     [Theory]
     [InlineData("MAQ-0142", true)]
@@ -89,6 +90,28 @@ public class RelatoriosTests
         Assert.NotEmpty(bytes);
         // XLSX é um zip: começa com a assinatura "PK\x03\x04".
         Assert.Equal(new byte[] { 0x50, 0x4B, 0x03, 0x04 }, bytes.Take(4).ToArray());
+    }
+
+    /// <summary>
+    /// O relatório de alugados é o que a TI usa para renovar contrato: precisa sair com o
+    /// vencimento mesmo quando parte dos ativos não tem data registrada.
+    /// </summary>
+    [Fact]
+    public void RelatorioAluguel_ComEsemVencimento_GeraOsDoisFormatos()
+    {
+        var alugados = new[]
+        {
+            Linha("MAQ-0142", "Alugado", DateTime.Today.AddDays(10)),   // dentro da janela de alerta
+            Linha("MAQ-0187", "Alugado", DateTime.Today.AddDays(-5)),   // vencido
+            Linha("MAQ-0200", "Alugado"),                               // sem contrato registrado
+        };
+        var resumo = ResumoFake(total: 3, alugados: 3);
+
+        var pdf = new RelatorioPdfService().Aluguel(alugados, resumo, "Tester");
+        var excel = new RelatorioExcelService().Aluguel(alugados, resumo);
+
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(pdf, 0, 4));
+        Assert.Equal(new byte[] { 0x50, 0x4B, 0x03, 0x04 }, excel.Take(4).ToArray());
     }
 
     [Fact]

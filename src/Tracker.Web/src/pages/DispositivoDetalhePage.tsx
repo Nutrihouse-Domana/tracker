@@ -11,6 +11,7 @@ import {
   Button,
   Grid,
   IconButton,
+  Chip,
 } from '@mui/material'
 import ArrowBackIcon from '@mui/icons-material/ArrowBackOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
@@ -18,6 +19,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import { useDispositivo } from '../features/dispositivos/hooks'
 import { PosseSection } from '../features/dispositivos/PosseSection'
 import { EditarIdentificacaoInternaDialog } from '../features/dispositivos/EditarIdentificacaoInternaDialog'
+import { VencimentoAluguelDialog } from '../features/dispositivos/VencimentoAluguelDialog'
 import { ExcluirDispositivoDialog } from '../features/dispositivos/ExcluirDispositivoDialog'
 import { StatusDispositivoAcoes } from '../features/dispositivos/StatusDispositivoAcoes'
 import { MovimentacaoSection } from '../features/dispositivos/MovimentacaoSection'
@@ -28,6 +30,12 @@ import { LocalizacaoSection } from '../features/dispositivos/LocalizacaoSection'
 import { TermoDeUsoSection } from '../features/termos/TermoDeUsoSection'
 import { usePermissoes, PERMISSOES } from '../features/auth/permissoes'
 import { formatarDataHora } from '../utils/formato'
+import {
+  corVencimento,
+  formatarVencimento,
+  rotuloVencimento,
+  situacaoVencimento,
+} from '../features/dispositivos/vencimento'
 
 export function DispositivoDetalhePage() {
   const { id } = useParams<{ id: string }>()
@@ -35,6 +43,7 @@ export function DispositivoDetalhePage() {
   const [aba, setAba] = useState(0)
   const [excluirAberto, setExcluirAberto] = useState(false)
   const [identificacaoAberta, setIdentificacaoAberta] = useState(false)
+  const [vencimentoAberto, setVencimentoAberto] = useState(false)
   const { data: dispositivo, isLoading } = useDispositivo(id)
   const { tem } = usePermissoes()
 
@@ -148,6 +157,28 @@ export function DispositivoDetalhePage() {
             <Typography variant="caption" color="text.secondary">Unidade atendida</Typography>
             <Typography variant="body2">{dispositivo.unidadeNome ?? '—'}</Typography>
           </Grid>
+          <Grid size={{ xs: 6, sm: 3 }}>
+            <Typography variant="caption" color="text.secondary">Vencimento do aluguel</Typography>
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+              <Typography variant="body2">{formatarVencimento(dispositivo.vencimentoAluguel)}</Typography>
+              {tem(PERMISSOES.dispositivosCadastrar) && (
+                <IconButton
+                  size="small"
+                  aria-label="Editar vencimento do aluguel"
+                  onClick={() => setVencimentoAberto(true)}
+                >
+                  <EditOutlinedIcon fontSize="small" />
+                </IconButton>
+              )}
+            </Stack>
+            {dispositivo.vencimentoAluguel && situacaoVencimento(dispositivo.vencimentoAluguel) !== 'emDia' && (
+              <Chip
+                size="small"
+                label={rotuloVencimento(dispositivo.vencimentoAluguel)}
+                color={corVencimento(situacaoVencimento(dispositivo.vencimentoAluguel))}
+              />
+            )}
+          </Grid>
           {dispositivo.sistemaOperacional && (
             <Grid size={{ xs: 6, sm: 3 }}>
               <Typography variant="caption" color="text.secondary">Sistema operacional</Typography>
@@ -192,6 +223,10 @@ export function DispositivoDetalhePage() {
         <Box sx={{ p: 3 }}>{tabs[aba]?.render()}</Box>
       </Paper>
 
+      <VencimentoAluguelDialog
+        dispositivo={vencimentoAberto ? dispositivo : null}
+        onClose={() => setVencimentoAberto(false)}
+      />
       <EditarIdentificacaoInternaDialog
         dispositivo={identificacaoAberta ? dispositivo : null}
         onClose={() => setIdentificacaoAberta(false)}

@@ -5,6 +5,7 @@ import type {
   CriarComentarioRequest,
   DefinirIdentificacaoInternaRequest,
   DefinirPosseDispositivoRequest,
+  DefinirVencimentoAluguelRequest,
   ExcluirDispositivoRequest,
   CriarNotebookRequest,
   CriarPerifericoRequest,
@@ -126,6 +127,16 @@ export function useDefinirIdentificacaoInterna() {
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: DefinirIdentificacaoInternaRequest }) =>
       dispositivosApi.definirIdentificacaoInterna(id, data),
+    onSuccess: invalidate,
+  })
+}
+
+/** Define ou limpa o vencimento do contrato de aluguel. Não pede senha: é dado do contrato. */
+export function useDefinirVencimentoAluguel() {
+  const invalidate = useInvalidateDispositivos()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: DefinirVencimentoAluguelRequest }) =>
+      dispositivosApi.definirVencimentoAluguel(id, data),
     onSuccess: invalidate,
   })
 }
