@@ -120,6 +120,12 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 builder.Services.AddScoped<ITermoDeUsoPdfService, TermoDeUsoPdfService>();
+builder.Services.AddScoped<Tracker.Infrastructure.Relatorios.IRelatorioInventarioService,
+    Tracker.Infrastructure.Relatorios.RelatorioInventarioService>();
+builder.Services.AddScoped<Tracker.Infrastructure.Relatorios.IRelatorioPdfService,
+    Tracker.Infrastructure.Relatorios.RelatorioPdfService>();
+builder.Services.AddScoped<Tracker.Infrastructure.Relatorios.IRelatorioExcelService,
+    Tracker.Infrastructure.Relatorios.RelatorioExcelService>();
 builder.Services.AddSingleton<AgentTokenService>();
 builder.Services.AddScoped<AgentAuth>();
 builder.Services.AddScoped<Tracker.Api.Seguranca.ConfirmacaoSenhaAdm>();

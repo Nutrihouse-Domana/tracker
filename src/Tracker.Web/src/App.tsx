@@ -9,6 +9,7 @@ import { AgenteAndroidPage } from './pages/AgenteAndroidPage'
 import { AcessosPage } from './pages/AcessosPage'
 import { AuditoriaPage } from './pages/AuditoriaPage'
 import { SemAcessoPage } from './pages/SemAcessoPage'
+import { PerfilPage } from './pages/PerfilPage'
 import { LoginPage } from './pages/LoginPage'
 import { AuthGuard } from './features/auth/AuthGuard'
 import { PermissaoRoute, PERMISSOES } from './features/auth/RequirePermissao'
@@ -41,6 +42,9 @@ function App() {
           <Route element={<PermissaoRoute permissao={PERMISSOES.auditoriaVer} />}>
             <Route path="auditoria" element={<AuditoriaPage />} />
           </Route>
+          {/* Perfil é a conta do próprio usuário logado: não exige permissão nenhuma.
+              A seção de relatórios dentro dela é que checa 'dispositivos.ver'. */}
+          <Route path="perfil" element={<PerfilPage />} />
           <Route path="sem-acesso" element={<SemAcessoPage />} />
         </Route>
       </Route>

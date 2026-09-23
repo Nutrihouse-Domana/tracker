@@ -105,10 +105,31 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   começando com `MAQ` (sem diferenciar maiúsculas) marca equipamento alugado — regra centralizada em
   `src/Tracker.Web/src/features/dispositivos/aluguel.ts` (`ehAlugado`, `rotuloAluguel`,
   `identificacaoExibida`), usada na coluna "Aluguel" de `DispositivosPage`. Use `identificacaoExibida`
-  em vez de repetir `identificacaoInterna ?? hostname ?? numeroSerie`. Consequência a lembrar: como o
+  em vez de repetir `identificacaoInterna ?? hostname ?? numeroSerie`. **A regra tem um espelho no
+  backend** — `src/Tracker.Application/Relatorios/ClassificacaoAluguel.cs`, usado pelos
+  relatórios (que leem o banco, não a lista carregada na tela): mudar o critério exige mexer nos
+  DOIS lados, senão a coluna e o relatório discordam sobre o mesmo aparelho. Consequência a lembrar: como o
   fallback inclui o **hostname**, e o heartbeat sobrescreve o hostname a cada ciclo, um aparelho SEM
   `IdentificacaoInterna` pode mudar de classificação sozinho — só o rótulo manual da TI é estável.
   Se um dia a origem virar dado de verdade, isso vira campo no `Dispositivo` e a função sai daqui.
+- **Relatórios do inventário** (`RelatoriosController`, `GET /api/relatorios/{tipo}/{pdf|xlsx}` com
+  tipo = `inventario`/`aluguel`/`unidades`): dados em `Tracker.Infrastructure/Relatorios`
+  (`RelatorioInventarioService` monta as linhas; `RelatorioPdfService` e `RelatorioExcelService`
+  renderizam). São LEITURA do parque ativo → pedem só `dispositivos.ver` e **não** registram
+  auditoria (que é para escrita). No site ficam no **menu da conta** (`MenuRelatorios`, aberto ao
+  clicar no próprio nome), não na página de Perfil — esta só mostra quem está logado e suas
+  permissões. A coluna de data dos relatórios é **`CriadoEm` ("Cadastrado em")**, não
+  `DataAquisicao`: o formulário de cadastro grava `DataAquisicao = agora` e não há campo na tela
+  para outra data, então ela nunca foi data de compra de verdade. `CriadoEm` é UTC e o SQL Server
+  o devolve com `Kind=Unspecified` — marque como UTC antes de `ToLocalTime()`, senão cadastro da
+  noite sai com a data do dia seguinte.
+- **XLSX é gerado com ClosedXML** (0.102.3, em `Tracker.Infrastructure`). `AdjustToContents` NÃO
+  aceita `maxWidth:` nesta versão (erro de compilação) — ajuste e depois limite `coluna.Width` à
+  mão. Escreva data/número com o TIPO nativo da célula: como texto, o filtro e a ordenação do
+  Excel tratam "10/01/2025" como string.
+- **`GlobalFontSettings.FontResolver` do PdfSharpCore é global e só pode ser atribuído uma vez.**
+  Todo gerador de PDF chama `PdfFontes.Garantir()` (`Tracker.Infrastructure/Pdf/PdfFontes.cs`), que
+  registra o `TermoFontResolver` sob lock. Não escreva em `GlobalFontSettings` direto num serviço novo.
 - **DTOs** são `record` na camada Application. Enums serializados como string na API.
 - **Validação** com FluentValidation, injetada nos controllers via `IValidator<T>`.
 - **CPF** é criptografado em repouso (AES-GCM) via `EncryptedStringConverter` no DbContext.
