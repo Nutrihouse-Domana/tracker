@@ -32,6 +32,16 @@ Frontend organizado por feature em `src/Tracker.Web/src/features/<feature>/` (ap
 
 ## Ambiente de desenvolvimento (Windows)
 
+**Máquina nova?** `.\deploy\preparar-ambiente-dev.ps1` faz tudo: sobe o SQL Server em container
+(`docker-compose.yml`, porta **11433** no host para não brigar com um SQL Server já instalado),
+gera o `.env` com a senha do SA e grava os `user-secrets` que faltarem. É **idempotente** e
+**preserva** o que já existe — em especial `Encryption:CpfKeyBase64`, que regenerada tornaria
+ilegíveis os CPFs já gravados, e a `ConnectionStrings:TrackerDb` de quem já usa SQL Express
+local (para apontar ao container mesmo assim: `-Forcar`; para pular o Docker: `-SemDocker`).
+Guia: `docs/ambiente-dev.md`. **Produção não usa Docker** — lá é SQL Server on-premises com IIS.
+O Docker Desktop precisa do **WSL2**; sem ele o engine nunca fica pronto e o sintoma é idêntico
+ao de "Docker fechado" (`wsl --install` como Administrador + reiniciar). O script detecta e avisa.
+
 - **`dotnet` não está no PATH do Bash.** Use PowerShell, ou no Bash: `export PATH="$PATH:/c/Program Files/dotnet"`.
   Em PowerShell, se `dotnet` não for reconhecido, recarregue o PATH da máquina do registro.
 - **Banco:** SQL Server Express local → `Server=localhost\SQLEXPRESS;...` (já em `appsettings.json`).
@@ -257,6 +267,14 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   - **A keystore de release amarra a frota inteira**: assinatura diferente é recusada pelo Android
     e a saída seria reinstalar aparelho por aparelho. Ela mora **fora do repositório**
     (`Documents\TrackerKeystore\`) porque worktree/clone novo não leva a chave junto.
+    **O release da frota sai do CI** (`.github/workflows/apk-agente-android.yml`, disparo manual):
+    a chave vive como secret (`ANDROID_KEYSTORE_BASE64` + as 3 senhas), é decodificada num arquivo
+    **fora do workspace**, usada e apagada num `finally` — assim qualquer pessoa gera o APK sem ter
+    a chave na máquina, que é o que evita espalhá-la. As senhas vão por `ORG_GRADLE_PROJECT_*`, não
+    por `-P`: argumento de linha de comando aparece no `tasklist` do servidor. **No runner não há
+    `local.properties`**, então o SDK é achado por `ANDROID_HOME` — e o runner precisa de JDK 17 e
+    Android SDK pré-instalados (o egress bloqueia os CDNs, igual ao deploy). O build de debug NÃO
+    está no workflow de propósito: sem `local.properties` ele sairia apontando para produção.
   - **O release liga o R8.** `proguard-rules.pro` preserva `dados.**` (o Gson do SignalR lê os
     campos por nome) e o Device Admin; receivers do manifest o AGP mantém sozinho. DTO novo fora
     de `dados` exige regra nova — sem ela o comando chega vazio e é descartado **em silêncio**.
@@ -310,8 +328,27 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   sempre `gradle.properties` (produção) e `debug` usa o `local.properties` da máquina. Sem isso,
   um pacote gerado na máquina de quem estava testando sairia apontando para o laboratório — falha
   silenciosa que só apareceria depois de instalada na frota.
+  **O outro lado da moeda:** sem `tracker.backendBaseUrl` no `local.properties`, o build **debug**
+  cai para a URL de PRODUÇÃO. E o Android Studio cria o `local.properties` sozinho **só com
+  `sdk.dir`** ao abrir o projeto — então alguém que clone, compile o debug e instale num tablet de
+  teste **auto-cadastra o aparelho no inventário real**. Verificado na prática: sem a chave o
+  `BuildConfig.BACKEND_BASE_URL` sai `https://tracker.foodsacademy.com.br`. Por isso
+  `deploy/preparar-ambiente-dev.ps1` grava a chave apontando para o IP desta máquina
+  (`http://<ip>:5171`) — e o `sdk.dir` precisa da barra **escapada** (`C:\Android\Sdk`), porque no
+  formato `.properties` do Java a barra é escape e o Gradle leria `C:AndroidSdk`.
 - **Scripts PowerShell (.ps1):** escreva em **ASCII puro** (sem acentos/travessão) — o Windows
   PowerShell 5.1 lê `.ps1` sem BOM na codepage do sistema e quebra com caracteres especiais.
+- **PowerShell + `.exe`: com `$ErrorActionPreference = "Stop"`, o STDERR de um comando externo vira
+  erro TERMINANTE quando a saída do script está redirecionada** (`.\script.ps1 > log.txt 2>&1`, ou o
+  script chamado de dentro de outro que captura a saída). E `docker`, `dotnet` e `npm` escrevem
+  **progresso** no stderr, não só erros — então o script morre no meio de uma execução perfeitamente
+  normal, **antes** de chegar ao `if ($LASTEXITCODE -ne 0)`, e a mensagem de erro amigável que você
+  escreveu nunca aparece (foi assim que a dica sobre o WSL ausente ficava escondida atrás de um
+  `NativeCommandError` cru). `preparar-ambiente-dev.ps1` resolve com os helpers `ExecutarExterno` /
+  `ExecutarExternoComSaida` / `ExecutarExternoVisivel`, que baixam o preference para `Continue` só em
+  volta da chamada nativa e devolvem o `$LASTEXITCODE` para a checagem. Use o mesmo padrão em script
+  novo que chame `.exe`. **De brinde:** `docker compose up -d` sem `--quiet-pull` despeja milhares de
+  linhas de progresso do download e esconde as mensagens do próprio script.
 - **MigraDoc:** o pacote é `MigraDocCore.*` (namespaces `MigraDocCore.DocumentObjectModel`/`.Rendering`).
 - **Termo de uso (PDF):** `TermoDeUsoPdfService` replica FIELMENTE o modelo oficial em Word (`NOVO
   MODELO DE TERMO DE RESPONSABILIDADE.doc`): página **Carta** (não A4), Calibri Light 10,5pt,
