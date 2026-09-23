@@ -33,6 +33,15 @@ class Armazenamento(context: Context) {
         get() = prefs.getBoolean(CHAVE_BLOQUEADO, false)
         set(valor) = prefs.edit().putBoolean(CHAVE_BLOQUEADO, valor).apply()
 
+    /**
+     * Numero de serie da etiqueta, digitado pelo tecnico no registro. E a identidade do aparelho
+     * no inventario: estavel, ao contrario do ANDROID_ID, que muda quando a assinatura do app
+     * muda e por isso ja duplicou registros.
+     */
+    var numeroSerie: String?
+        get() = prefs.getString(CHAVE_NUMERO_SERIE, null)
+        set(valor) = prefs.edit().putString(CHAVE_NUMERO_SERIE, valor).apply()
+
     /** Patrimonio recebido do backend, exibido na tela de bloqueio para a TI identificar o aparelho. */
     var assetTag: String?
         get() = prefs.getString(CHAVE_ASSET_TAG, null)
@@ -44,6 +53,7 @@ class Armazenamento(context: Context) {
         const val ARQUIVO = "tracker-agente"
         const val CHAVE_TOKEN = "token"
         const val CHAVE_DISPOSITIVO_ID = "dispositivoId"
+        const val CHAVE_NUMERO_SERIE = "numeroSerie"
         const val CHAVE_BLOQUEADO = "bloqueado"
         const val CHAVE_ASSET_TAG = "assetTag"
 

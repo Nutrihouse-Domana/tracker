@@ -9,6 +9,5 @@ public class CriarReparoRequestValidator : AbstractValidator<CriarReparoRequest>
     {
         RuleFor(x => x.Descricao).NotEmpty().MaximumLength(2000);
         RuleFor(x => x.CustoEstimado).GreaterThanOrEqualTo(0).When(x => x.CustoEstimado.HasValue);
-        RuleFor(x => x.RegistradoPorAdmId).NotEmpty();
     }
 }

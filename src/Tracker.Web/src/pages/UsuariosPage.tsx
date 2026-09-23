@@ -16,6 +16,8 @@ import {
   CircularProgress,
   Box,
   Alert,
+  TableSortLabel,
+  TablePagination,
 } from '@mui/material'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import EditIcon from '@mui/icons-material/EditOutlined'
@@ -23,6 +25,8 @@ import type { Usuario } from '../api/types'
 import { useUsuarios, useDesativarUsuario } from '../features/usuarios/hooks'
 import { UsuarioFormDialog } from '../features/usuarios/UsuarioFormDialog'
 import { formatarCpf, formatarTelefone } from '../utils/formato'
+import { useOrdenacao } from '../utils/ordenacao'
+import { usePaginacao } from '../utils/paginacao'
 
 export function UsuariosPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -32,7 +36,7 @@ export function UsuariosPage() {
   const { data: usuariosCarregados, isLoading } = useUsuarios()
   const desativar = useDesativarUsuario()
 
-  const usuarios = useMemo(() => {
+  const usuariosFiltrados = useMemo(() => {
     if (!termoBusca.trim()) return usuariosCarregados
     const termo = termoBusca.trim().toLowerCase()
     return usuariosCarregados?.filter((u) =>
@@ -40,10 +44,16 @@ export function UsuariosPage() {
     )
   }, [usuariosCarregados, termoBusca])
 
+  const { ordenados: usuarios, coluna, direcao, ordenarPor } = useOrdenacao(
+    usuariosFiltrados,
+    'nome',
+  )
+  const { itensPagina, total, paginacaoProps } = usePaginacao(usuarios)
+
   return (
     <>
       <Stack direction="row" sx={{ mb: 2, justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h5">Usuários</Typography>
+        <Typography variant="h5">Usuários ({total})</Typography>
         <Button variant="contained" onClick={() => setDialogAberto(true)}>
           Novo usuário
         </Button>
@@ -64,17 +74,65 @@ export function UsuariosPage() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Nome</TableCell>
-                <TableCell>CPF</TableCell>
-                <TableCell>Email</TableCell>
-                <TableCell>Telefone</TableCell>
-                <TableCell align="center">Dispositivos</TableCell>
-                <TableCell align="center">Status</TableCell>
+                <TableCell sortDirection={coluna === 'nome' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'nome'}
+                    direction={coluna === 'nome' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('nome')}
+                  >
+                    Nome
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={coluna === 'cpf' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'cpf'}
+                    direction={coluna === 'cpf' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('cpf')}
+                  >
+                    CPF
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={coluna === 'email' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'email'}
+                    direction={coluna === 'email' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('email')}
+                  >
+                    Email
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={coluna === 'telefone' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'telefone'}
+                    direction={coluna === 'telefone' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('telefone')}
+                  >
+                    Telefone
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center" sortDirection={coluna === 'quantidadeDispositivos' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'quantidadeDispositivos'}
+                    direction={coluna === 'quantidadeDispositivos' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('quantidadeDispositivos')}
+                  >
+                    Dispositivos
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center" sortDirection={coluna === 'ativo' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'ativo'}
+                    direction={coluna === 'ativo' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('ativo')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell align="right" />
               </TableRow>
             </TableHead>
             <TableBody>
-              {usuarios?.map((u) => (
+              {itensPagina?.map((u) => (
                 <TableRow key={u.id} hover>
                   <TableCell>{u.nome}</TableCell>
                   <TableCell>{formatarCpf(u.cpf)}</TableCell>
@@ -116,6 +174,7 @@ export function UsuariosPage() {
               )}
             </TableBody>
           </Table>
+          {total > 0 && <TablePagination {...paginacaoProps} />}
         </TableContainer>
       )}
 

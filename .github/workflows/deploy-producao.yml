@@ -15,8 +15,8 @@ concurrency:
 jobs:
   # ---------------------------------------------------------------------------
   # Pipeline completo NO RUNNER SELF-HOSTED on-premises (o repo e privado em plano
-  # free, entao runners GitHub-hosted nao estao disponiveis). O setup-dotnet /
-  # setup-node baixam as ferramentas no proprio runner (nao precisam estar pre-instaladas).
+  # free, entao runners GitHub-hosted nao estao disponiveis). O .NET 8 SDK e o Node ficam
+  # PRE-INSTALADOS no servidor (ver o passo Preflight: o egress bloqueia os CDNs).
   #
   # Os testes rodam contra um banco FAKE (ConnectionStrings abaixo aponta para uma
   # instancia inexistente). Como a migracao no start esta em try/catch (Program.cs),
@@ -30,6 +30,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Historico completo + tags: o passo final compara com a tag anterior para saber
+          # se o agente Windows mudou nesta release (e so entao o regera).
+          fetch-depth: 0
+          fetch-tags: true
 
       # O egress da rede bloqueia o CDN de download da Microsoft/Node, entao NAO usamos
       # setup-dotnet/setup-node. O .NET 8 SDK e o Node ficam PRE-INSTALADOS no servidor.
@@ -58,9 +63,124 @@ jobs:
           ConnectionStrings__TrackerDb: 'Server=localhost\CI_INEXISTENTE;Database=Tracker_CI_DUMMY;Trusted_Connection=True;Connect Timeout=2;TrustServerCertificate=True'
         run: dotnet test Tracker.sln -c Release --no-build --logger "trx;LogFileName=testes.trx"
 
+      # ---------------------------------------------------------------------------
+      # node_modules vem de um cache LOCAL do servidor (fora do workspace), porque o
+      # 'git clean -ffdx' do actions/checkout apaga a pasta a cada run e o npm install
+      # resultante custava ~9 min - 76% do deploy inteiro.
+      #
+      # A chave do cache e o hash do package-lock.json: lock igual => dependencias iguais
+      # => restaura a copia (~30s); lock alterado => nao existe pasta com esse hash =>
+      # instala do zero e semeia o cache novo. E impossivel reaproveitar um cache
+      # desatualizado. O passo roda DEPOIS dos testes, para nao gastar tempo se eles falharem.
+      #
+      # Nao usamos actions/cache: ele trafega pelo servico de cache do GitHub e o egress
+      # deste runner e restrito (mesmo motivo de nao usarmos setup-node).
+      # ---------------------------------------------------------------------------
+      - name: Restaurar node_modules (cache local do servidor)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+          $web       = Join-Path $env:GITHUB_WORKSPACE 'src\Tracker.Web'
+          $destino   = Join-Path $web 'node_modules'
+          $raizCache = if ($env:TRACKER_CI_CACHE) { $env:TRACKER_CI_CACHE } else { 'C:\TrackerCI' }
+          $hash      = (Get-FileHash (Join-Path $web 'package-lock.json') -Algorithm SHA256).Hash.Substring(0, 16)
+          $cache     = Join-Path $raizCache "node_modules-$hash"
+          # Distingue "o lock mudou" de "primeira execucao": se ja existe cache de ALGUM outro
+          # lock, a ausencia do nosso significa que as dependencias foram alteradas.
+          $jaHaviaCache = @(Get-ChildItem $raizCache -Directory -Filter 'node_modules-*' -ErrorAction SilentlyContinue).Count -gt 0
+
+          # O marcador '.ok' so e gravado depois que a copia termina: um cache interrompido
+          # no meio nao tem marcador e e reinstalado em vez de restaurado pela metade.
+          if (Test-Path (Join-Path $cache '.ok')) {
+            Write-Host "Cache encontrado ($hash). Restaurando node_modules..."
+            robocopy $cache $destino /MIR /MT:16 /XF .ok /NFL /NDL /NJH /NJS /NP | Out-Null
+            if ($LASTEXITCODE -ge 8) { throw "robocopy falhou ao restaurar o cache (codigo $LASTEXITCODE)." }
+            # Marca o cache como usado AGORA: restaurar so le, e sem isto a poda mais abaixo
+            # (que ordena por data) poderia apagar justamente o cache em uso.
+            (Get-Item $cache).LastWriteTime = Get-Date
+            $resumo = "Cache reaproveitado (hash $hash). Nenhum 'npm install' foi necessario."
+          } else {
+            $motivo = if ($jaHaviaCache) { "package-lock.json ALTERADO" } else { "primeira execucao com cache" }
+            Write-Host "Sem cache para $hash ($motivo). Instalando as dependencias (demora ~9 min)..."
+            Push-Location $web
+            try {
+              npm ci --prefer-offline --no-audit --no-fund
+              if ($LASTEXITCODE -ne 0) { throw "npm ci falhou (codigo $LASTEXITCODE)." }
+            } finally { Pop-Location }
+            robocopy $destino $cache /MIR /MT:16 /NFL /NDL /NJH /NJS /NP | Out-Null
+            if ($LASTEXITCODE -ge 8) { throw "robocopy falhou ao semear o cache (codigo $LASTEXITCODE)." }
+            New-Item -ItemType File (Join-Path $cache '.ok') -Force | Out-Null
+            Write-Host "Cache semeado em $cache."
+            $resumo = "$motivo. Dependencias reinstaladas do zero e cache renovado (hash $hash)."
+          }
+
+          # Mantem apenas os 3 caches mais recentes (cada um ocupa algumas centenas de MB).
+          Get-ChildItem $raizCache -Directory -Filter 'node_modules-*' -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -Skip 3 |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+          # Registra o que aconteceu na pagina do run (aba Actions), sem precisar abrir o log.
+          $cronometro.Stop()
+          $linhas = @(
+            '### Dependencias do site (node_modules)',
+            '',
+            $resumo,
+            '',
+            ("Tempo deste passo: " + [int]$cronometro.Elapsed.TotalSeconds + "s.")
+          )
+          Write-Host ($linhas -join [Environment]::NewLine)
+          if ($env:GITHUB_STEP_SUMMARY) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $linhas }
+
+          # O robocopy usa 0-7 para sucesso (1 = arquivos copiados). Sem este exit explicito,
+          # o wrapper do Actions leria o $LASTEXITCODE=1 do robocopy e falharia o passo.
+          exit 0
+
       - name: Gerar pacote (site + API)
-        run: .\deploy\publicar-servidor.ps1 -Saida "$env:GITHUB_WORKSPACE\publish"
+        # -SemBuild: o passo "Build (Release)" acima ja compilou a solucao inteira nesta
+        # mesma copia do codigo; sem ele o publish repetia restore + build da API.
+        run: .\deploy\publicar-servidor.ps1 -Saida "$env:GITHUB_WORKSPACE\publish" -SemBuild
 
       - name: Publicar no IIS (producao)
         # Sem -Destino: o script publica na pasta real que o site 'Tracker' serve (PhysicalPath do IIS).
         run: .\deploy\atualizar-servidor.ps1 -Origem "$env:GITHUB_WORKSPACE\publish" -Site "Tracker"
+
+      # ---------------------------------------------------------------------------
+      # Regera o instalador do agente Windows SO quando o codigo do agente mudou nesta
+      # release (diff contra a tag anterior). Roda DEPOIS do deploy: uma falha aqui nao
+      # desfaz o site ja publicado. O .exe embute a EnrollmentKey de producao, entao fica
+      # numa pasta do servidor acessivel so pela TI (NUNCA no wwwroot).
+      # ---------------------------------------------------------------------------
+      - name: Gerar agente Windows (se o agente mudou)
+        # A EnrollmentKey vem da variavel de ambiente da MAQUINA do runner (mesma da API de
+        # producao), herdada automaticamente pelo step — nao declare via contexto do Actions
+        # (viria vazia e sobrescreveria a real).
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $prev = git describe --tags --abbrev=0 "HEAD^" 2>$null
+          if ([string]::IsNullOrWhiteSpace($prev)) {
+            Write-Host "Sem tag anterior: gerando o agente."
+            $mudou = $true
+          } else {
+            $diff = git diff --name-only "$prev" HEAD -- agents/Tracker.Agent.Windows deploy/gerar-pendrive.ps1 deploy/Instalador
+            $mudou = -not [string]::IsNullOrWhiteSpace(($diff | Out-String))
+            Write-Host ("Comparando com " + $prev + " -> agente " + $(if ($mudou) { "MUDOU" } else { "inalterado" }))
+          }
+          if (-not $mudou) { Write-Host "Agente inalterado; pulando a geracao."; exit 0 }
+
+          $chave = $env:Enrollment__CompanyKey
+          if ([string]::IsNullOrWhiteSpace($chave)) {
+            throw "Enrollment__CompanyKey ausente no runner. Configure a variavel de ambiente da maquina (mesma da API)."
+          }
+
+          # Defaults de producao; sobrescreva com variaveis de ambiente no runner se precisar.
+          $backend = if ($env:TRACKER_BACKEND_URL) { $env:TRACKER_BACKEND_URL } else { 'https://tracker.foodsacademy.com.br' }
+          $destino = if ($env:TRACKER_AGENTE_DIST) { $env:TRACKER_AGENTE_DIST } else { 'C:\TrackerAgentDist' }
+
+          .\deploy\gerar-pendrive.ps1 -Destino $destino -BackendUrl $backend -EnrollmentKey $chave -Tipo Notebook
+
+          # Mantem o 'Instalar-Agente.exe' (ultimo) e uma copia versionada pela tag.
+          $tag = "${{ github.ref_name }}"
+          Copy-Item (Join-Path $destino 'Instalar-Agente.exe') (Join-Path $destino ("Instalar-Agente-" + $tag + ".exe")) -Force
+          Write-Host ("Agente gerado em " + $destino + ": Instalar-Agente.exe e Instalar-Agente-" + $tag + ".exe")

@@ -43,7 +43,6 @@ public class AtribuirDispositivoRequestValidator : AbstractValidator<AtribuirDis
     public AtribuirDispositivoRequestValidator()
     {
         RuleFor(x => x.UsuarioId).NotEmpty();
-        RuleFor(x => x.RegistradoPorAdmId).NotEmpty();
     }
 }
 
@@ -52,6 +51,18 @@ public class ExcluirDispositivoRequestValidator : AbstractValidator<ExcluirDispo
     public ExcluirDispositivoRequestValidator()
     {
         RuleFor(x => x.Senha).NotEmpty().WithMessage("Informe sua senha para confirmar a exclusão.");
+        RuleFor(x => x.Motivo).MaximumLength(400);
+    }
+}
+
+public class DefinirIdentificacaoInternaRequestValidator : AbstractValidator<DefinirIdentificacaoInternaRequest>
+{
+    public DefinirIdentificacaoInternaRequestValidator()
+    {
+        RuleFor(x => x.Senha).NotEmpty().WithMessage("Informe sua senha para confirmar a alteração.");
+        // Opcional (vazio = limpar), mas quando informada tem o mesmo teto de NumeroSerie/Hostname.
+        RuleFor(x => x.IdentificacaoInterna).MaximumLength(100)
+            .When(x => !string.IsNullOrWhiteSpace(x.IdentificacaoInterna));
         RuleFor(x => x.Motivo).MaximumLength(400);
     }
 }

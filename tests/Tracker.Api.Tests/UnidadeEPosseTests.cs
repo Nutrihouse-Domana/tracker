@@ -54,6 +54,27 @@ public class UnidadeEPosseTests : IClassFixture<WebApplicationFactory<Program>>
         Assert.True(new Periferico().PertenceAUsuario);
     }
 
+    /// <summary>
+    /// Identificação interna (rótulo manual da TI) é OPCIONAL: nasce nula e o banco a aceita nula.
+    /// Se virasse obrigatória, todo dispositivo já cadastrado quebraria — não há backfill.
+    /// </summary>
+    [Fact]
+    public void IdentificacaoInterna_EhOpcional()
+    {
+        Assert.Null(new Notebook().IdentificacaoInterna);
+        Assert.Null(new Mobile().IdentificacaoInterna);
+        Assert.Null(new Periferico().IdentificacaoInterna);
+
+        var db = CriarContexto(out var escopo);
+        using var _ = escopo;
+
+        var prop = db.Model.FindEntityType(typeof(Dispositivo))!
+            .FindProperty(nameof(Dispositivo.IdentificacaoInterna));
+
+        Assert.NotNull(prop);
+        Assert.True(prop!.IsNullable);
+    }
+
     /// <summary>Apagar uma unidade não pode deixar dispositivos apontando para o vazio.</summary>
     [Fact]
     public void Dispositivo_ReferenciaUnidadeComDeleteRestrict()

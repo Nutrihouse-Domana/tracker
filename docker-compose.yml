@@ -1,0 +1,42 @@
+# Banco de DESENVOLVIMENTO do Tracker.
+#
+# Existe para que uma maquina nova (ou outra pessoa) tenha o banco pronto sem instalar
+# SQL Server Express na mao. PRODUCAO NAO USA DOCKER: la e SQL Server on-premises no
+# servidor Windows com IIS (ver docs/operacao/deploy-servidor-onpremises.md).
+#
+# Uso normal: rode deploy/preparar-ambiente-dev.ps1, que cria o .env, sobe este servico,
+# espera o banco ficar pronto e configura os user-secrets. Manualmente seria:
+#   docker compose up -d
+#
+# A senha do SA vem do arquivo .env (gerado pelo script, NAO versionado).
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: tracker-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?defina MSSQL_SA_PASSWORD no arquivo .env (rode deploy/preparar-ambiente-dev.ps1)}
+      # Developer: gratuita e sem o limite de 10 GB da Express. Licenciada so para
+      # desenvolvimento e teste - nunca use esta imagem para servir producao.
+      MSSQL_PID: Developer
+    ports:
+      # 11433 no host de proposito: a porta 1433 costuma estar ocupada por um SQL Server
+      # ja instalado na maquina, e o conflito so apareceria como "falha ao conectar".
+      - "11433:1433"
+    volumes:
+      # Os dados sobrevivem a 'docker compose down'. Para zerar o banco de dev:
+      #   docker compose down -v
+      - tracker-db-dados:/var/opt/mssql
+    healthcheck:
+      # O script de bootstrap espera este healthcheck antes de configurar a aplicacao:
+      # o SQL Server aceita conexao TCP alguns segundos antes de estar realmente pronto.
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  tracker-db-dados:

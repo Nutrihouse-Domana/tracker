@@ -9,9 +9,15 @@
 
 .PARAMETER Saida
   Pasta de saida do pacote publicado. Padrao: C:\publish\Tracker
+
+.PARAMETER SemBuild
+  Reaproveita a compilacao Release ja existente em vez de compilar de novo no publish.
+  Use SOMENTE quando um passo anterior ja rodou 'dotnet build -c Release' nesta mesma copia
+  do codigo (e o caso do CI). Em uma maquina de dev, sem build previo, o publish falha.
 #>
 param(
-    [string]$Saida = "C:\publish\Tracker"
+    [string]$Saida = "C:\publish\Tracker",
+    [switch]$SemBuild
 )
 
 $ErrorActionPreference = "Stop"
@@ -24,8 +30,14 @@ $wwwroot = Join-Path $api "wwwroot"
 Write-Host "1/3 - Compilando o site (React)..."
 Push-Location $web
 try {
-    if (-not (Test-Path (Join-Path $web "node_modules"))) { npm install }
+    # No CI a pasta node_modules vem do cache local do servidor (ver deploy-producao.yml),
+    # entao este 'npm install' so roda em maquina de dev sem dependencias instaladas.
+    if (-not (Test-Path (Join-Path $web "node_modules"))) {
+        npm install
+        if ($LASTEXITCODE -ne 0) { throw "Falha no npm install (codigo $LASTEXITCODE)." }
+    }
     npm run build
+    if ($LASTEXITCODE -ne 0) { throw "Falha no build do site (codigo $LASTEXITCODE)." }
 } finally { Pop-Location }
 
 Write-Host "2/3 - Copiando o site para wwwroot da API..."
@@ -34,8 +46,15 @@ Get-ChildItem $wwwroot -Force | Remove-Item -Recurse -Force
 Copy-Item (Join-Path $web "dist\*") $wwwroot -Recurse -Force
 
 Write-Host "3/3 - Publicando a API (inclui o site)..."
-dotnet publish $api -c Release -o $Saida
+# O publish le o wwwroot do disco AGORA (passo 2), entao o site novo entra no pacote mesmo
+# com -SemBuild; arquivos do site antigo que sumiram sao removidos da pasta de saida.
+$argumentos = @($api, "-c", "Release", "-o", $Saida)
+if ($SemBuild) { $argumentos += @("--no-build", "--no-restore") }
+dotnet publish @argumentos
+# $ErrorActionPreference nao captura falha de executavel nativo: sem esta checagem, um publish
+# quebrado passaria batido e o deploy publicaria o pacote anterior.
+if ($LASTEXITCODE -ne 0) { throw "Falha no dotnet publish (codigo $LASTEXITCODE)." }
 
 Write-Host ""
 Write-Host "Pronto! Pacote gerado em: $Saida"
-Write-Host "Copie essa pasta para o servidor e siga o guia docs/deploy-servidor-onpremises.md."
+Write-Host "Copie essa pasta para o servidor e siga o guia docs/operacao/deploy-servidor-onpremises.md."

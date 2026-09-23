@@ -27,43 +27,109 @@ Tem .NET 8 SDK + Node.js. Rode:
 powershell -ExecutionPolicy Bypass -File .\deploy\publicar-servidor.ps1
 ```
 ➡️ Gera `C:\publish\Tracker`. Copie essa pasta para o servidor `192.168.0.254`.
-📖 Detalhes: **deploy-servidor-onpremises.md** (Parte 1).
+📖 Detalhes: [deploy-servidor-onpremises.md](operacao/deploy-servidor-onpremises.md) (Parte 1).
 
 ### 2. Configurar o servidor 192.168.0.254
 Na ordem: SQL Server (reaproveitar se já houver) → .NET 8 Hosting Bundle → variáveis de ambiente
 (segredos) → criar o site no IIS (binding 443 + host `tracker.foodsacademy.com.br` + SNI, App Pool
 próprio) → certificado HTTPS.
-📖 Guia completo: **deploy-servidor-onpremises.md** (Partes 2 a 5).
+📖 Guia completo: [deploy-servidor-onpremises.md](operacao/deploy-servidor-onpremises.md) (Partes 2 a 5).
 
 ### 3. DNS (sem mexer no firewall)
 Na zona `foodsacademy.com.br`, adicionar registro **A**: `tracker` → `170.80.51.154`.
-📖 **deploy-servidor-onpremises.md** (Parte 6).
+📖 [deploy-servidor-onpremises.md](operacao/deploy-servidor-onpremises.md) (Parte 6).
 
 ### 4. Testar
 De fora da rede (4G): abrir `https://tracker.foodsacademy.com.br/health` → `{"status":"ok"}`.
 E confirmar que o FOOD-ACADEMY continua normal.
-📖 **deploy-servidor-onpremises.md** (Parte 7).
+📖 [deploy-servidor-onpremises.md](operacao/deploy-servidor-onpremises.md) (Parte 7).
 
-### 5. Instalar o agente nos notebooks
-Apontar `BackendBaseUrl = https://tracker.foodsacademy.com.br`, republicar e instalar como serviço.
-📖 Guia do técnico: **teste-agente-windows.md**. Referência técnica: **agents/Tracker.Agent.Windows/README.md**.
+### 5. Instalar o agente nos aparelhos
+- **Notebooks Windows:** a TI gera (ou pega do CI, em `C:\TrackerAgentDist`) o
+  **`Instalar-Agente.exe`**, que já vem com o endereço de produção e a chave da empresa embutidos.
+  No notebook: duplo clique, credencial de administrador e pronto — o aparelho aparece no
+  inventário em até 1 minuto.
+  📖 [instalacao-agente-pendrive.md](agentes/instalacao-agente-pendrive.md). Roteiro de teste: [teste-agente-windows.md](agentes/teste-agente-windows.md).
+  Referência técnica: [agents/Tracker.Agent.Windows/README.md](../agents/Tracker.Agent.Windows/README.md).
+- **Celulares e tablets Android:** APK de release gerado pelo CI e instalado como Device Admin
+  (aparelho em uso) ou Device Owner (aparelho zerado). Atualizações seguintes chegam por OTA,
+  publicadas na página **Agente** do painel.
+  📖 [agente-android.md](agentes/agente-android.md).
 
 ### 6. Segurança (obrigatório — está exposto à internet)
 Trocar as chaves de teste por novas, senha forte no admin, backup do banco, manter o servidor atualizado.
-📖 **deploy-servidor-onpremises.md** (Parte 9).
+📖 [deploy-servidor-onpremises.md](operacao/deploy-servidor-onpremises.md) (Parte 9) e [backup-e-chaves.md](operacao/backup-e-chaves.md) (script de backup, teste
+de restauração e cofre das chaves).
+
+### 7. Atualizações futuras
+Com o CI configurado, publicar uma versão nova é criar uma tag `v*` na `main` — o pipeline
+compila, testa, faz backup, publica no IIS e regera o instalador do agente se ele mudou.
+📖 [deploy-automatico-cicd.md](operacao/deploy-automatico-cicd.md) (inclui o rollback).
 
 ---
 
 ## Guias que você tem
 
+A documentação fica em `docs/`, separada por assunto. Este arquivo é o índice.
+
+### `uso/`: quem usa o painel
+
+| Guia | Para quê |
+|---|---|
+| [manual-do-usuario.md](uso/manual-do-usuario.md) | Como usar o painel no dia a dia (equipe de TI) |
+
+### `operacao/`: servidor de produção
+
+| Guia | Para quê |
+|---|---|
+| [deploy-servidor-onpremises.md](operacao/deploy-servidor-onpremises.md) | Passo a passo completo do servidor (IIS, HTTPS, SQL, DNS, segredos) |
+| [deploy-automatico-cicd.md](operacao/deploy-automatico-cicd.md) | Deploy automático por tag, runner self-hosted e rollback |
+| [backup-e-chaves.md](operacao/backup-e-chaves.md) | Backup e restauração do banco, cofre das chaves, troca de chave |
+| [recuperacao-de-desastre.md](operacao/recuperacao-de-desastre.md) | Remontar o servidor do zero (ordem, verificação, o que se perde) |
+
+### `agentes/`: notebooks, celulares e tablets
+
+| Guia | Para quê |
+|---|---|
+| [instalacao-agente-pendrive.md](agentes/instalacao-agente-pendrive.md) | Instalar o agente Windows com o `Instalar-Agente.exe` |
+| [teste-agente-windows.md](agentes/teste-agente-windows.md) | Roteiro para os técnicos testarem o agente nos notebooks |
+| [agente-android.md](agentes/agente-android.md) | Agente Android: APK, Device Admin/Owner, OTA, keystore, diagnóstico |
+| [protocolo-agente.md](agentes/protocolo-agente.md) | Como servidor e agentes conversam (diagnóstico e agente novo) |
+| [`agents/Tracker.Agent.Windows/README.md`](../agents/Tracker.Agent.Windows/README.md) | Referência técnica do agente Windows (junto do código) |
+
+### `desenvolvimento/`: quem mexe no código
+
+| Guia | Para quê |
+|---|---|
+| [ambiente-dev.md](desenvolvimento/ambiente-dev.md) | Preparar uma máquina de desenvolvimento (banco em container) |
+| [melhorias-pendentes.md](desenvolvimento/melhorias-pendentes.md) | Backlog de limitações conhecidas e como corrigi-las |
+| [`src/Tracker.Web/README.md`](../src/Tracker.Web/README.md) | Organização e regras do front-end (junto do código) |
+
+### `privacidade/`: dados pessoais
+
+| Guia | Para quê |
+|---|---|
+| [privacidade-lgpd.md](privacidade/privacidade-lgpd.md) | Dados pessoais tratados, terceiros, retenção. Para o jurídico/DPO |
+
+### Na raiz do repositório
+
+Ficam na raiz porque o GitHub e as ferramentas os procuram lá.
+
 | Arquivo | Para quê |
 |---|---|
-| **COMECE-AQUI.md** | Este roteiro (índice geral) |
-| **deploy-servidor-onpremises.md** | Passo a passo completo do servidor (IIS, HTTPS, SQL, DNS) |
-| **teste-agente-windows.md** | Guia para os técnicos instalarem/testarem o agente nos notebooks |
-| `deploy/publicar-servidor.ps1` | Gera o pacote da plataforma (site + API) com um comando |
-| `deploy/instalar-agente.ps1` / `desinstalar-agente.ps1` | Instalam/removem o agente como serviço |
-| `agents/Tracker.Agent.Windows/README.md` | Referência técnica do agente |
+| [`README.md`](../README.md) | Apresentação do projeto |
+| [`CHANGELOG.md`](../CHANGELOG.md) | Histórico de versões publicadas |
+| [`CLAUDE.md`](../CLAUDE.md) | Convenções do código e pegadinhas já resolvidas |
+
+### Scripts (`deploy/`)
+
+| Script | Para quê |
+|---|---|
+| `publicar-servidor.ps1` | Gera o pacote da plataforma (site + API) com um comando |
+| `gerar-pendrive.ps1` | Gera o `Instalar-Agente.exe` (agente Windows autocontido) |
+| `gerar-apk-agente.ps1` | Gera o APK de release do agente Android na máquina local |
+| `instalar-agente.ps1` / `desinstalar-agente.ps1` | Instalam/removem o agente como serviço (alternativa ao `.exe`) |
+| `preparar-ambiente-dev.ps1` | Prepara uma máquina de desenvolvimento |
 
 ---
 
@@ -71,4 +137,4 @@ Trocar as chaves de teste por novas, senha forte no admin, backup do banco, mant
 
 - **Você / dev:** roda o `publicar-servidor.ps1`, entrega o pacote.
 - **Equipe de infra/redes:** configura o servidor `.254` (IIS, cert, SQL), adiciona o DNS. **Não precisa mexer no FortiGate.**
-- **Técnicos:** instalam o agente nos notebooks apontando para `https://tracker.foodsacademy.com.br`.
+- **Técnicos:** instalam o agente nos notebooks (`Instalar-Agente.exe`) e nos celulares/tablets (APK).

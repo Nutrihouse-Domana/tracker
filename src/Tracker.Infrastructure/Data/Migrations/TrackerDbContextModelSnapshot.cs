@@ -268,6 +268,9 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.Property<Guid?>("ExcluidoPorAdmId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("IdentificacaoInterna")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("MotivoExclusao")
                         .HasColumnType("nvarchar(max)");
 
@@ -292,6 +295,9 @@ namespace Tracker.Infrastructure.Data.Migrations
 
                     b.Property<Guid?>("UsuarioAtualId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly?>("VencimentoAluguel")
+                        .HasColumnType("date");
 
                     b.HasKey("Id");
 
@@ -466,6 +472,102 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.ToTable("Locais");
                 });
 
+            modelBuilder.Entity("Tracker.Domain.Entities.LogAuditoria", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Acao")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("AdmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AdmNome")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Descricao")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Detalhes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EnderecoIp")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid?>("EntidadeId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EntidadeTipo")
+                        .HasMaxLength(60)
+                        .HasColumnType("nvarchar(60)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdmId");
+
+                    b.HasIndex("CriadoEm");
+
+                    b.HasIndex("EntidadeId");
+
+                    b.ToTable("LogsAuditoria");
+                });
+
+            modelBuilder.Entity("Tracker.Domain.Entities.PacoteAgenteAndroid", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CaminhoRelativo")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("EnviadoPorAdmId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("HashSha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("NomeArquivoOriginal")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<long>("TamanhoBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("VersaoCode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("VersaoNome")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VersaoCode")
+                        .IsUnique();
+
+                    b.ToTable("PacotesAgenteAndroid");
+                });
+
             modelBuilder.Entity("Tracker.Domain.Entities.RegraDeGeofence", b =>
                 {
                     b.Property<Guid>("Id")
@@ -618,6 +720,9 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
 
+                    b.Property<bool>("Ativo")
+                        .HasColumnType("bit");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("nvarchar(max)");
@@ -694,6 +799,10 @@ namespace Tracker.Infrastructure.Data.Migrations
                         .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int?>("AgenteVersaoCode")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("int");
+
                     b.Property<int?>("BateriaPercentual")
                         .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("int");
@@ -758,6 +867,10 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.Property<string>("AgenteVersao")
                         .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("AgenteVersaoCode")
+                        .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("int");
 
                     b.Property<int?>("BateriaPercentual")
                         .ValueGeneratedOnUpdateSometimes()

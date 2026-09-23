@@ -1,0 +1,153 @@
+name: APK Agente Android
+
+# Gerar o APK de release e uma DECISAO da TI (que depois o publica no painel para a atualizacao
+# OTA da frota), entao o disparo e manual - nunca a cada commit ou tag.
+#
+# Existe para que ninguem precise ter a keystore da frota na propria maquina: a chave vive como
+# secret do repositorio e so este workflow a usa. Assinatura diferente e recusada pelo Android
+# nos aparelhos ja instalados e duplica os registros do inventario, entao a chave e unica e
+# espalha-la por varias maquinas e o que queremos evitar.
+#
+# O build de DEBUG nao esta aqui de proposito: ele se faz na maquina do desenvolvedor, apontando
+# para a API local (ver deploy/preparar-ambiente-dev.ps1). Um debug gerado no CI sairia apontando
+# para PRODUCAO, porque a URL de debug vem do local.properties da maquina.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: apk-agente-android
+  cancel-in-progress: false
+
+jobs:
+  apk:
+    runs-on: [self-hosted, windows, tracker-prod]
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Mesmo motivo do deploy-producao.yml: o egress da rede bloqueia os CDNs de download, entao
+      # as ferramentas ficam PRE-INSTALADAS no servidor em vez de virem de setup-java/setup-android.
+      - name: Preflight (JDK 17 + Android SDK no runner)
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $sdk = @($env:ANDROID_HOME, $env:ANDROID_SDK_ROOT, 'C:\Android\Sdk') |
+                 Where-Object { $_ -and (Test-Path (Join-Path $_ 'platforms')) } |
+                 Select-Object -First 1
+          if (-not $sdk) {
+            throw ("Android SDK nao encontrado no runner. Instale o SDK (API 34 + build-tools 34.0.0), " +
+                   "defina ANDROID_HOME na maquina e reinicie o servico do runner.")
+          }
+
+          # O Gradle acha o SDK por ANDROID_HOME quando nao ha local.properties - e no runner nao ha,
+          # porque esse arquivo e da maquina do desenvolvedor e fica fora do Git.
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "ANDROID_HOME=$sdk`n")
+          Write-Host "Android SDK: $sdk"
+
+          $java = if ($env:JAVA_HOME -and (Test-Path (Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
+            Join-Path $env:JAVA_HOME 'bin\java.exe'
+          } elseif (Get-Command java -ErrorAction SilentlyContinue) { (Get-Command java).Source } else { $null }
+          if (-not $java) { throw "JDK 17 nao encontrado no runner. Instale o Temurin 17 e defina JAVA_HOME." }
+
+          # 'java -version' escreve no STDERR; com ErrorActionPreference='Stop' e a saida
+          # redirecionada, cada linha viraria erro terminante. Por isso o Continue em volta.
+          $anterior = $ErrorActionPreference
+          $ErrorActionPreference = 'Continue'
+          try { $saida = & $java -version 2>&1 | Out-String } finally { $ErrorActionPreference = $anterior }
+          if ($saida -notmatch 'version "(\d+)') { throw "Nao consegui ler a versao do java." }
+          $versao = [int]$Matches[1]
+          if ($versao -lt 17) { throw "O Android Gradle Plugin exige JDK 17+, mas o runner tem $versao." }
+          Write-Host "JDK $versao OK"
+
+      - name: Compilar e assinar o APK de release
+        env:
+          # A keystore da frota vive como secret do repositorio (base64), nunca no Git.
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          foreach ($nome in 'KEYSTORE_BASE64', 'KEYSTORE_PASSWORD', 'KEY_ALIAS', 'KEY_PASSWORD') {
+            $valor = (Get-Item "env:$nome" -ErrorAction SilentlyContinue).Value
+            if ([string]::IsNullOrWhiteSpace($valor)) {
+              throw ("Secret ausente: ANDROID_$nome. Configure os quatro secrets do repositorio " +
+                     "(ver docs/agentes/agente-android.md).")
+            }
+          }
+
+          # A keystore fica FORA do workspace: nada de chave em pasta versionada, nem por engano.
+          $keystore = Join-Path $env:RUNNER_TEMP 'tracker-release.jks'
+          [System.IO.File]::WriteAllBytes($keystore, [Convert]::FromBase64String($env:KEYSTORE_BASE64))
+
+          try {
+            # ORG_GRADLE_PROJECT_<prop> vira a propriedade <prop> do Gradle. Usamos isto em vez de
+            # '-P' porque argumentos de linha de comando aparecem no tasklist para qualquer usuario
+            # logado no servidor - a senha da keystore nao pode ficar exposta assim.
+            # Nomes com ponto exigem SetEnvironmentVariable (a sintaxe $env:a.b nao funciona).
+            [Environment]::SetEnvironmentVariable('ORG_GRADLE_PROJECT_tracker.keystoreFile', $keystore)
+            [Environment]::SetEnvironmentVariable('ORG_GRADLE_PROJECT_tracker.keystorePassword', $env:KEYSTORE_PASSWORD)
+            [Environment]::SetEnvironmentVariable('ORG_GRADLE_PROJECT_tracker.keyAlias', $env:KEY_ALIAS)
+            [Environment]::SetEnvironmentVariable('ORG_GRADLE_PROJECT_tracker.keyPassword', $env:KEY_PASSWORD)
+
+            Push-Location (Join-Path $env:GITHUB_WORKSPACE 'agents\Tracker.Agent.Android')
+            try {
+              $anterior = $ErrorActionPreference
+              $ErrorActionPreference = 'Continue'
+              try { & .\gradlew.bat :app:assembleRelease --console=plain --no-daemon | Out-Host }
+              finally { $ErrorActionPreference = $anterior }
+              if ($LASTEXITCODE -ne 0) { throw "Falha no assembleRelease (codigo $LASTEXITCODE)." }
+            } finally { Pop-Location }
+          } finally {
+            # Apaga a chave mesmo se o build falhar.
+            Remove-Item $keystore -Force -ErrorAction SilentlyContinue
+            foreach ($p in 'keystoreFile', 'keystorePassword', 'keyAlias', 'keyPassword') {
+              [Environment]::SetEnvironmentVariable("ORG_GRADLE_PROJECT_tracker.$p", $null)
+            }
+          }
+
+      - name: Resumo (versionCode e SHA-256 para publicar no painel)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $raizAndroid = Join-Path $env:GITHUB_WORKSPACE 'agents\Tracker.Agent.Android'
+          $apk = Join-Path $raizAndroid 'app\build\outputs\apk\release\app-release.apk'
+          if (-not (Test-Path $apk)) { throw "APK nao encontrado em $apk." }
+
+          # O painel confere o SHA-256 antes de aceitar o pacote, e o versionCode e o numero que a
+          # OTA compara: todo release PRECISA incrementa-lo em app/build.gradle.kts.
+          $sha = (Get-FileHash $apk -Algorithm SHA256).Hash.ToLower()
+          $gradle = Get-Content (Join-Path $raizAndroid 'app\build.gradle.kts') -Raw
+          $versionCode = if ($gradle -match 'versionCode\s*=\s*(\d+)') { $Matches[1] } else { '?' }
+          $tamanho = [int]((Get-Item $apk).Length / 1KB)
+
+          $linhas = @(
+            '### APK do agente Android',
+            '',
+            "| campo | valor |",
+            "|---|---|",
+            "| versionCode | $versionCode |",
+            "| tamanho | $tamanho KB |",
+            "| SHA-256 | ``$sha`` |",
+            '',
+            'Baixe o artefato abaixo e publique na pagina Agente do painel (exige a senha do ADM).'
+          )
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $linhas
+          Write-Host ($linhas -join [Environment]::NewLine)
+
+          [System.IO.File]::AppendAllText($env:GITHUB_ENV, "APK_VERSION_CODE=$versionCode`n")
+
+      # O APK de release NAO embute segredo (o unico buildConfigField e a URL publica do backend;
+      # a chave da empresa e digitada pelo tecnico no enrollment), entao pode ser baixado aqui.
+      # Diferente do instalador do agente Windows, que embute a EnrollmentKey e por isso fica
+      # fora do wwwroot, numa pasta do servidor.
+      - name: Publicar o APK como artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: tracker-agent-android-vc${{ env.APK_VERSION_CODE }}
+          path: agents/Tracker.Agent.Android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
+          if-no-files-found: error

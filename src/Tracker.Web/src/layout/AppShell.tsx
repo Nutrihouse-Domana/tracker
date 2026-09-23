@@ -4,7 +4,6 @@ import {
   Toolbar,
   Typography,
   Box,
-  Button,
   Avatar,
   Stack,
   IconButton,
@@ -13,28 +12,82 @@ import {
   ListItemButton,
   ListItemText,
   Divider,
+  Menu,
+  MenuItem,
+  Tooltip,
 } from '@mui/material'
-import InventoryIcon from '@mui/icons-material/Inventory2Outlined'
 import MenuIcon from '@mui/icons-material/MenuOutlined'
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
+import DarkModeIcon from '@mui/icons-material/DarkModeOutlined'
+import LightModeIcon from '@mui/icons-material/LightModeOutlined'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useMe, useLogout } from '../features/auth/useAuth'
+import { usePermissoes, PERMISSOES, type Permissao } from '../features/auth/permissoes'
+import { useModoTema } from '../features/tema/ModoTemaProvider'
 import { WaveFooter } from './WaveFooter'
 import { BarraDeBusca } from '../features/busca/BarraDeBusca'
+import { LogoTracker } from './LogoTracker'
 import { nutrihouseColors } from '../theme'
+import { MenuRelatorios } from '../features/relatorios/MenuRelatorios'
 
-const navItems = [
-  { label: 'Dashboard', path: '/' },
-  { label: 'Dispositivos', path: '/dispositivos' },
-  { label: 'Usuários', path: '/usuarios' },
-  { label: 'Unidades', path: '/unidades' },
+type NavLink = { label: string; path: string; perm: Permissao }
+type NavGroup = { label: string; itens: NavLink[] }
+type NavItem = NavLink | NavGroup
+
+const ehGrupo = (item: NavItem): item is NavGroup => 'itens' in item
+
+// Toda a navegação com a permissão exigida por item. A filtragem por permissão acontece no render:
+// o que o usuário não pode ver, ele não vê (princípio "ocultar, não desabilitar").
+const navItemsBase: NavItem[] = [
+  { label: 'Dashboard', path: '/', perm: PERMISSOES.dispositivosVer },
+  { label: 'Dispositivos', path: '/dispositivos', perm: PERMISSOES.dispositivosVer },
+  {
+    label: 'Cadastros',
+    itens: [
+      { label: 'Usuários', path: '/usuarios', perm: PERMISSOES.usuariosGerir },
+      { label: 'Unidades', path: '/unidades', perm: PERMISSOES.unidadesGerir },
+    ],
+  },
 ]
+
+// Itens do menu da conta (aberto pela foto/avatar): agente e administração ficam aqui, não no topo.
+const menuContaItens: NavLink[] = [
+  { label: 'Agente', path: '/agente-android', perm: PERMISSOES.agentePublicar },
+  { label: 'Acessos', path: '/acessos', perm: PERMISSOES.acessosGerir },
+  { label: 'Auditoria', path: '/auditoria', perm: PERMISSOES.auditoriaVer },
+]
+
+/** Remove itens sem permissão e grupos que ficaram vazios. */
+function filtrarNav(itens: NavItem[], tem: (p: Permissao) => boolean): NavItem[] {
+  return itens
+    .map((item) => {
+      if (ehGrupo(item)) {
+        const visiveis = item.itens.filter((sub) => tem(sub.perm))
+        return visiveis.length > 0 ? { ...item, itens: visiveis } : null
+      }
+      return tem(item.perm) ? item : null
+    })
+    .filter((item): item is NavItem => item !== null)
+}
 
 export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const { data: usuarioAdm } = useMe()
+  const { tem } = usePermissoes()
+  const { modo, alternar } = useModoTema()
   const logout = useLogout()
   const [menuAberto, setMenuAberto] = useState(false)
+  // Menu de grupo aberto (Cadastros/Administração): guarda o label e o elemento âncora, já que há
+  // mais de um grupo e eles não podem compartilhar a mesma âncora.
+  const [grupoMenu, setGrupoMenu] = useState<{ label: string; el: HTMLElement } | null>(null)
+  const [usuarioEl, setUsuarioEl] = useState<null | HTMLElement>(null)
+
+  const navItems = filtrarNav(navItemsBase, tem)
+  const contaItens = menuContaItens.filter((i) => tem(i.perm))
+  const podeBuscar = tem(PERMISSOES.dispositivosVer)
+  // Os relatórios leem o inventário: mesma permissão da lista de dispositivos.
+  const podeVerRelatorios = tem(PERMISSOES.dispositivosVer)
 
   const handleLogout = () => {
     logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) })
@@ -64,31 +117,73 @@ export function AppShell() {
             sx={{ alignItems: 'center', cursor: 'pointer' }}
             onClick={() => navigate('/')}
           >
-            <Box
-              sx={{
-                width: 40,
-                height: 40,
-                borderRadius: '10px',
-                bgcolor: nutrihouseColors.terracota,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              <InventoryIcon sx={{ color: '#fff' }} />
-            </Box>
+            <LogoTracker tamanho={40} />
             <Typography variant="h6" noWrap sx={{ fontWeight: 700, display: { xs: 'none', sm: 'block' } }}>
               Tracker <Box component="span" sx={{ color: nutrihouseColors.terracota }}>Nutrihouse</Box>
             </Typography>
           </Stack>
 
-          <BarraDeBusca />
+          {podeBuscar && <BarraDeBusca />}
 
           <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'block' } }} />
 
           <Stack direction="row" spacing={3} sx={{ alignItems: 'center', display: { xs: 'none', sm: 'flex' } }}>
             {navItems.map((item) => {
+              if (ehGrupo(item)) {
+                const ativo = item.itens.some((sub) => location.pathname === sub.path)
+                return (
+                  <Box key={item.label}>
+                    <Box
+                      onClick={(e) => setGrupoMenu({ label: item.label, el: e.currentTarget })}
+                      sx={{
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        pt: 0.5,
+                        pb: 0.5,
+                        borderTop: '2px solid transparent',
+                        borderBottom: '2px solid',
+                        borderBottomColor: ativo ? nutrihouseColors.dourado : 'transparent',
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: ativo ? 700 : 500,
+                          color: ativo ? nutrihouseColors.terracota : 'text.primary',
+                        }}
+                      >
+                        {item.label.toUpperCase()}
+                      </Typography>
+                      <ArrowDropDownIcon
+                        fontSize="small"
+                        sx={{ color: ativo ? nutrihouseColors.terracota : 'text.primary' }}
+                      />
+                    </Box>
+                    <Menu
+                      anchorEl={grupoMenu?.el}
+                      open={grupoMenu?.label === item.label}
+                      onClose={() => setGrupoMenu(null)}
+                      anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                      transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+                    >
+                      {item.itens.map((sub) => (
+                        <MenuItem
+                          key={sub.path}
+                          selected={location.pathname === sub.path}
+                          onClick={() => {
+                            navigate(sub.path)
+                            setGrupoMenu(null)
+                          }}
+                        >
+                          {sub.label}
+                        </MenuItem>
+                      ))}
+                    </Menu>
+                  </Box>
+                )
+              }
+
               const ativo = location.pathname === item.path
               return (
                 <Box
@@ -96,9 +191,11 @@ export function AppShell() {
                   onClick={() => navigate(item.path)}
                   sx={{
                     cursor: 'pointer',
+                    pt: 0.5,
                     pb: 0.5,
-                    borderBottom: ativo ? '2px solid' : '2px solid transparent',
-                    borderColor: ativo ? nutrihouseColors.dourado : 'transparent',
+                    borderTop: '2px solid transparent',
+                    borderBottom: '2px solid',
+                    borderBottomColor: ativo ? nutrihouseColors.dourado : 'transparent',
                   }}
                 >
                   <Typography
@@ -113,26 +210,98 @@ export function AppShell() {
           </Stack>
 
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexShrink: 0 }}>
-            {usuarioAdm && (
-              <Typography
-                variant="body2"
-                noWrap
-                sx={{
-                  display: { xs: 'none', lg: 'block' },
-                  fontWeight: 700,
-                  pb: 0.5,
-                  borderBottom: '2px solid transparent',
-                }}
-              >
-                Olá, {usuarioAdm.nome}
-              </Typography>
-            )}
-            <Avatar sx={{ bgcolor: nutrihouseColors.terracota, width: 34, height: 34 }}>
+            {/* Alterna claro/escuro; a escolha é persistida (localStorage). */}
+            <Tooltip title={modo === 'dark' ? 'Tema claro' : 'Tema escuro'}>
+              <IconButton onClick={alternar} aria-label="Alternar tema claro/escuro">
+                {modo === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+              </IconButton>
+            </Tooltip>
+            {/* Nome + foto: o conjunto inteiro abre o menu do usuário (só em telas >= sm) */}
+            <Stack
+              direction="row"
+              spacing={1.5}
+              onClick={(e) => setUsuarioEl(e.currentTarget)}
+              sx={{
+                alignItems: 'center',
+                cursor: 'pointer',
+                borderRadius: 999,
+                p: 0.5,
+                display: { xs: 'none', sm: 'flex' },
+                '&:hover': { bgcolor: 'action.hover' },
+              }}
+            >
+              {usuarioAdm && (
+                <Typography
+                  variant="body2"
+                  noWrap
+                  sx={{ display: { xs: 'none', lg: 'block' }, fontWeight: 700, pl: 1 }}
+                >
+                  Olá, {usuarioAdm.nome}
+                </Typography>
+              )}
+              <Avatar sx={{ bgcolor: nutrihouseColors.terracota, width: 34, height: 34 }}>
+                {usuarioAdm?.nome?.[0]?.toUpperCase() ?? '?'}
+              </Avatar>
+            </Stack>
+            {/* Nas telas pequenas o avatar não abre menu — a saída fica no drawer */}
+            <Avatar
+              sx={{ bgcolor: nutrihouseColors.terracota, width: 34, height: 34, display: { xs: 'flex', sm: 'none' } }}
+            >
               {usuarioAdm?.nome?.[0]?.toUpperCase() ?? '?'}
             </Avatar>
-            <Button size="small" onClick={handleLogout} sx={{ display: { xs: 'none', sm: 'inline-flex' } }}>
-              Sair
-            </Button>
+            <Menu
+              anchorEl={usuarioEl}
+              open={Boolean(usuarioEl)}
+              onClose={() => setUsuarioEl(null)}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            >
+              {usuarioAdm && (
+                <Box sx={{ px: 2, py: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    {usuarioAdm.nome}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {usuarioAdm.email}
+                  </Typography>
+                </Box>
+              )}
+              <Divider />
+              {/* Perfil é a conta de quem está logado: aparece para todos, sem filtro de permissão. */}
+              <MenuItem
+                selected={location.pathname === '/perfil'}
+                onClick={() => {
+                  setUsuarioEl(null)
+                  navigate('/perfil')
+                }}
+              >
+                Perfil
+              </MenuItem>
+              {/* Baixa os relatórios sem sair da tela; os mesmos estão na página de Perfil. */}
+              {podeVerRelatorios && <MenuRelatorios onBaixou={() => setUsuarioEl(null)} />}
+              {contaItens.length > 0 && <Divider />}
+              {contaItens.map((item) => (
+                <MenuItem
+                  key={item.path}
+                  selected={location.pathname === item.path}
+                  onClick={() => {
+                    setUsuarioEl(null)
+                    navigate(item.path)
+                  }}
+                >
+                  {item.label}
+                </MenuItem>
+              ))}
+              <Divider />
+              <MenuItem
+                onClick={() => {
+                  setUsuarioEl(null)
+                  handleLogout()
+                }}
+              >
+                Sair
+              </MenuItem>
+            </Menu>
           </Stack>
         </Toolbar>
       </AppBar>
@@ -152,7 +321,45 @@ export function AppShell() {
           )}
           <Divider />
           <List>
-            {navItems.map((item) => (
+            {navItems.map((item) => {
+              if (ehGrupo(item)) {
+                return (
+                  <Box key={item.label}>
+                    <ListItemText
+                      primary={item.label}
+                      slotProps={{ primary: { variant: 'overline', color: 'text.secondary' } }}
+                      sx={{ px: 2, pt: 1 }}
+                    />
+                    {item.itens.map((sub) => (
+                      <ListItemButton
+                        key={sub.path}
+                        selected={location.pathname === sub.path}
+                        onClick={() => irPara(sub.path)}
+                        sx={{ pl: 4 }}
+                      >
+                        <ListItemText primary={sub.label} />
+                      </ListItemButton>
+                    ))}
+                  </Box>
+                )
+              }
+              return (
+                <ListItemButton
+                  key={item.path}
+                  selected={location.pathname === item.path}
+                  onClick={() => irPara(item.path)}
+                >
+                  <ListItemText primary={item.label} />
+                </ListItemButton>
+              )
+            })}
+          </List>
+          <Divider />
+          <List>
+            <ListItemButton selected={location.pathname === '/perfil'} onClick={() => irPara('/perfil')}>
+              <ListItemText primary="Perfil" />
+            </ListItemButton>
+            {contaItens.map((item) => (
               <ListItemButton
                 key={item.path}
                 selected={location.pathname === item.path}
@@ -161,9 +368,6 @@ export function AppShell() {
                 <ListItemText primary={item.label} />
               </ListItemButton>
             ))}
-          </List>
-          <Divider />
-          <List>
             <ListItemButton onClick={handleLogout}>
               <ListItemText primary="Sair" />
             </ListItemButton>

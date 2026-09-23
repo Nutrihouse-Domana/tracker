@@ -20,6 +20,12 @@ interface Props {
 export function LocalizacaoSection({ dispositivoId }: Props) {
   const { data: historico } = useHistoricoLocalizacao(dispositivoId)
   const ultima = historico?.[0]
+  // Mapa sempre claro (OpenStreetMap, sem chave de API), inclusive no modo escuro do site.
+  // A CARTO dark_all passou a exigir chave e carimbava "API KEY REQUIRED" sobre o mapa.
+  const tiles = {
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap',
+  }
 
   if (!ultima) {
     return (
@@ -47,10 +53,7 @@ export function LocalizacaoSection({ dispositivoId }: Props) {
           zoom={11}
           style={{ height: '100%', width: '100%' }}
         >
-          <TileLayer
-            attribution='&copy; OpenStreetMap'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+          <TileLayer attribution={tiles.attribution} url={tiles.url} />
           <Marker position={[ultima.latitude, ultima.longitude]} icon={icone}>
             <Popup>{ultima.enderecoAproximado ?? 'Dispositivo'}</Popup>
           </Marker>

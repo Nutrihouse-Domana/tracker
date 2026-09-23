@@ -8,6 +8,7 @@ import {
   TableRow,
   TableCell,
   TableBody,
+  TableSortLabel,
   Paper,
   TableContainer,
   Chip,
@@ -21,6 +22,7 @@ import {
   ToggleButtonGroup,
   IconButton,
   Tooltip,
+  TablePagination,
 } from '@mui/material'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import RestoreIcon from '@mui/icons-material/RestoreOutlined'
@@ -35,7 +37,17 @@ import { DispositivoFormDialog } from '../features/dispositivos/DispositivoFormD
 import { AtribuirDialog } from '../features/dispositivos/AtribuirDialog'
 import { ExcluirDispositivoDialog } from '../features/dispositivos/ExcluirDispositivoDialog'
 import { corStatus, rotuloStatus } from '../features/dispositivos/status'
+import { ehAlugado, identificacaoExibida, rotuloAluguel } from '../features/dispositivos/aluguel'
+import {
+  DIAS_DE_ALERTA,
+  corVencimento,
+  formatarVencimento,
+  rotuloVencimento,
+  situacaoVencimento,
+} from '../features/dispositivos/vencimento'
 import { useUnidades } from '../features/unidades/hooks'
+import { usePermissoes, PERMISSOES } from '../features/auth/permissoes'
+import { usePaginacao } from '../utils/paginacao'
 
 /** A última aba lista os arquivados (tipo indiferente), por isso `arquivados`. */
 const abas: { label: string; tipo?: TipoDispositivo; arquivados?: boolean }[] = [
@@ -55,6 +67,40 @@ const filtrosStatus: { label: string; status: StatusDispositivo | undefined }[] 
   { label: 'Baixado', status: 'Baixado' },
 ]
 
+type ColunaOrdenavel =
+  | 'identificacao'
+  | 'patrimonio'
+  | 'aluguel'
+  | 'vencimento'
+  | 'unidade'
+  | 'responsavel'
+  | 'status'
+type Direcao = 'asc' | 'desc'
+
+/**
+ * Chave de comparação de cada coluna. Na aba Arquivados a última coluna é a data de
+ * exclusão (ISO string, que ordena cronologicamente); nas demais é o rótulo do status.
+ */
+function valorOrdenacao(d: Dispositivo, coluna: ColunaOrdenavel, arquivados: boolean): string {
+  switch (coluna) {
+    case 'identificacao':
+      return identificacaoExibida(d)
+    case 'patrimonio':
+      return d.assetTag ?? ''
+    case 'aluguel':
+      return rotuloAluguel(d)
+    case 'vencimento':
+      // ISO ordena cronologicamente como texto; sem data vai para o fim (valor vazio).
+      return d.vencimentoAluguel ?? ''
+    case 'unidade':
+      return d.unidadeNome ?? ''
+    case 'responsavel':
+      return d.responsavelNome ?? ''
+    case 'status':
+      return arquivados ? (d.excluidoEm ?? '') : (rotuloStatus[d.status] ?? d.status)
+  }
+}
+
 export function DispositivosPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -64,9 +110,17 @@ export function DispositivosPage() {
   const [status, setStatus] = useState<StatusDispositivo | undefined>(
     (searchParams.get('status') as StatusDispositivo | null) ?? undefined,
   )
+  const [ordenarPor, setOrdenarPor] = useState<ColunaOrdenavel>('identificacao')
+  const [direcao, setDirecao] = useState<Direcao>('asc')
   const [dialogAberto, setDialogAberto] = useState(false)
   const [dispositivoParaAtribuir, setDispositivoParaAtribuir] = useState<Dispositivo | null>(null)
   const [dispositivoParaExcluir, setDispositivoParaExcluir] = useState<Dispositivo | null>(null)
+
+  const { tem } = usePermissoes()
+  const podeCadastrar = tem(PERMISSOES.dispositivosCadastrar)
+  const podeMovimentar = tem(PERMISSOES.dispositivosMovimentar)
+  const podeExcluir = tem(PERMISSOES.dispositivosExcluir)
+  const podeExcluirDefinitivo = tem(PERMISSOES.dispositivosExcluirDefinitivo)
 
   const unidadeId = searchParams.get('unidadeId') ?? undefined
   const { data: unidades } = useUnidades()
@@ -93,6 +147,7 @@ export function DispositivosPage() {
       [
         d.numeroSerie,
         d.assetTag,
+        d.identificacaoInterna,
         d.hostname,
         d.imei,
         d.usuarioAtualNome,
@@ -105,13 +160,73 @@ export function DispositivosPage() {
     )
   }, [dispositivosCarregados, termoBusca])
 
+  // Ordenação client-side (o filtro de busca já é client-side). Valores vazios vão sempre
+  // para o fim, independente da direção, para não empurrar linhas em branco ao topo.
+  const dispositivosOrdenados = useMemo(() => {
+    if (!dispositivos) return dispositivos
+    const fator = direcao === 'asc' ? 1 : -1
+    return [...dispositivos].sort((a, b) => {
+      const va = valorOrdenacao(a, ordenarPor, mostrandoArquivados)
+      const vb = valorOrdenacao(b, ordenarPor, mostrandoArquivados)
+      if (!va && !vb) return 0
+      if (!va) return 1
+      if (!vb) return -1
+      return va.localeCompare(vb, 'pt-BR', { numeric: true, sensitivity: 'base' }) * fator
+    })
+  }, [dispositivos, ordenarPor, direcao, mostrandoArquivados])
+
+  // Aviso de contratos: conta sobre a lista carregada inteira, não só a página visível — senão o
+  // alerta sumiria ao paginar. Arquivados ficam de fora: contrato de ativo baixado não pede ação.
+  const vencimentos = useMemo(() => {
+    if (mostrandoArquivados || !dispositivosCarregados) return { vencidos: 0, proximos: 0 }
+    let vencidos = 0
+    let proximos = 0
+    for (const d of dispositivosCarregados) {
+      const situacao = situacaoVencimento(d.vencimentoAluguel)
+      if (situacao === 'vencido') vencidos++
+      else if (situacao === 'proximo') proximos++
+    }
+    return { vencidos, proximos }
+  }, [dispositivosCarregados, mostrandoArquivados])
+
+  const { itensPagina, total, setPagina, paginacaoProps } = usePaginacao(dispositivosOrdenados)
+
+  // Trocar de aba, status, unidade ou busca reinicia a paginação (senão ficaria numa página
+  // que não existe mais na nova lista).
+  useEffect(() => {
+    setPagina(0)
+  }, [aba, status, unidadeId, termoBusca, setPagina])
+
+  const alternarOrdenacao = (coluna: ColunaOrdenavel) => {
+    if (ordenarPor === coluna) {
+      setDirecao((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setOrdenarPor(coluna)
+      setDirecao('asc')
+    }
+  }
+
+  const cabecalho = (coluna: ColunaOrdenavel, label: string, align: 'left' | 'center' = 'left') => (
+    <TableCell align={align} sortDirection={ordenarPor === coluna ? direcao : false}>
+      <TableSortLabel
+        active={ordenarPor === coluna}
+        direction={ordenarPor === coluna ? direcao : 'asc'}
+        onClick={() => alternarOrdenacao(coluna)}
+      >
+        {label}
+      </TableSortLabel>
+    </TableCell>
+  )
+
   return (
     <>
       <Stack direction="row" sx={{ mb: 2, justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h5">Dispositivos</Typography>
-        <Button variant="contained" onClick={() => setDialogAberto(true)}>
-          Novo dispositivo
-        </Button>
+        <Typography variant="h5">Dispositivos ({total})</Typography>
+        {podeCadastrar && (
+          <Button variant="contained" onClick={() => setDialogAberto(true)}>
+            Novo dispositivo
+          </Button>
+        )}
       </Stack>
 
       {termoBusca && (
@@ -130,6 +245,21 @@ export function DispositivosPage() {
           }}
         >
           Mostrando apenas dispositivos da unidade <strong>{unidadeFiltrada.nome}</strong>
+        </Alert>
+      )}
+
+      {(vencimentos.vencidos > 0 || vencimentos.proximos > 0) && (
+        <Alert severity={vencimentos.vencidos > 0 ? 'error' : 'warning'} sx={{ mb: 2 }}>
+          {vencimentos.vencidos > 0 && (
+            <strong>
+              {vencimentos.vencidos}{' '}
+              {vencimentos.vencidos === 1 ? 'aluguel vencido' : 'aluguéis vencidos'}
+            </strong>
+          )}
+          {vencimentos.vencidos > 0 && vencimentos.proximos > 0 && ' · '}
+          {vencimentos.proximos > 0 &&
+            `${vencimentos.proximos} ${vencimentos.proximos === 1 ? 'vence' : 'vencem'} nos próximos ${DIAS_DE_ALERTA} dias`}
+          {'. Ordene pela coluna "Vence em" para ver quais.'}
         </Alert>
       )}
 
@@ -165,22 +295,48 @@ export function DispositivosPage() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Tipo</TableCell>
-                <TableCell>Identificação</TableCell>
-                <TableCell>Patrimônio</TableCell>
-                <TableCell>Unidade</TableCell>
+                {cabecalho('identificacao', 'Identificação')}
+                {cabecalho('patrimonio', 'Patrimônio')}
+                {/* Alugado x próprio: derivado do prefixo "MAQ" na identificação. */}
+                {cabecalho('aluguel', 'Aluguel', 'center')}
+                {/* Vencimento do contrato de aluguel: destaca vencido e o que vence em breve. */}
+                {cabecalho('vencimento', 'Vence em', 'center')}
+                {cabecalho('unidade', 'Unidade')}
                 {/* Usuário nominal ou, nos ativos do local, o nome da unidade. */}
-                <TableCell>Responsável</TableCell>
-                <TableCell align="center">{mostrandoArquivados ? 'Excluído em' : 'Status'}</TableCell>
+                {cabecalho('responsavel', 'Responsável')}
+                {cabecalho('status', mostrandoArquivados ? 'Excluído em' : 'Status', 'center')}
                 <TableCell align="right">Ações</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {dispositivos?.map((d) => (
+              {itensPagina?.map((d) => (
                 <TableRow key={d.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/dispositivos/${d.id}`)}>
-                  <TableCell>{d.tipo}</TableCell>
-                  <TableCell>{d.hostname ?? d.numeroSerie}</TableCell>
+                  <TableCell>{identificacaoExibida(d)}</TableCell>
                   <TableCell>{d.assetTag ?? '—'}</TableCell>
+                  <TableCell align="center">
+                    <Chip
+                      size="small"
+                      label={rotuloAluguel(d)}
+                      color={ehAlugado(d) ? 'warning' : 'default'}
+                      variant={ehAlugado(d) ? 'filled' : 'outlined'}
+                    />
+                  </TableCell>
+                  <TableCell align="center">
+                    {d.vencimentoAluguel ? (
+                      <Stack spacing={0.5} sx={{ alignItems: 'center' }}>
+                        <span>{formatarVencimento(d.vencimentoAluguel)}</span>
+                        {situacaoVencimento(d.vencimentoAluguel) !== 'emDia' && (
+                          <Chip
+                            size="small"
+                            label={rotuloVencimento(d.vencimentoAluguel)}
+                            color={corVencimento(situacaoVencimento(d.vencimentoAluguel))}
+                          />
+                        )}
+                      </Stack>
+                    ) : (
+                      '—'
+                    )}
+                  </TableCell>
                   <TableCell>{d.unidadeNome ?? '—'}</TableCell>
                   <TableCell>
                     {d.responsavelNome ?? '—'}
@@ -205,27 +361,31 @@ export function DispositivosPage() {
                     <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
                       {mostrandoArquivados ? (
                         <>
-                          <Button
-                            size="small"
-                            startIcon={<RestoreIcon />}
-                            disabled={restaurar.isPending}
-                            onClick={() => restaurar.mutate(d.id)}
-                          >
-                            Restaurar
-                          </Button>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            title="Excluir definitivamente"
-                            onClick={() => setDispositivoParaExcluir(d)}
-                          >
-                            <DeleteForeverIcon fontSize="small" />
-                          </IconButton>
+                          {podeExcluir && (
+                            <Button
+                              size="small"
+                              startIcon={<RestoreIcon />}
+                              disabled={restaurar.isPending}
+                              onClick={() => restaurar.mutate(d.id)}
+                            >
+                              Restaurar
+                            </Button>
+                          )}
+                          {podeExcluirDefinitivo && (
+                            <IconButton
+                              size="small"
+                              color="error"
+                              title="Excluir definitivamente"
+                              onClick={() => setDispositivoParaExcluir(d)}
+                            >
+                              <DeleteForeverIcon fontSize="small" />
+                            </IconButton>
+                          )}
                         </>
                       ) : (
                         <>
                           {/* Ativo do local não tem detentor: atribuir aqui não faz sentido. */}
-                          {d.pertenceAUsuario && (
+                          {podeMovimentar && d.pertenceAUsuario && (
                             <Button size="small" onClick={() => setDispositivoParaAtribuir(d)}>
                               Atribuir
                             </Button>
@@ -233,23 +393,25 @@ export function DispositivosPage() {
                           <Button size="small" onClick={() => navigate(`/dispositivos/${d.id}`)}>
                             Ver detalhes
                           </Button>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            title="Excluir"
-                            onClick={() => setDispositivoParaExcluir(d)}
-                          >
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
+                          {podeExcluir && (
+                            <IconButton
+                              size="small"
+                              color="error"
+                              title="Excluir"
+                              onClick={() => setDispositivoParaExcluir(d)}
+                            >
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          )}
                         </>
                       )}
                     </Stack>
                   </TableCell>
                 </TableRow>
               ))}
-              {dispositivos?.length === 0 && (
+              {dispositivosOrdenados?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={8} align="center">
                     {termoBusca
                       ? `Nenhum dispositivo encontrado para "${termoBusca}".`
                       : mostrandoArquivados
@@ -260,6 +422,7 @@ export function DispositivosPage() {
               )}
             </TableBody>
           </Table>
+          {total > 0 && <TablePagination {...paginacaoProps} />}
         </TableContainer>
       )}
 

@@ -1,0 +1,572 @@
+# Melhorias pendentes
+
+Backlog de limitações conhecidas do Tracker, levantado em 23/09/2026 na revisão da documentação.
+Cada item diz o problema, onde está no código, a correção sugerida e como conferir.
+
+**Ao corrigir um item:**
+
+1. Marque-o como resolvido aqui, com data e PR.
+2. Remova-o da seção "Limitações conhecidas" do [manual-do-usuario.md](../uso/manual-do-usuario.md) e
+   atualize o trecho do manual que descreve a tela.
+3. Registre no `CLAUDE.md` a pegadinha que tiver aparecido no caminho.
+
+As regras do projeto continuam valendo em toda correção:
+
+- confirmação de senha errada devolve **400, nunca 401**, porque o axios desloga em 401;
+- a permissão é checada **nos dois lados** (policy no backend + ocultar no front);
+- toda escrita chama `IAuditoria.Registrar`;
+- valor novo de enum entra **no fim**.
+
+## Resumo
+
+| # | Item | Prioridade | Esforço |
+|---|---|---|---|
+| 1 | [Bloquear/Desbloquear sem confirmação](#1-bloquear-e-desbloquear-sem-confirmação) | **Alta** | Pequeno |
+| 2 | [Restaurar e desativar detentor sem confirmação](#2-restaurar-e-desativar-detentor-sem-confirmação) | Média | Pequeno |
+| 3 | [Detentor desativado não pode ser reativado](#3-detentor-desativado-não-pode-ser-reativado) | **Alta** | Pequeno |
+| 4 | ["Excluir definitivamente" visível sem a permissão](#4-excluir-definitivamente-visível-sem-a-permissão) | Média | Pequeno |
+| 5 | [Atribuir e Alterar status escondem o motivo do erro](#5-atribuir-e-alterar-status-escondem-o-motivo-do-erro) | Média | Pequeno |
+| 6 | [Login não distingue desativado/bloqueado](#6-login-não-distingue-desativado-ou-bloqueado) | Baixa | Pequeno |
+| 7 | [Rótulos técnicos sem tradução](#7-rótulos-técnicos-sem-tradução) | Baixa | Pequeno |
+| 8 | [Busca global ignora a identificação interna](#8-busca-global-ignora-a-identificação-interna) | Média | Pequeno |
+| 9 | [Relatórios ausentes no menu do celular](#9-relatórios-ausentes-no-menu-do-celular) | Baixa | Pequeno |
+| 10 | [Detalhe de arquivado mostra "não encontrado"](#10-detalhe-de-arquivado-mostra-não-encontrado) | Baixa | Médio |
+| 11 | [Status de comando "Falhou" nunca é gravado](#11-status-de-comando-falhou-nunca-é-gravado) | Média | Médio |
+| 12 | [Cancelar reparo deixa o aparelho em manutenção](#12-cancelar-reparo-deixa-o-aparelho-em-manutenção) | Baixa | Pequeno |
+| 13 | [Chave do CPF sem rotação](#13-chave-do-cpf-sem-rotação) | Média | Grande |
+| 14 | [Comentários desatualizados sobre relatórios no Perfil](#14-comentários-desatualizados-sobre-relatórios-no-perfil) | Baixa | Trivial |
+| 15 | [Localização gravada a cada minuto, para sempre](#15-localização-gravada-a-cada-minuto-para-sempre) | **Alta** | Médio |
+| 16 | [CPF completo para quem só vê o inventário](#16-cpf-completo-para-quem-só-vê-o-inventário) | **Alta** | Pequeno |
+| 17 | [Geolocalização do Windows por HTTP em serviço gratuito](#17-geolocalização-do-windows-por-http-em-serviço-gratuito) | Média | Pequeno |
+| 18 | [Sem exclusão/anonimização de detentor](#18-sem-exclusãoanonimização-de-detentor) | Média | Médio |
+| 19 | [Token do agente na URL e em texto puro](#19-token-do-agente-na-url-e-em-texto-puro) | Média | Médio |
+| 20 | [Conferir o IP gravado na auditoria](#20-conferir-o-ip-gravado-na-auditoria) | Baixa | Pequeno |
+| 21 | [HSTS não configurado na aplicação](#21-hsts-não-configurado-na-aplicação) | Baixa | Trivial |
+| 22 | [Agente Windows ignora "deve estar bloqueado"](#22-agente-windows-ignora-deve-estar-bloqueado) | Média | Pequeno |
+| 23 | [Agente Android não se recadastra sozinho](#23-agente-android-não-se-recadastra-sozinho) | Média | Médio |
+| 24 | [Agente Windows informa sempre a versão 1.0.0](#24-agente-windows-informa-sempre-a-versão-100) | Média | Trivial |
+| 25 | [Inconsistências menores nos agentes](#25-inconsistências-menores-nos-agentes) | Baixa | Trivial |
+
+**Sugestão de ordem:**
+
+1. Itens **1 e 3**: são os que mais afetam o dia a dia.
+2. Itens **2, 4 e 5**: mesmo tipo de mudança, cabem num PR só.
+3. Itens **8, 11, 22 e 24** (os dois últimos são pequenos e melhoram o diagnóstico da frota).
+4. Itens **15 a 19** (privacidade): vários dependem de decisão do jurídico/DPO — ver
+   [privacidade-lgpd.md](../privacidade/privacidade-lgpd.md#para-o-jurídico-decidir). O **16** não depende e pode
+   ir já.
+5. Os demais, conforme houver tempo.
+
+---
+
+## 1. Bloquear e Desbloquear sem confirmação
+
+**Problema:** os botões da aba *Agente & Bloqueio* emitem o comando no primeiro clique, sem
+diálogo e sem senha.
+
+**Impacto:** um clique errado trava o aparelho de um colaborador. O bloqueio é persistente e
+continua mesmo offline. É a ação de maior efeito do sistema e a única sem nenhuma barreira: arquivar,
+mudar identificação e trocar posse, bem menos graves, pedem senha.
+
+**Onde:**
+
+- `src/Tracker.Web/src/features/dispositivos/AgenteSection.tsx`: `onClick={() => emitir.mutate('Bloquear')}`
+  e o equivalente para `'Desbloquear'`.
+- `src/Tracker.Api/Controllers/DispositivosAgenteController.cs`: endpoint que emite o comando.
+
+**Correção sugerida:**
+
+- **Front:** diálogo de confirmação que mostra a identificação exibida (`identificacaoExibida`) e o
+  detentor, com campo **Motivo** (o que vai para a auditoria) e **Sua senha do Tracker**. Mesmo
+  padrão de `EditarIdentificacaoInternaDialog.tsx`.
+- **Backend:** receber a senha no request e validar com `ConfirmacaoSenhaAdm` (400 em senha
+  errada). Gravar o motivo no `Registrar(...)` da auditoria.
+- **Decisão a tomar:** pedir senha também para **Desbloquear**? Desbloquear por engano é menos
+  grave, mas libera um aparelho que pode estar roubado. Recomendação: pedir nos dois.
+
+**Verificar:** teste de integração que emite o comando com senha errada (espera 400, sem
+comando criado) e com senha certa (comando `Pendente` + registro na auditoria).
+
+---
+
+## 2. Restaurar e desativar detentor sem confirmação
+
+**Problema:** **Restaurar** (aba *Arquivados*) e **Desativar** detentor (tela *Usuários*) agem no
+clique.
+
+**Impacto:** menor que o item 1, já que as duas ações são reversíveis. Ainda assim, desativar
+detentor hoje **não tem volta pela tela** (item 3), e isso torna o clique errado caro.
+
+**Onde:**
+
+- `src/Tracker.Web/src/pages/DispositivosPage.tsx`: botão "Restaurar" da aba Arquivados.
+- `src/Tracker.Web/src/pages/UsuariosPage.tsx`: ícone "Desativar".
+
+**Correção sugerida:** diálogo simples de confirmação ("Restaurar {identificação}?" /
+"Desativar {nome}? Ele deixa de aparecer para atribuição."). Senha não é necessária: nenhuma das
+duas muda responsabilidade sobre ativo.
+
+**Verificar:** manual, no navegador. Cancelar no diálogo não pode disparar a requisição.
+
+---
+
+## 3. Detentor desativado não pode ser reativado
+
+**Problema:** a tela *Usuários* só pede os ativos (`useUsuarios()` com `incluirInativos = false`).
+O detentor desativado some, e com ele o botão **Editar**, que é onde fica o interruptor *Ativo*.
+O chip "Inativo" do código nunca chega a aparecer.
+
+**Impacto:** quem desativou por engano, ou quem voltou para a empresa, não pode ser reativado.
+O único caminho é mexer direto no banco. Recadastrar também não funciona, porque o e-mail é único.
+
+**Onde:**
+
+- `src/Tracker.Web/src/features/usuarios/hooks.ts`: `useUsuarios(incluirInativos = false)`.
+- `src/Tracker.Web/src/pages/UsuariosPage.tsx`: chama sem parâmetro.
+- O backend já suporta: `GET /api/usuarios?incluirInativos=true`.
+
+**Correção sugerida:** interruptor **"Mostrar inativos"** na tela, igual ao da `UnidadesPage.tsx`,
+passando `incluirInativos` ao hook. O formulário de edição já tem o interruptor Ativo/Inativo.
+Conferir se o backend audita a reativação (hoje há `DetentorDesativado`; talvez falte a ação de
+reativação, que entraria **no fim** do enum).
+
+**Verificar:** desativar → ligar "Mostrar inativos" → editar → ativar → conferir que o detentor
+volta a aparecer no diálogo **Atribuir** e que a auditoria registrou.
+
+---
+
+## 4. "Excluir definitivamente" visível sem a permissão
+
+**Problema:** o diálogo de exclusão mostra a opção **Excluir definitivamente** para quem tem só
+`dispositivos.excluir`. O backend recusa com 403 ao confirmar, depois de o usuário ter digitado
+`EXCLUIR` e a senha, e a mensagem que aparece é genérica.
+
+**Impacto:** a regra do projeto é "ocultar, não desabilitar". Aqui a opção não é nem ocultada, e
+o erro chega tarde e sem explicação.
+
+**Onde:**
+
+- `src/Tracker.Web/src/features/dispositivos/ExcluirDispositivoDialog.tsx` (modos `'arquivar'` /
+  `'definitiva'`).
+- Na aba *Arquivados*, o ícone já é gateado corretamente. Só o diálogo não é.
+
+**Correção sugerida:** esconder a opção com `usePermissao(PERMISSOES.dispositivosExcluirDefinitivo)`.
+Sem ela, o diálogo mostra só *Arquivar*, sem a escolha. Caso de borda: para um dispositivo **já
+arquivado**, sem essa permissão não sobra ação nenhuma, e o diálogo nem deveria abrir.
+
+**Verificar:** login com só `dispositivos.excluir` não vê a opção; login com as duas vê as duas.
+
+---
+
+## 5. Atribuir e Alterar status escondem o motivo do erro
+
+**Problema:**
+
+- **Atribuir:** qualquer recusa vira "Não foi possível atribuir o dispositivo.".
+- **Alterar status:** o componente não tem bloco de erro nenhum. A recusa passa **em silêncio**:
+  o menu fecha e nada muda.
+
+Em ambos os casos o backend devolve mensagens claras, como "Conclua o reparo antes de atribuir"
+ou "Devolva-o ao estoque antes de atribuir".
+
+**Impacto:** o usuário não sabe por que não funcionou e acha que o sistema travou.
+
+**Onde:**
+
+- `src/Tracker.Web/src/features/dispositivos/AtribuirDialog.tsx`: mensagem fixa.
+- `src/Tracker.Web/src/features/dispositivos/StatusDispositivoAcoes.tsx`: sem tratamento de erro.
+- Helper já existente: `src/Tracker.Web/src/utils/erroApi.ts`.
+
+**Correção sugerida:** usar o helper de `erroApi.ts` nos dois (como o `DispositivoFormDialog`
+já faz). No status, exibir um `Alert` ou snackbar com a mensagem do servidor.
+
+**Verificar:** tentar atribuir um aparelho *Em manutenção* e colocar em uso um ativo de local sem
+unidade. A mensagem do backend precisa aparecer.
+
+---
+
+## 6. Login não distingue desativado ou bloqueado
+
+**Problema:** a tela mostra sempre "Credenciais inválidas.". O backend já devolve "Este login está
+desativado. Fale com um administrador." para login desativado.
+
+**Impacto:** quem teve o login desativado, ou bloqueado por excesso de tentativas, acha que errou
+a senha, tenta de novo e agrava o bloqueio.
+
+**Onde:** `src/Tracker.Web/src/pages/LoginPage.tsx` (texto fixo) e
+`src/Tracker.Api/Controllers/AuthController.cs`.
+
+**Correção sugerida:** exibir a mensagem do backend quando houver. Para o bloqueio por
+tentativas, o `SignInResult.IsLockedOut` permite devolver "Muitas tentativas. Tente novamente em
+alguns minutos.".
+
+> ⚠️ **Não revele se o e-mail existe.** Senha errada e e-mail inexistente devem continuar com a
+> **mesma** mensagem genérica, senão a tela vira ferramenta para descobrir quais logins existem.
+> Só diferencie *depois* que a senha foi validada (desativado) ou o lockout se aplicou.
+
+**Verificar:** e-mail inexistente e senha errada dão a mesma mensagem. Login desativado com senha
+certa dá a mensagem específica.
+
+---
+
+## 7. Rótulos técnicos sem tradução
+
+**Problema:** alguns valores de enum aparecem crus na tela.
+
+| Onde aparece | Valores |
+|---|---|
+| Status do reparo (`ReparosSection.tsx`) | `EmAndamento`, `Concluido` |
+| Histórico de comandos (`AgenteSection.tsx`) | `Bloquear`, `Desbloquear`, `Pendente`, `Enviado`, `Confirmado` |
+| Origem da localização (`LocalizacaoSection.tsx`) | `GpsAndroid`, `IpGeolocationWindows`, `WifiConhecida`, `ManualTI` |
+| Auditoria (`AuditoriaPage.tsx`) | a ação de vencimento de aluguel (`DispositivoVencimentoAluguelDefinido`) aparece pelo nome técnico, no filtro e no chip |
+
+**Correção sugerida:** mapas de rótulo, como os que já existem para o status do dispositivo. Na
+auditoria, basta acrescentar a ação ao mapa de rótulos da página. Vale criar um teste ou uma
+checagem de tipo que falhe quando um valor novo de enum ficar sem rótulo, porque foi exatamente
+assim que a ação do vencimento escapou.
+
+---
+
+## 8. Busca global ignora a identificação interna
+
+**Problema:** a barra de busca do topo procura por série, patrimônio, detentor, unidade, hostname
+e IMEI, mas **não** por `IdentificacaoInterna`. Os resultados também exibem hostname/série em vez
+da identificação exibida. A busca da lista (Enter) procura nela.
+
+**Impacto:** a TI identifica os ativos pelo rótulo próprio (ex.: `MAQ-0123`). Digitar esse rótulo
+na barra não traz nada, justo o jeito mais natural de procurar.
+
+**Onde:** `src/Tracker.Api/Controllers/BuscaController.cs` (`BuscarDispositivos`, que monta os
+`EF.Functions.Like`) e `src/Tracker.Web/src/features/busca/BarraDeBusca.tsx`.
+
+**Correção sugerida:**
+
+- Incluir `EF.Functions.Like(d.IdentificacaoInterna, padrao, "\\")` no filtro da base.
+  `IdentificacaoInterna` fica em `Dispositivo`, então vale para todos os tipos.
+- Devolver o campo no DTO do resultado e exibir com `identificacaoExibida`.
+
+**Verificar:** um teste em `Tracker.Api.Tests` que busca por um rótulo `MAQ-*` e encontra.
+
+---
+
+## 9. Relatórios ausentes no menu do celular
+
+**Problema:** o item **Relatórios** só existe no menu da conta do desktop. A gaveta lateral do
+celular não tem.
+
+**Onde:** `src/Tracker.Web/src/layout/AppShell.tsx` (gaveta) e
+`src/Tracker.Web/src/features/relatorios/MenuRelatorios.tsx`.
+
+**Correção sugerida:** acrescentar os relatórios na gaveta, gateados por `dispositivos.ver`.
+Também dá para aceitar como limitação: o XLSX é pouco útil no celular. Nesse caso, registre a
+decisão aqui e remova o item.
+
+---
+
+## 10. Detalhe de arquivado mostra "não encontrado"
+
+**Problema:** clicar numa linha da aba *Arquivados* abre o detalhe, que mostra "Dispositivo não
+encontrado." porque o `GET /api/dispositivos/{id}` aplica o filtro global de arquivamento.
+
+**Impacto:** não dá para consultar o histórico de um arquivado (movimentações, termos, motivo)
+sem restaurá-lo. Isso ainda o faz voltar ao inventário e aos relatórios.
+
+**Correção sugerida (escolha uma):**
+
+- **Mínima:** na aba *Arquivados*, a linha não navega. Só os botões de ação ficam.
+- **Completa:** o `GET` do detalhe aceita arquivados (`IgnoreQueryFilters()` apenas nesse
+  endpoint), e a tela mostra um aviso "Arquivado em … por … — motivo", ações de edição ocultas e
+  um botão **Restaurar**. As abas de histórico precisam do mesmo tratamento.
+
+  > Cuidado: cada consulta filha (movimentações, reparos, termos) também passa pelo filtro. Veja
+  > a nota sobre `HasQueryFilter` no `CLAUDE.md`.
+
+---
+
+## 11. Status de comando "Falhou" nunca é gravado
+
+**Problema:** `StatusComando.Falhou` existe no enum (`src/Tracker.Domain/Enums/Enums.cs`) e a
+tela sabe exibi-lo, mas nenhum código do backend o grava. Um comando que o agente nunca confirma
+fica **Pendente ou Enviado para sempre**.
+
+**Impacto:** a TI não tem como saber que um bloqueio não pegou. O aparelho parece "a caminho de
+bloquear" indefinidamente, o que é perigoso num caso de roubo.
+
+**Correção sugerida:**
+
+- Deixar o agente reportar falha ao confirmar o comando (ele já confirma o sucesso).
+- E/ou marcar como `Falhou` o comando sem confirmação após um prazo, por exemplo N heartbeats
+  recebidos depois do envio sem confirmação. Não use prazo fixo: um aparelho offline legitimamente
+  não falhou.
+- Exibir alerta no detalhe quando o último comando falhou.
+
+**Decisão a tomar:** política de prazo e se o sistema reenvia automaticamente. Mexe no protocolo
+dos **dois** agentes (Windows e Android). O Android exige `versionCode` novo e OTA.
+
+---
+
+## 12. Cancelar reparo deixa o aparelho em manutenção
+
+**Problema:** abrir um reparo põe o aparelho em *Em manutenção*. **Concluir** o devolve a Em uso
+ou Em estoque, mas **Cancelar** não mexe no status, e o aparelho fica em manutenção sem reparo
+aberto.
+
+**Onde:** `src/Tracker.Api/Controllers/DispositivosController.cs`, na atualização de status do
+reparo (o trecho que trata `Concluido`).
+
+**Correção sugerida:** tratar `Cancelado` como `Concluido` para o status do aparelho, quando não
+houver outro reparo aberto. Conferir também o caso de dois reparos abertos ao mesmo tempo:
+concluir um não deveria tirar o aparelho de manutenção enquanto o outro segue aberto.
+
+---
+
+## 13. Chave do CPF sem rotação
+
+**Problema:** `AesStringEncryptor` trabalha com uma chave só. Trocar `Encryption__CpfKeyBase64`
+deixa todos os CPFs gravados ilegíveis, e as telas que carregam detentores quebram. Detalhes em
+[backup-e-chaves.md](../operacao/backup-e-chaves.md#encryption__cpfkeybase64-a-mais-crítica).
+
+**Impacto:** se a chave vazar, não há como trocá-la.
+
+**Correção sugerida:**
+
+- Prefixar o texto cifrado com um identificador de versão da chave (ex.: `v2:`).
+- Aceitar várias chaves na configuração (`Encryption:CpfKeys:{versao}`) e cifrar sempre com a atual.
+- Criar um utilitário de linha de comando, no estilo do `--redefinir-senha-adm`, que relê e
+  recifra todos os CPFs.
+- Valores sem prefixo são tratados como `v1`, para compatibilidade com o banco atual.
+
+**Verificar:** teste que grava com a chave v1, adiciona a v2 e confere que:
+
+- o CPF antigo continua legível;
+- um CPF novo sai cifrado com a v2;
+- depois do utilitário, nenhum registro depende mais da v1.
+
+---
+
+## 14. Comentários desatualizados sobre relatórios no Perfil
+
+**Problema:** comentários em `src/Tracker.Web/src/App.tsx` e
+`src/Tracker.Web/src/features/relatorios/MenuRelatorios.tsx` dizem que os relatórios também estão
+na página de Perfil. Não estão: ficam só no menu da conta.
+
+**Correção:** ajustar os comentários. É trivial e pode entrar em qualquer PR.
+
+---
+
+## 15. Localização gravada a cada minuto, para sempre
+
+**Problema:** todo heartbeat com coordenadas insere uma linha em `HistoricoLocalizacoes`, sem
+comparar com a anterior e sem expurgo — **~1.440 linhas por aparelho por dia**, indefinidamente.
+A tela usa só a última.
+
+**Impacto:** privacidade (trilha minuto a minuto do colaborador, inclusive fora do expediente, em
+aparelho que ele leva para casa) e crescimento do banco e do backup.
+
+**Onde:** `src/Tracker.Api/Controllers/AgenteController.cs` (heartbeat, `HistoricoLocalizacoes.Add`).
+
+**Correção sugerida:**
+
+- **Deduplicar:** só gravar ponto novo se o aparelho se moveu mais que N metros (acima da
+  precisão) ou se passou X tempo desde o último ponto.
+- **Retenção:** rotina (`BackgroundService`) que apaga os pontos mais velhos que o prazo
+  definido. Use `ExecuteDeleteAsync` em lotes, porque a tabela é grande.
+- **Decisão a tomar (jurídico):** prazo de retenção, e se a coleta precisa mesmo ser contínua ou
+  pode acontecer só quando o aparelho for dado como perdido.
+
+**Verificar:** teste que manda dois heartbeats na mesma posição e espera uma linha só.
+
+---
+
+## 16. CPF completo para quem só vê o inventário
+
+**Problema:** `GET /api/usuarios` pede só `dispositivos.ver`, porque alimenta o diálogo de
+atribuição, e devolve o **CPF inteiro**. A tela *Usuários* o mostra sem máscara.
+
+**Impacto:** a permissão mais básica do sistema dá acesso ao CPF de todos os colaboradores.
+
+**Onde:** `src/Tracker.Api/Controllers/UsuariosController.cs` (`Listar`, `UsuarioDto`) e
+`src/Tracker.Web/src/pages/UsuariosPage.tsx`.
+
+**Correção sugerida:**
+
+- Devolver o CPF **mascarado** (`***.456.789-**`) na listagem.
+- A geração do termo já busca o CPF no servidor e não precisa dele no front.
+- Se alguém precisar ver o CPF completo, criar uma permissão própria (valor novo no **fim** de
+  `Permissoes.Todas`) com auditoria de leitura.
+
+**Verificar:** teste de API em que um login só com `dispositivos.ver` não recebe o CPF completo
+e o PDF do termo continua saindo com o CPF certo.
+
+---
+
+## 17. Geolocalização do Windows por HTTP em serviço gratuito
+
+**Problema:** o agente Windows consulta `http://ip-api.com/json/...` sem TLS, num serviço externo
+sem contrato. Pelo que se sabe do serviço, o plano gratuito não oferece HTTPS e restringe uso
+comercial. **Confirme nos termos atuais do serviço.**
+
+**Impacto:**
+
+- o IP de cada notebook trafega em claro para um terceiro a cada minuto;
+- a resposta pode ser adulterada no caminho;
+- há possível violação dos termos de uso do serviço.
+
+**Onde:** `agents/Tracker.Agent.Windows/Geolocalizacao.cs`.
+
+**Correção sugerida (escolha uma):**
+
+- Provedor contratado com HTTPS.
+- O **servidor** faz a geolocalização pelo IP de origem do heartbeat, e o notebook deixa de falar
+  com terceiros. Antes, confira o IP que chega atrás de NAT (item 20).
+- Reduzir a frequência da consulta, já que o IP muda pouco.
+
+Qualquer opção exige nova versão do agente Windows, com instalador regerado e reinstalação nos
+notebooks.
+
+---
+
+## 18. Sem exclusão/anonimização de detentor
+
+**Problema:** "Desativar" só marca `Ativo = false`, e não há como eliminar os dados de um
+ex-colaborador. As FKs `Restrict` de Termo e Movimentação impedem um `DELETE` simples.
+
+**Impacto:** um pedido de eliminação do titular só se atende mexendo direto no banco.
+
+**Correção sugerida:** **anonimizar** em vez de apagar:
+
+- trocar nome, e-mail, telefone e CPF por marcadores (ex.: "Ex-colaborador #1234");
+- preservar o vínculo com termos e histórico, que podem ter obrigação legal de guarda;
+- pedir a senha do ADM e registrar na auditoria.
+
+**Decisão a tomar (jurídico):** o destino dos PDFs dos termos, que trazem o CPF impresso, e do
+texto livre de comentários e motivos.
+
+---
+
+## 19. Token do agente na URL e em texto puro
+
+**Problema:**
+
+- A conexão SignalR passa o token na **query string** (`?token=...`), que pode ficar gravada em
+  log do IIS ou de proxy.
+- No Windows, o `token.dat` fica em **texto puro**.
+- No Android, se o armazenamento cifrado falhar, o app cai para o armazenamento comum sem avisar.
+
+**Onde:** `agents/Tracker.Agent.Windows/Worker.cs` e `EnrollmentService.cs`;
+`src/Tracker.Api/Agente/ComandoRemotoHub.cs`; Android `dados/Armazenamento.kt`.
+
+**Correção sugerida:**
+
+- **Query string:** tirá-la dos logs do IIS, ou mandar o token por header no *negotiate*, se o
+  transporte usado permitir (o WebSocket só aceita query). Valide nos dois clientes.
+- **`token.dat`:** proteger com **DPAPI** (`ProtectedData`, escopo máquina) e ACL só para SYSTEM
+  e Administradores.
+- **Android:** gerar um alerta quando o app cair no armazenamento comum.
+
+Mudar o formato do `token.dat` exige compatibilidade: o agente novo precisa ler o arquivo antigo,
+senão a frota inteira se recadastra de uma vez.
+
+---
+
+## 20. Conferir o IP gravado na auditoria
+
+**Problema:** a auditoria grava `Connection.RemoteIpAddress` e o app não usa
+`UseForwardedHeaders`. No IIS in-process o IP do cliente costuma chegar certo. Mas, se houver
+NAT, proxy ou firewall reescrevendo a origem, todos os registros sairão com o mesmo IP.
+
+**Verificar primeiro:** na tela *Auditoria*, os logins de pessoas diferentes mostram IPs
+diferentes e coerentes? Se sim, feche o item sem mudança. Se todos forem iguais, configure
+`ForwardedHeaders` **com a lista de proxies confiáveis**. Sem essa lista, qualquer um forja o IP
+pelo header `X-Forwarded-For`.
+
+---
+
+## 21. HSTS não configurado na aplicação
+
+**Problema:** `Program.cs` tem `UseHttpsRedirection`, mas não `UseHsts`.
+
+**Correção:**
+
+1. Confira se o IIS já envia `Strict-Transport-Security`, com
+   `curl -I https://tracker.foodsacademy.com.br`.
+2. Se não enviar, use `app.UseHsts()` fora de Development.
+
+Cuidado: o domínio `foodsacademy.com.br` é compartilhado. **Não** use `includeSubDomains` nem
+`preload` sem alinhar com quem cuida do FOOD-ACADEMY.
+
+---
+
+## 22. Agente Windows ignora "deve estar bloqueado"
+
+**Problema:** a resposta do heartbeat traz `deveEstarBloqueado`, e o Android reaplica o bloqueio
+quando ele vem verdadeiro (gera o alerta *Bloqueio reaplicado*). O agente Windows lê só a lista
+de comandos. Se o arquivo-sinal `locked.flag` sumir (limpeza, restauração, alguém com acesso de
+administrador), um notebook que o servidor considera **Bloqueado** volta a funcionar e o painel
+não fica sabendo.
+
+**Onde:** `agents/Tracker.Agent.Windows/BackendClient.cs` (`HeartbeatResposta` só com a lista de
+comandos) e `Worker.cs`.
+
+**Correção sugerida:**
+
+- Ler `deveEstarBloqueado` e, se for verdadeiro e o sinal local não existir, recriar o sinal e
+  subir a tela de bloqueio.
+- Reportar o alerta `BloqueioReaplicado` (o endpoint `/api/agente/alertas` já existe; o Windows
+  hoje não reporta alerta nenhum).
+
+Exige nova versão do agente Windows.
+
+---
+
+## 23. Agente Android não se recadastra sozinho
+
+**Problema:** quando o servidor rejeita o token (401), o agente Windows se recadastra sozinho. O
+Android apaga o token e fica esperando alguém registrar de novo no aparelho.
+
+**Impacto:** após restaurar um backup antigo, regenerar o token no painel ou trocar de servidor,
+**cada celular e tablet** precisa que um técnico pegue o aparelho e refaça o registro.
+
+**Por que não é automático hoje:** o código de instalação não é guardado no aparelho, de
+propósito, para não ficar exposto num aparelho perdido. Sem ele, não há como recadastrar.
+
+**Correção sugerida:**
+
+- Guardar no armazenamento cifrado uma **credencial de recadastro** específica do aparelho, e
+  não o código da empresa.
+- Ou aceitar o recadastro com o token antigo durante uma janela, depois de validado no servidor.
+
+Precisa de desenho de segurança antes de implementar. Mexe no protocolo e exige `versionCode`
+novo.
+
+---
+
+## 24. Agente Windows informa sempre a versão 1.0.0
+
+**Problema:** o agente Windows manda `agenteVersao = "1.0.0"` fixo no código, em qualquer release.
+
+**Impacto:** a coluna de versão do agente no painel não serve para saber quais notebooks rodam o
+instalador antigo, justo a informação necessária para decidir quem reinstalar (a frota Windows
+não tem OTA).
+
+**Onde:** `agents/Tracker.Agent.Windows/Worker.cs` (constante de versão).
+
+**Correção sugerida:**
+
+- Ler a versão do assembly (`Assembly.GetEntryAssembly().GetName().Version`, ou
+  `AssemblyInformationalVersion`).
+- Carimbar essa versão no build do instalador, em `gerar-pendrive.ps1`, com a tag da release.
+
+---
+
+## 25. Inconsistências menores nos agentes
+
+Nenhuma afeta o funcionamento. Corrija quando mexer nos arquivos.
+
+- `agents/Tracker.Agent.Windows/AgenteOptions.cs`: o comentário sugere o tipo `"Telefone"`, que não
+  existe mais (é `Mobile`). E o default de `Simular` é **true** no código e **false** no
+  `appsettings.json`: se o arquivo perder a chave, o agente para de bloquear de verdade sem avisar.
+- Android `servico/AgenteService.kt`: os comentários falam em heartbeat de 2 min, mas a constante é 60 s.
+- Android: o token vai na URL do hub sem URL-encode. É inofensivo com base64url, mas vale
+  codificar por consistência com o Windows.
+- Android: a origem da localização é sempre `GpsAndroid`, mesmo quando a posição veio da rede.

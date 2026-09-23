@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tracker.Application.Dtos;
+using Tracker.Application.Seguranca;
 using Tracker.Domain.Entities;
 using Tracker.Infrastructure.Data;
 
@@ -14,7 +15,7 @@ namespace Tracker.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = Permissoes.DispositivosVer)]
 public class BuscaController : ControllerBase
 {
     private const int TamanhoMinimoTermo = 2;

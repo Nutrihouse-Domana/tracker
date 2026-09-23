@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tracker.Application.Dtos;
+using Tracker.Application.Seguranca;
 using Tracker.Domain.Entities;
 using Tracker.Domain.Enums;
 using Tracker.Api.Seguranca;
@@ -28,8 +29,10 @@ public class DispositivosController : ControllerBase
     private readonly IValidator<CriarComentarioRequest> _comentarioValidator;
     private readonly IValidator<ExcluirDispositivoRequest> _excluirValidator;
     private readonly IValidator<DefinirPosseDispositivoRequest> _posseValidator;
+    private readonly IValidator<DefinirIdentificacaoInternaRequest> _identificacaoInternaValidator;
     private readonly ConfirmacaoSenhaAdm _confirmacaoSenha;
     private readonly IArmazenamentoArquivosService _arquivos;
+    private readonly IAuditoria _auditoria;
     private readonly ILogger<DispositivosController> _logger;
 
     public DispositivosController(
@@ -43,8 +46,10 @@ public class DispositivosController : ControllerBase
         IValidator<CriarComentarioRequest> comentarioValidator,
         IValidator<ExcluirDispositivoRequest> excluirValidator,
         IValidator<DefinirPosseDispositivoRequest> posseValidator,
+        IValidator<DefinirIdentificacaoInternaRequest> identificacaoInternaValidator,
         ConfirmacaoSenhaAdm confirmacaoSenha,
         IArmazenamentoArquivosService arquivos,
+        IAuditoria auditoria,
         ILogger<DispositivosController> logger)
     {
         _arquivos = arquivos;
@@ -59,14 +64,20 @@ public class DispositivosController : ControllerBase
         _comentarioValidator = comentarioValidator;
         _excluirValidator = excluirValidator;
         _posseValidator = posseValidator;
+        _identificacaoInternaValidator = identificacaoInternaValidator;
         _confirmacaoSenha = confirmacaoSenha;
+        _auditoria = auditoria;
     }
+
+    /// <summary>Id do ADM logado — a autoria vem sempre daqui, nunca do corpo da requisição.</summary>
+    private Guid AdmIdAtual() => User.AdmId()!.Value;
 
     private static DispositivoDto MapToDto(Dispositivo d) => new(
         d.Id,
         d.Tipo,
         d.NumeroSerie,
         d.AssetTag,
+        d.IdentificacaoInterna,
         d.Status,
         d.DataAquisicao,
         d.Observacoes,
@@ -91,10 +102,12 @@ public class DispositivosController : ControllerBase
         // Ativo do local não tem detentor: quem aparece no lugar do usuário é a unidade.
         d.PertenceAUsuario ? d.UsuarioAtual?.Nome : d.Unidade?.Nome,
         d.ExcluidoEm,
-        d.MotivoExclusao);
+        d.MotivoExclusao,
+        d.VencimentoAluguel);
 
     /// <summary>Dispositivos ativos. Os arquivados ficam de fora (filtro global) — veja /arquivados.</summary>
     [HttpGet]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<IEnumerable<DispositivoDto>>> Listar(
         [FromQuery] TipoDispositivo? tipo, [FromQuery] StatusDispositivo? status, [FromQuery] Guid? unidadeId)
     {
@@ -112,6 +125,7 @@ public class DispositivosController : ControllerBase
 
     /// <summary>Dispositivos arquivados, para consulta e restauração pela TI.</summary>
     [HttpGet("arquivados")]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<IEnumerable<DispositivoDto>>> ListarArquivados()
     {
         var dispositivos = await _db.Dispositivos.AsNoTracking()
@@ -126,6 +140,7 @@ public class DispositivosController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<DispositivoDto>> ObterPorId(Guid id)
     {
         var dispositivo = await _db.Dispositivos.AsNoTracking()
@@ -169,6 +184,7 @@ public class DispositivosController : ControllerBase
     }
 
     [HttpPost("notebooks")]
+    [Authorize(Policy = Permissoes.DispositivosCadastrar)]
     public async Task<ActionResult<DispositivoDto>> CriarNotebook(CriarNotebookRequest request)
     {
         var validation = await _notebookValidator.ValidateAsync(request);
@@ -195,6 +211,8 @@ public class DispositivosController : ControllerBase
         };
 
         _db.Dispositivos.Add(notebook);
+        _auditoria.Registrar(AcaoAuditoria.DispositivoCriado,
+            $"Cadastrou o notebook {notebook.NumeroSerie} ({notebook.AssetTag}).", "Dispositivo", notebook.Id);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(ObterPorId), new { id = notebook.Id }, MapToDto(notebook));
     }
@@ -202,6 +220,7 @@ public class DispositivosController : ControllerBase
     /// <summary>Cadastra um celular ou tablet. Rota antiga /telefones mantida como alias.</summary>
     [HttpPost("mobiles")]
     [HttpPost("telefones")]
+    [Authorize(Policy = Permissoes.DispositivosCadastrar)]
     public async Task<ActionResult<DispositivoDto>> CriarMobile(CriarMobileRequest request)
     {
         var validation = await _mobileValidator.ValidateAsync(request);
@@ -229,11 +248,14 @@ public class DispositivosController : ControllerBase
         };
 
         _db.Dispositivos.Add(mobile);
+        _auditoria.Registrar(AcaoAuditoria.DispositivoCriado,
+            $"Cadastrou o mobile {mobile.NumeroSerie} ({mobile.AssetTag}).", "Dispositivo", mobile.Id);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(ObterPorId), new { id = mobile.Id }, MapToDto(mobile));
     }
 
     [HttpPost("perifericos")]
+    [Authorize(Policy = Permissoes.DispositivosCadastrar)]
     public async Task<ActionResult<DispositivoDto>> CriarPeriferico(CriarPerifericoRequest request)
     {
         var validation = await _perifericoValidator.ValidateAsync(request);
@@ -257,11 +279,14 @@ public class DispositivosController : ControllerBase
         };
 
         _db.Dispositivos.Add(periferico);
+        _auditoria.Registrar(AcaoAuditoria.DispositivoCriado,
+            $"Cadastrou o periférico {periferico.NumeroSerie} ({periferico.TipoPeriferico}).", "Dispositivo", periferico.Id);
         await _db.SaveChangesAsync();
         return CreatedAtAction(nameof(ObterPorId), new { id = periferico.Id }, MapToDto(periferico));
     }
 
     [HttpPut("{id:guid}/status")]
+    [Authorize(Policy = Permissoes.DispositivosMovimentar)]
     public async Task<IActionResult> AtualizarStatus(Guid id, AtualizarStatusDispositivoRequest request)
     {
         var dispositivo = await _db.Dispositivos.FindAsync(id);
@@ -292,18 +317,21 @@ public class DispositivosController : ControllerBase
                     UsuarioOrigemId = dispositivo.UsuarioAtualId,
                     UsuarioDestinoId = null, // destino nulo = estoque
                     Motivo = request.Status == StatusDispositivo.Baixado ? "Baixa do dispositivo" : "Devolucao ao estoque",
-                    RegistradoPorAdmId = Guid.Parse(_userManager.GetUserId(User)!),
+                    RegistradoPorAdmId = AdmIdAtual(),
                 });
             }
             dispositivo.UsuarioAtualId = null;
         }
 
+        _auditoria.Registrar(AcaoAuditoria.DispositivoStatusAlterado,
+            $"Alterou o status de {dispositivo.NumeroSerie} para {request.Status}.", "Dispositivo", dispositivo.Id);
         await _db.SaveChangesAsync();
         return NoContent();
     }
 
     /// <summary>Atribui o dispositivo a um usuário, registrando a movimentação (origem = posse/local anteriores).</summary>
     [HttpPost("{id:guid}/atribuir")]
+    [Authorize(Policy = Permissoes.DispositivosMovimentar)]
     public async Task<ActionResult<HistoricoMovimentacaoDto>> Atribuir(Guid id, AtribuirDispositivoRequest request)
     {
         var validation = await _atribuirValidator.ValidateAsync(request);
@@ -340,7 +368,7 @@ public class DispositivosController : ControllerBase
             UsuarioDestinoId = usuarioDestino.Id,
             LocalDestinoId = request.LocalDestinoId,
             Motivo = request.Motivo,
-            RegistradoPorAdmId = request.RegistradoPorAdmId,
+            RegistradoPorAdmId = AdmIdAtual(),
         };
 
         dispositivo.UsuarioAtualId = usuarioDestino.Id;
@@ -350,6 +378,9 @@ public class DispositivosController : ControllerBase
             dispositivo.Status = StatusDispositivo.EmUso;
 
         _db.HistoricoMovimentacoes.Add(movimentacao);
+        _auditoria.Registrar(AcaoAuditoria.DispositivoAtribuido,
+            $"Atribuiu {dispositivo.NumeroSerie} a {usuarioDestino.Nome}.", "Dispositivo", dispositivo.Id,
+            request.Motivo);
         await _db.SaveChangesAsync();
 
         var dto = new HistoricoMovimentacaoDto(
@@ -358,13 +389,15 @@ public class DispositivosController : ControllerBase
             movimentacao.UsuarioDestinoId, usuarioDestino.Nome,
             movimentacao.LocalOrigemId, null,
             movimentacao.LocalDestinoId, null,
-            movimentacao.DataMovimentacao, movimentacao.Motivo);
+            movimentacao.DataMovimentacao, movimentacao.Motivo,
+            User.AdmNome());
 
         return Ok(dto);
     }
 
     /// <summary>Define (ou limpa) a unidade que o dispositivo atende.</summary>
     [HttpPut("{id:guid}/unidade")]
+    [Authorize(Policy = Permissoes.DispositivosCadastrar)]
     public async Task<IActionResult> DefinirUnidade(Guid id, DefinirUnidadeDispositivoRequest request)
     {
         var dispositivo = await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id);
@@ -374,6 +407,69 @@ public class DispositivosController : ControllerBase
         if (erroUnidade is not null) return BadRequest(new { message = erroUnidade });
 
         dispositivo.UnidadeId = request.UnidadeId;
+        _auditoria.Registrar(AcaoAuditoria.DispositivoUnidadeDefinida,
+            $"Definiu a unidade de {dispositivo.NumeroSerie}.", "Dispositivo", dispositivo.Id);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Define (ou limpa) a identificação interna do dispositivo: um rótulo próprio da TI, à parte do
+    /// hostname que o agente reporta. Exige a senha do ADM logado — passa a ser o nome exibido do
+    /// ativo nas telas. Enviar vazio limpa o campo e volta a exibir o hostname/número de série.
+    /// </summary>
+    [HttpPut("{id:guid}/identificacao-interna")]
+    [Authorize(Policy = Permissoes.DispositivosCadastrar)]
+    public async Task<IActionResult> DefinirIdentificacaoInterna(Guid id, DefinirIdentificacaoInternaRequest request)
+    {
+        var validation = await _identificacaoInternaValidator.ValidateAsync(request);
+        if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+
+        var adm = await _confirmacaoSenha.ConferirAsync(User, request.Senha);
+        // 400, e não 401: o 401 faria o site tratar como sessão expirada e deslogar o ADM.
+        if (adm is null) return BadRequest(new { message = "Senha incorreta." });
+
+        var dispositivo = await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id);
+        if (dispositivo is null) return NotFound();
+
+        // Campo em branco significa "sem identificação interna", não string vazia no banco: assim o
+        // fallback para hostname/número de série volta a valer.
+        var valor = string.IsNullOrWhiteSpace(request.IdentificacaoInterna)
+            ? null
+            : request.IdentificacaoInterna.Trim();
+        dispositivo.IdentificacaoInterna = valor;
+
+        _auditoria.Registrar(AcaoAuditoria.DispositivoIdentificacaoInternaDefinida,
+            valor is null
+                ? $"Removeu a identificação interna de {dispositivo.NumeroSerie}."
+                : $"Definiu a identificação interna de {dispositivo.NumeroSerie} como \"{valor}\".",
+            "Dispositivo", dispositivo.Id, request.Motivo);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Define ou limpa (enviando nulo) o vencimento do contrato de aluguel do equipamento.
+    /// Não pede a senha do ADM: é dado operacional do contrato, não mudança de responsabilidade
+    /// sobre o ativo — mas continua auditado, como toda escrita.
+    /// </summary>
+    [HttpPut("{id:guid}/vencimento-aluguel")]
+    [Authorize(Policy = Permissoes.DispositivosCadastrar)]
+    public async Task<IActionResult> DefinirVencimentoAluguel(Guid id, DefinirVencimentoAluguelRequest request)
+    {
+        var dispositivo = await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id);
+        if (dispositivo is null) return NotFound();
+
+        // DateOnly: sem hora e sem fuso. Com DateTime, o conversor de JSON carimbava 'Z' e o
+        // navegador em UTC-3 exibia o dia anterior.
+        var valor = request.VencimentoAluguel;
+        dispositivo.VencimentoAluguel = valor;
+
+        _auditoria.Registrar(AcaoAuditoria.DispositivoVencimentoAluguelDefinido,
+            valor is null
+                ? $"Removeu o vencimento de aluguel de {dispositivo.NumeroSerie}."
+                : $"Definiu o vencimento de aluguel de {dispositivo.NumeroSerie} para {valor:dd/MM/yyyy}.",
+            "Dispositivo", dispositivo.Id, request.Motivo);
         await _db.SaveChangesAsync();
         return NoContent();
     }
@@ -383,6 +479,7 @@ public class DispositivosController : ControllerBase
     /// ADM logado: desligar o interruptor solta o detentor atual do ativo.
     /// </summary>
     [HttpPut("{id:guid}/posse")]
+    [Authorize(Policy = Permissoes.DispositivosMovimentar)]
     public async Task<IActionResult> DefinirPosse(Guid id, DefinirPosseDispositivoRequest request)
     {
         var validation = await _posseValidator.ValidateAsync(request);
@@ -427,6 +524,10 @@ public class DispositivosController : ControllerBase
 
         dispositivo.PertenceAUsuario = request.PertenceAUsuario;
 
+        _auditoria.Registrar(AcaoAuditoria.DispositivoPosseAlterada,
+            $"Alterou a posse de {dispositivo.NumeroSerie} para "
+            + $"{(request.PertenceAUsuario ? "usuário nominal" : "ativo do local")}.",
+            "Dispositivo", dispositivo.Id, request.Motivo);
         await _db.SaveChangesAsync();
         return NoContent();
     }
@@ -439,10 +540,16 @@ public class DispositivosController : ControllerBase
     /// </list>
     /// </summary>
     [HttpPost("{id:guid}/excluir")]
+    [Authorize(Policy = Permissoes.DispositivosExcluir)]
     public async Task<IActionResult> Excluir(Guid id, ExcluirDispositivoRequest request)
     {
         var validation = await _excluirValidator.ValidateAsync(request);
         if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+
+        // Arquivar exige "excluir"; apagar de vez exige, ADEMAIS, "excluir definitivo". O endpoint é
+        // um só (o modo vem no corpo), então a segunda permissão é conferida aqui dentro.
+        if (request.Definitiva && !User.HasClaim(Permissoes.TipoClaim, Permissoes.DispositivosExcluirDefinitivo))
+            return Forbid();
 
         var adm = await _confirmacaoSenha.ConferirAsync(User, request.Senha);
         if (adm is null) return BadRequest(new { message = "Senha incorreta." });
@@ -471,6 +578,12 @@ public class DispositivosController : ControllerBase
             var termos = await _db.TermosDeUso.Where(t => t.DispositivoId == id).ToListAsync();
             _db.TermosDeUso.RemoveRange(termos);
 
+            // Auditoria ANTES do Remove: LogAuditoria não tem FK para Dispositivo (EntidadeId é
+            // Guid solto), então o registro sobrevive ao apagamento do alvo em cascata.
+            _auditoria.Registrar(AcaoAuditoria.DispositivoExcluidoDefinitivo,
+                $"Excluiu DEFINITIVAMENTE o dispositivo {dispositivo.NumeroSerie}.", "Dispositivo", dispositivo.Id,
+                request.Motivo);
+
             // Os demais dependentes (movimentações, reparos, comentários, alertas, localizações,
             // comandos, geofence) têm ON DELETE CASCADE no banco e saem junto com o dispositivo.
             _db.Dispositivos.Remove(dispositivo);
@@ -487,12 +600,15 @@ public class DispositivosController : ControllerBase
         dispositivo.ExcluidoPorAdmId = adm.Id;
         dispositivo.MotivoExclusao = request.Motivo;
 
+        _auditoria.Registrar(AcaoAuditoria.DispositivoArquivado,
+            $"Arquivou o dispositivo {dispositivo.NumeroSerie}.", "Dispositivo", dispositivo.Id, request.Motivo);
         await _db.SaveChangesAsync();
         return NoContent();
     }
 
     /// <summary>Traz de volta um dispositivo arquivado, com o histórico intacto.</summary>
     [HttpPost("{id:guid}/restaurar")]
+    [Authorize(Policy = Permissoes.DispositivosExcluir)]
     public async Task<IActionResult> Restaurar(Guid id)
     {
         var dispositivo = await _db.Dispositivos.IgnoreQueryFilters()
@@ -503,11 +619,14 @@ public class DispositivosController : ControllerBase
         dispositivo.ExcluidoPorAdmId = null;
         dispositivo.MotivoExclusao = null;
 
+        _auditoria.Registrar(AcaoAuditoria.DispositivoRestaurado,
+            $"Restaurou o dispositivo {dispositivo.NumeroSerie}.", "Dispositivo", dispositivo.Id);
         await _db.SaveChangesAsync();
         return NoContent();
     }
 
     [HttpGet("{id:guid}/historico-movimentacao")]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<IEnumerable<HistoricoMovimentacaoDto>>> HistoricoMovimentacao(Guid id)
     {
         var historico = await _db.HistoricoMovimentacoes.AsNoTracking()
@@ -523,13 +642,15 @@ public class DispositivosController : ControllerBase
                 h.UsuarioDestinoId, h.UsuarioDestino != null ? h.UsuarioDestino.Nome : null,
                 h.LocalOrigemId, h.LocalOrigem != null ? h.LocalOrigem.Nome : null,
                 h.LocalDestinoId, h.LocalDestino != null ? h.LocalDestino.Nome : null,
-                h.DataMovimentacao, h.Motivo))
+                h.DataMovimentacao, h.Motivo,
+                _db.Users.Where(u => u.Id == h.RegistradoPorAdmId).Select(u => u.Nome).FirstOrDefault()))
             .ToListAsync();
 
         return Ok(historico);
     }
 
     [HttpGet("{id:guid}/historico-localizacao")]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<IEnumerable<HistoricoLocalizacaoDto>>> HistoricoLocalizacao(Guid id)
     {
         var historico = await _db.HistoricoLocalizacoes.AsNoTracking()
@@ -545,6 +666,7 @@ public class DispositivosController : ControllerBase
     }
 
     [HttpPost("{id:guid}/reparos")]
+    [Authorize(Policy = Permissoes.DispositivosMovimentar)]
     public async Task<ActionResult<HistoricoReparoDto>> CriarReparo(Guid id, CriarReparoRequest request)
     {
         var validation = await _reparoValidator.ValidateAsync(request);
@@ -558,7 +680,7 @@ public class DispositivosController : ControllerBase
             DispositivoId = id,
             Descricao = request.Descricao,
             CustoEstimado = request.CustoEstimado,
-            RegistradoPorAdmId = request.RegistradoPorAdmId,
+            RegistradoPorAdmId = AdmIdAtual(),
         };
 
         _db.HistoricoReparos.Add(reparo);
@@ -566,14 +688,18 @@ public class DispositivosController : ControllerBase
         var dispositivo = await _db.Dispositivos.FirstAsync(d => d.Id == id);
         dispositivo.Status = StatusDispositivo.EmManutencao;
 
+        _auditoria.Registrar(AcaoAuditoria.ReparoAberto,
+            $"Abriu um reparo em {dispositivo.NumeroSerie}.", "Dispositivo", dispositivo.Id, request.Descricao);
         await _db.SaveChangesAsync();
 
         return Ok(new HistoricoReparoDto(
             reparo.Id, reparo.DispositivoId, reparo.Descricao, reparo.Status,
-            reparo.CustoEstimado, reparo.DataAbertura, reparo.DataConclusao, reparo.RegistradoPorAdmId));
+            reparo.CustoEstimado, reparo.DataAbertura, reparo.DataConclusao, reparo.RegistradoPorAdmId,
+            User.AdmNome()));
     }
 
     [HttpGet("{id:guid}/reparos")]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<IEnumerable<HistoricoReparoDto>>> ListarReparos(Guid id)
     {
         var reparos = await _db.HistoricoReparos.AsNoTracking()
@@ -581,13 +707,15 @@ public class DispositivosController : ControllerBase
             .OrderByDescending(r => r.DataAbertura)
             .Select(r => new HistoricoReparoDto(
                 r.Id, r.DispositivoId, r.Descricao, r.Status,
-                r.CustoEstimado, r.DataAbertura, r.DataConclusao, r.RegistradoPorAdmId))
+                r.CustoEstimado, r.DataAbertura, r.DataConclusao, r.RegistradoPorAdmId,
+                _db.Users.Where(u => u.Id == r.RegistradoPorAdmId).Select(u => u.Nome).FirstOrDefault()))
             .ToListAsync();
 
         return Ok(reparos);
     }
 
     [HttpPut("{id:guid}/reparos/{reparoId:guid}/status")]
+    [Authorize(Policy = Permissoes.DispositivosMovimentar)]
     public async Task<IActionResult> AtualizarStatusReparo(Guid id, Guid reparoId, AtualizarStatusReparoRequest request)
     {
         var reparo = await _db.HistoricoReparos.FirstOrDefaultAsync(r => r.Id == reparoId && r.DispositivoId == id);
@@ -603,11 +731,14 @@ public class DispositivosController : ControllerBase
             dispositivo.Status = dispositivo.UsuarioAtualId is null ? StatusDispositivo.EmEstoque : StatusDispositivo.EmUso;
         }
 
+        _auditoria.Registrar(AcaoAuditoria.ReparoStatusAlterado,
+            $"Alterou o status de um reparo para {request.Status}.", "Dispositivo", id);
         await _db.SaveChangesAsync();
         return NoContent();
     }
 
     [HttpPost("{id:guid}/comentarios")]
+    [Authorize(Policy = Permissoes.DispositivosMovimentar)]
     public async Task<ActionResult<ComentarioDispositivoDto>> CriarComentario(Guid id, CriarComentarioRequest request)
     {
         var validation = await _comentarioValidator.ValidateAsync(request);
@@ -616,17 +747,20 @@ public class DispositivosController : ControllerBase
         var dispositivoExiste = await _db.Dispositivos.AnyAsync(d => d.Id == id);
         if (!dispositivoExiste) return NotFound(new { message = "Dispositivo não encontrado." });
 
-        var admNome = await _db.Users.Where(u => u.Id == request.CriadoPorAdmId).Select(u => u.Nome).FirstOrDefaultAsync();
-        if (admNome is null) return NotFound(new { message = "Usuario ADM não encontrado." });
+        // Autoria pelo usuário logado, nunca por id vindo do corpo (que seria forjável).
+        var admId = AdmIdAtual();
+        var admNome = User.AdmNome();
 
         var comentario = new ComentarioDispositivo
         {
             DispositivoId = id,
             Texto = request.Texto,
-            CriadoPorAdmId = request.CriadoPorAdmId,
+            CriadoPorAdmId = admId,
         };
 
         _db.ComentariosDispositivo.Add(comentario);
+        _auditoria.Registrar(AcaoAuditoria.ComentarioAdicionado,
+            "Adicionou um comentário ao dispositivo.", "Dispositivo", id);
         await _db.SaveChangesAsync();
 
         return Ok(new ComentarioDispositivoDto(
@@ -635,6 +769,7 @@ public class DispositivosController : ControllerBase
     }
 
     [HttpGet("{id:guid}/comentarios")]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<IEnumerable<ComentarioDispositivoDto>>> ListarComentarios(Guid id)
     {
         var comentarios = await (

@@ -10,18 +10,24 @@ Você cria a tag v1.2.0  ->  GitHub Actions (self-hosted runner on-prem)
 ```
 
 > **Por que tudo no runner on-prem?** O repositório é **privado** e o org está no plano **free**,
-> então runners GitHub-hosted (`windows-latest`) não ficam disponíveis. O `setup-dotnet` e o
-> `setup-node` **baixam** o .NET 8 SDK e o Node no próprio runner — não precisam estar pré-instalados.
+> então runners GitHub-hosted (`windows-latest`) não ficam disponíveis. O egress da rede bloqueia
+> os CDNs de download, então o workflow **não** usa `setup-dotnet`/`setup-node`: o **.NET 8 SDK**
+> e o **Node.js** ficam **pré-instalados** no servidor (o passo *Preflight* falha com mensagem se
+> faltarem).
 
 - **Build + testes:** se algum teste falhar, o deploy **não acontece**. Os testes rodam contra um
   **banco fake** (instância inexistente): como a migração no start está em `try/catch`
-  ([Program.cs](../src/Tracker.Api/Program.cs)), a API sobe mesmo sem banco e o `/health` passa —
+  ([Program.cs](../../src/Tracker.Api/Program.cs)), a API sobe mesmo sem banco e o `/health` passa —
   logo os testes **nunca tocam o banco de produção** configurado na máquina.
+- **node_modules:** restaurado de um cache local do servidor (`C:\TrackerCI`), chaveado pelo
+  hash do `package-lock.json` — só roda `npm ci` quando o lock muda.
 - **Publish + deploy:** gera o pacote site + API e troca os arquivos no IIS (backup, para, copia,
   reinicia, health check).
+- **Instalador do agente Windows:** regerado em `C:\TrackerAgentDist` **só se o agente mudou**
+  desde a tag anterior (roda depois do deploy; falha aqui não desfaz o site).
 
-Arquivos: [`.github/workflows/deploy-producao.yml`](../.github/workflows/deploy-producao.yml) e
-[`deploy/atualizar-servidor.ps1`](../deploy/atualizar-servidor.ps1).
+Arquivos: [`.github/workflows/deploy-producao.yml`](../../.github/workflows/deploy-producao.yml) e
+[`deploy/atualizar-servidor.ps1`](../../deploy/atualizar-servidor.ps1).
 
 ---
 
@@ -66,9 +72,9 @@ No servidor `192.168.0.254`, como **Administrador**:
    (Services.msc → propriedades do serviço → aba Logon), ou uma conta com direito de
    parar/iniciar sites do IIS e escrever em `C:\Tracker` e `C:\TrackerBackups`.
 
-> O `setup-dotnet`/`setup-node` baixam .NET 8 SDK e Node no runner sob demanda — não precisa
-> instalá-los na mão. O servidor continua precisando do **.NET 8 Hosting Bundle** (requisito do site)
-> e de **acesso à internet** para o runner baixar as ferramentas e falar com o GitHub.
+> Instale no servidor o **.NET 8 SDK** e o **Node.js LTS** (o CI não os baixa) e **reinicie o
+> serviço do runner** depois, para ele enxergar o PATH novo. O servidor também precisa do
+> **.NET 8 Hosting Bundle** (requisito do site) e de acesso ao GitHub.
 
 ---
 
@@ -78,6 +84,9 @@ No servidor `192.168.0.254`, como **Administrador**:
   [deploy-servidor-onpremises.md](deploy-servidor-onpremises.md)).
 - Variáveis de ambiente de máquina com os segredos de produção (`ConnectionStrings__TrackerDb`,
   `Encryption__CpfKeyBase64`, etc.). **O CI não mexe nisso** — os segredos ficam só no servidor.
+  O passo do instalador do agente lê `Enrollment__CompanyKey` dessa mesma env da máquina.
+  Opcionais: `TRACKER_BACKEND_URL` (padrão: URL de produção) e `TRACKER_AGENTE_DIST`
+  (padrão: `C:\TrackerAgentDist` — fica **fora do `wwwroot`**, pois o `.exe` embute a chave).
 
 ---
 
@@ -117,6 +126,7 @@ Start-Website -Name Tracker
 
 ## Checklist antes da primeira tag
 
+- [ ] .NET 8 SDK e Node.js LTS instalados no servidor (serviço do runner reiniciado depois).
 - [ ] Runner self-hosted instalado, com labels `self-hosted,windows,tracker-prod`, rodando como serviço.
 - [ ] Conta do serviço com permissão de IIS + escrita em `C:\Tracker` e `C:\TrackerBackups`.
 - [ ] Site `Tracker` e variáveis de ambiente de produção já configurados.

@@ -13,8 +13,26 @@ public abstract class Dispositivo : EntidadeBase
     public string NumeroSerie { get; set; } = string.Empty;
     /// <summary>Patrimônio. Nulo em periféricos, que não recebem etiqueta.</summary>
     public string? AssetTag { get; set; }
+
+    /// <summary>
+    /// Identificação interna definida MANUALMENTE pela TI (um apelido/rótulo próprio do inventário).
+    /// Diferente do <see cref="DispositivoComAgente.Hostname"/>, que o agente reporta e sobrescreve a
+    /// cada heartbeat: este campo é da TI e nunca é tocado pelo agente. Quando preenchido, é ele que
+    /// aparece como a identificação do dispositivo nas telas; nulo = usa hostname/número de série.
+    /// </summary>
+    public string? IdentificacaoInterna { get; set; }
     public StatusDispositivo Status { get; set; } = StatusDispositivo.EmEstoque;
     public DateTime DataAquisicao { get; set; }
+
+    /// <summary>
+    /// Data em que o CONTRATO DE ALUGUEL do equipamento vence. É <c>DateOnly</c> de propósito:
+    /// data civil não tem hora nem fuso. Como <c>DateTime</c>, o conversor de JSON da API
+    /// (que carimba todo DateTime com 'Z') fazia o navegador em UTC-3 exibir o dia ANTERIOR.
+    /// Nulo = sem contrato registrado, que é o caso dos ativos próprios. O campo existe em todos os
+    /// tipos porque a TI pode alugar qualquer um deles; quem indica que o ativo é alugado continua
+    /// sendo o prefixo da identificação (ver CLAUDE.md), não este campo.
+    /// </summary>
+    public DateOnly? VencimentoAluguel { get; set; }
     public string? Observacoes { get; set; }
 
     public Guid? UsuarioAtualId { get; set; }
@@ -57,6 +75,11 @@ public abstract class DispositivoComAgente : Dispositivo
     public string? VersaoSO { get; set; }
     public string? MacAddress { get; set; }
     public string? AgenteVersao { get; set; }
+    /// <summary>
+    /// versionCode do APK instalado, reportado no heartbeat. Só o agente Android envia (nulo no
+    /// Windows) — é o que o servidor compara para oferecer a atualização OTA.
+    /// </summary>
+    public int? AgenteVersaoCode { get; set; }
     public DateTime? UltimoHeartbeatEm { get; set; }
     public bool GeofenceAtivo { get; set; }
     public StatusComandoRemoto? StatusUltimoComando { get; set; }

@@ -9,7 +9,9 @@ import type {
   CriarPerifericoRequest,
   CriarReparoRequest,
   CriarMobileRequest,
+  DefinirIdentificacaoInternaRequest,
   DefinirPosseDispositivoRequest,
+  DefinirVencimentoAluguelRequest,
   Dispositivo,
   EnrollmentResponse,
   ExcluirDispositivoRequest,
@@ -40,6 +42,10 @@ export const dispositivosApi = {
     apiClient.put(`/api/dispositivos/${id}/unidade`, { unidadeId }).then((r) => r.data),
   definirPosse: (id: string, data: DefinirPosseDispositivoRequest) =>
     apiClient.put(`/api/dispositivos/${id}/posse`, data).then((r) => r.data),
+  definirIdentificacaoInterna: (id: string, data: DefinirIdentificacaoInternaRequest) =>
+    apiClient.put(`/api/dispositivos/${id}/identificacao-interna`, data).then((r) => r.data),
+  definirVencimentoAluguel: (id: string, data: DefinirVencimentoAluguelRequest) =>
+    apiClient.put(`/api/dispositivos/${id}/vencimento-aluguel`, data).then((r) => r.data),
   excluir: (id: string, data: ExcluirDispositivoRequest) =>
     apiClient.post(`/api/dispositivos/${id}/excluir`, data).then((r) => r.data),
   restaurar: (id: string) => apiClient.post(`/api/dispositivos/${id}/restaurar`).then((r) => r.data),

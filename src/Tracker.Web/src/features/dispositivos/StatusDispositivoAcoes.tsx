@@ -27,10 +27,14 @@ const acoesStatus: { destino: StatusDispositivo; label: string; confirmar?: bool
 interface Props {
   dispositivoId: string
   status: StatusDispositivo
+  /** False = ativo do local (lotado na unidade, sem detentor). Habilita "Colocar em uso". */
+  pertenceAUsuario: boolean
+  /** Unidade que o ativo atende. Necessária para colocar um ativo de local em uso. */
+  unidadeId: string | null
 }
 
 /** Chip do status atual + menu para alterá-lo manualmente (devolver ao estoque, baixa, manutenção). */
-export function StatusDispositivoAcoes({ dispositivoId, status }: Props) {
+export function StatusDispositivoAcoes({ dispositivoId, status, pertenceAUsuario, unidadeId }: Props) {
   const [menuAncora, setMenuAncora] = useState<HTMLElement | null>(null)
   const [confirmar, setConfirmar] = useState<StatusDispositivo | null>(null)
   const atualizar = useAtualizarStatusDispositivo()
@@ -40,7 +44,16 @@ export function StatusDispositivoAcoes({ dispositivoId, status }: Props) {
     atualizar.mutate({ id: dispositivoId, status: destino })
   }
 
-  const opcoes = acoesStatus.filter((a) => a.destino !== status)
+  // Ativo do local vira "Em uso" pela atribuição a uma unidade (não passa por detentor); a opção
+  // só aparece quando ele é de local, tem unidade definida e ainda não está em uso. O backend
+  // (AtualizarStatus) reforça a mesma regra.
+  const podeColocarEmUso = !pertenceAUsuario && unidadeId != null && status !== 'EmUso'
+  const opcoes = [
+    ...(podeColocarEmUso
+      ? [{ destino: 'EmUso' as StatusDispositivo, label: 'Colocar em uso' }]
+      : []),
+    ...acoesStatus.filter((a) => a.destino !== status),
+  ]
 
   return (
     <>

@@ -184,7 +184,7 @@ object OverlayBloqueio {
 
         binding.textoIdentificacao.text = buildString {
             if (!patrimonio.isNullOrBlank()) appendLine("Patrimônio: $patrimonio")
-            appendLine("Série: ${info.numeroSerie}")
+            appendLine("Série: ${info.numeroSerieReal ?: info.numeroSerie}")
             append("${info.fabricante} ${info.modelo}")
         }
     }

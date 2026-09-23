@@ -1,9 +1,11 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Tracker.Application.Seguranca;
 using Tracker.Infrastructure.Identity;
 
 namespace Tracker.Infrastructure.Data;
@@ -28,6 +30,12 @@ public static class DbSeeder
         {
             await roleManager.CreateAsync(new IdentityRole<Guid>(RoleAdmin));
         }
+
+        // Caminho de UPGRADE (idempotente): instalações anteriores têm ADMs na role Admin, mas ZERO
+        // permissões — e, com as policies em vigor, ficariam trancados fora de tudo após o deploy.
+        // Aqui garantimos que todo ADM da role Admin tenha o conjunto completo. Roda a cada start,
+        // mas só concede o que falta.
+        await GarantirPermissoesDosAdminsAsync(userManager, logger);
 
         if (userManager.Users.Any()) return;
 
@@ -59,7 +67,36 @@ public static class DbSeeder
         }
 
         await userManager.AddToRoleAsync(admin, RoleAdmin);
+        await ConcederTodasAsPermissoesAsync(userManager, admin);
         logger.LogInformation("Usuario ADM inicial criado: {Email}", email);
+    }
+
+    /// <summary>Concede a um ADM toda permissão do catálogo que ele ainda não tenha (idempotente).</summary>
+    private static async Task ConcederTodasAsPermissoesAsync(UserManager<UsuarioADM> userManager, UsuarioADM usuario)
+    {
+        var existentes = (await userManager.GetClaimsAsync(usuario))
+            .Where(c => c.Type == Permissoes.TipoClaim)
+            .Select(c => c.Value)
+            .ToHashSet();
+
+        var faltando = Permissoes.Todas
+            .Where(p => !existentes.Contains(p))
+            .Select(p => new Claim(Permissoes.TipoClaim, p))
+            .ToList();
+
+        if (faltando.Count > 0)
+            await userManager.AddClaimsAsync(usuario, faltando);
+    }
+
+    /// <summary>Garante que todo ADM da role Admin tenha o conjunto completo de permissões.</summary>
+    private static async Task GarantirPermissoesDosAdminsAsync(UserManager<UsuarioADM> userManager, ILogger logger)
+    {
+        var admins = await userManager.GetUsersInRoleAsync(RoleAdmin);
+        foreach (var admin in admins)
+            await ConcederTodasAsPermissoesAsync(userManager, admin);
+
+        if (admins.Count > 0)
+            logger.LogInformation("Permissões conferidas para {Total} ADM(s) da role Admin.", admins.Count);
     }
 
     /// <summary>

@@ -29,6 +29,8 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
     public DbSet<HistoricoReparo> HistoricoReparos => Set<HistoricoReparo>();
     public DbSet<ComentarioDispositivo> ComentariosDispositivo => Set<ComentarioDispositivo>();
     public DbSet<AlertaDispositivo> AlertasDispositivo => Set<AlertaDispositivo>();
+    public DbSet<PacoteAgenteAndroid> PacotesAgenteAndroid => Set<PacoteAgenteAndroid>();
+    public DbSet<LogAuditoria> LogsAuditoria => Set<LogAuditoria>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -45,6 +47,19 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
         builder.Entity<UsuarioADM>(entity =>
         {
             entity.Property(a => a.Cpf).HasConversion(cpfConverter);
+        });
+
+        builder.Entity<LogAuditoria>(entity =>
+        {
+            entity.Property(l => l.AdmNome).HasMaxLength(256);
+            entity.Property(l => l.EntidadeTipo).HasMaxLength(60);
+            entity.Property(l => l.Descricao).HasMaxLength(1000);
+            entity.Property(l => l.EnderecoIp).HasMaxLength(64);
+            // Índices dos filtros da tela de auditoria: por data (ordenação padrão), por autor e
+            // por alvo (aba "logs deste dispositivo").
+            entity.HasIndex(l => l.CriadoEm);
+            entity.HasIndex(l => l.AdmId);
+            entity.HasIndex(l => l.EntidadeId);
         });
 
         // TPH: uma única tabela Dispositivos com discriminador TipoDispositivo.
@@ -175,6 +190,16 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
                 .WithMany(d => d.Comentarios)
                 .HasForeignKey(c => c.DispositivoId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<PacoteAgenteAndroid>(entity =>
+        {
+            // Um pacote por versionCode: republicar a mesma versão exige apagar/subir outra.
+            entity.HasIndex(p => p.VersaoCode).IsUnique();
+            entity.Property(p => p.VersaoNome).HasMaxLength(50);
+            entity.Property(p => p.NomeArquivoOriginal).HasMaxLength(260);
+            entity.Property(p => p.CaminhoRelativo).HasMaxLength(400);
+            entity.Property(p => p.HashSha256).HasMaxLength(64);
         });
 
         builder.Entity<AlertaDispositivo>(entity =>

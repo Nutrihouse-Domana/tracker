@@ -48,6 +48,24 @@ public class EnrollmentService
         }
 
         // 3. auto-cadastro com a chave da empresa
+        return await AutoCadastrarAsync(ct);
+    }
+
+    /// <summary>
+    /// Descarta o token atual (token.dat) e refaz o auto-cadastro. Chamado quando o backend
+    /// rejeita o token (401) — ex.: agente atualizado/apontado para outro servidor. O backend
+    /// reencontra o dispositivo por patrimônio/série/IMEI, então isto REAPROVEITA o registro e
+    /// regenera o token, sem duplicar o ativo no inventário.
+    /// </summary>
+    public async Task<bool> ReenrollarAsync(CancellationToken ct)
+    {
+        try { if (File.Exists(_tokenPath)) File.Delete(_tokenPath); } catch { }
+        _tokenHolder.Token = null;
+        return await AutoCadastrarAsync(ct);
+    }
+
+    private async Task<bool> AutoCadastrarAsync(CancellationToken ct)
+    {
         if (string.IsNullOrWhiteSpace(_options.EnrollmentKey))
         {
             _logger.LogError("Sem AgentToken e sem EnrollmentKey — não é possível autenticar o agente.");

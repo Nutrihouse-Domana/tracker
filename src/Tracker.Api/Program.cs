@@ -84,6 +84,24 @@ builder.Services
     .AddEntityFrameworkStores<TrackerDbContext>()
     .AddDefaultTokenProviders();
 
+// Desativar um login (ou revogar acesso) precisa derrubar a sessão já aberta. O SecurityStampValidator
+// revalida o cookie contra o SecurityStamp do banco; com intervalo curto, o kill-switch age em ~1 min.
+builder.Services.Configure<SecurityStampValidatorOptions>(options =>
+    options.ValidationInterval = TimeSpan.FromMinutes(1));
+
+// Cada permissão do catálogo vira uma policy homônima que exige o claim "perm" correspondente. Os
+// claims são injetados a cada requisição pela PermissoesClaimsTransformation (sempre frescos).
+// [Authorize] sem policy continua exigindo apenas usuário autenticado (comportamento padrão).
+builder.Services.AddAuthorization(options =>
+{
+    foreach (var permissao in Tracker.Application.Seguranca.Permissoes.Todas)
+    {
+        options.AddPolicy(permissao, policy =>
+            policy.RequireClaim(Tracker.Application.Seguranca.Permissoes.TipoClaim, permissao));
+    }
+});
+builder.Services.AddScoped<Microsoft.AspNetCore.Authentication.IClaimsTransformation, Tracker.Api.Seguranca.PermissoesClaimsTransformation>();
+
 // A API é consumida por um SPA: chamadas não autenticadas devem retornar 401/403 (JSON),
 // e não redirecionar para a tela de login do Identity (/Account/Login). Sem isso, o redirect
 // 302 cai no fallback do SPA (index.html com 200) e o front acha que está autenticado.
@@ -102,14 +120,28 @@ builder.Services.ConfigureApplicationCookie(options =>
 });
 
 builder.Services.AddScoped<ITermoDeUsoPdfService, TermoDeUsoPdfService>();
+builder.Services.AddScoped<Tracker.Infrastructure.Relatorios.IRelatorioInventarioService,
+    Tracker.Infrastructure.Relatorios.RelatorioInventarioService>();
+builder.Services.AddScoped<Tracker.Infrastructure.Relatorios.IRelatorioPdfService,
+    Tracker.Infrastructure.Relatorios.RelatorioPdfService>();
+builder.Services.AddScoped<Tracker.Infrastructure.Relatorios.IRelatorioExcelService,
+    Tracker.Infrastructure.Relatorios.RelatorioExcelService>();
 builder.Services.AddSingleton<AgentTokenService>();
 builder.Services.AddScoped<AgentAuth>();
 builder.Services.AddScoped<Tracker.Api.Seguranca.ConfirmacaoSenhaAdm>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<Tracker.Api.Seguranca.IAuditoria, Tracker.Api.Seguranca.AuditoriaService>();
 
 var termosPath = Path.Combine(
     builder.Environment.ContentRootPath,
     builder.Configuration["Storage:TermosDeUsoPath"] ?? "App_Data/termos-de-uso");
 builder.Services.AddSingleton<IArmazenamentoArquivosService>(_ => new ArmazenamentoArquivosService(termosPath));
+
+var pacotesPath = Path.Combine(
+    builder.Environment.ContentRootPath,
+    builder.Configuration["Storage:PacotesAgentePath"] ?? "App_Data/pacotes-agente");
+builder.Services.AddSingleton<IArmazenamentoPacotesAgenteService>(
+    _ => new ArmazenamentoPacotesAgenteService(pacotesPath));
 
 builder.Services.AddCors(options =>
 {

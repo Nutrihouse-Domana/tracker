@@ -2,8 +2,11 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Tracker.Api.Seguranca;
 using Tracker.Application.Dtos;
+using Tracker.Application.Seguranca;
 using Tracker.Domain.Entities;
+using Tracker.Domain.Enums;
 using Tracker.Infrastructure.Data;
 
 namespace Tracker.Api.Controllers;
@@ -17,18 +20,24 @@ public class UnidadesController : ControllerBase
     private readonly TrackerDbContext _db;
     private readonly IValidator<CriarUnidadeRequest> _criarValidator;
     private readonly IValidator<AtualizarUnidadeRequest> _atualizarValidator;
+    private readonly IAuditoria _auditoria;
 
     public UnidadesController(
         TrackerDbContext db,
         IValidator<CriarUnidadeRequest> criarValidator,
-        IValidator<AtualizarUnidadeRequest> atualizarValidator)
+        IValidator<AtualizarUnidadeRequest> atualizarValidator,
+        IAuditoria auditoria)
     {
         _db = db;
         _criarValidator = criarValidator;
         _atualizarValidator = atualizarValidator;
+        _auditoria = auditoria;
     }
 
+    // Ler unidades é necessário para os formulários de dispositivo (selecionar a unidade), então a
+    // leitura pede "ver dispositivos"; só criar/editar exige "gerir unidades".
     [HttpGet]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<IEnumerable<UnidadeDto>>> Listar([FromQuery] bool incluirInativas = false)
     {
         var query = _db.Unidades.AsNoTracking();
@@ -43,6 +52,7 @@ public class UnidadesController : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<UnidadeDto>> ObterPorId(Guid id)
     {
         var unidade = await _db.Unidades.AsNoTracking()
@@ -54,6 +64,7 @@ public class UnidadesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = Permissoes.UnidadesGerir)]
     public async Task<ActionResult<UnidadeDto>> Criar(CriarUnidadeRequest request)
     {
         var validation = await _criarValidator.ValidateAsync(request);
@@ -69,6 +80,8 @@ public class UnidadesController : ControllerBase
         };
 
         _db.Unidades.Add(unidade);
+        _auditoria.Registrar(AcaoAuditoria.UnidadeCriada,
+            $"Criou a unidade {unidade.Nome}.", "Unidade", unidade.Id);
         await _db.SaveChangesAsync();
 
         var dto = new UnidadeDto(unidade.Id, unidade.Nome, unidade.Codigo, unidade.Ativa, 0);
@@ -76,6 +89,7 @@ public class UnidadesController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = Permissoes.UnidadesGerir)]
     public async Task<IActionResult> Atualizar(Guid id, AtualizarUnidadeRequest request)
     {
         var validation = await _atualizarValidator.ValidateAsync(request);
@@ -103,6 +117,9 @@ public class UnidadesController : ControllerBase
         unidade.Codigo = string.IsNullOrWhiteSpace(request.Codigo) ? null : request.Codigo.Trim();
         unidade.Ativa = request.Ativa;
 
+        _auditoria.Registrar(AcaoAuditoria.UnidadeEditada,
+            $"Editou a unidade {unidade.Nome}.", "Unidade", unidade.Id,
+            request.Ativa ? null : "Marcada como inativa.");
         await _db.SaveChangesAsync();
         return NoContent();
     }

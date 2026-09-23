@@ -46,3 +46,7 @@ Thumbs.db
 
 # Payload do instalador de pendrive (contem a EnrollmentKey)
 deploy/Instalador/Recursos/
+
+# Ambiente de desenvolvimento em container: contem a senha do SA gerada por
+# deploy/preparar-ambiente-dev.ps1. NUNCA versionar.
+.env

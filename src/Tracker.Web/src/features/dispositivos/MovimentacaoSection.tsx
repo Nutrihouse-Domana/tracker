@@ -1,5 +1,6 @@
 import { List, ListItem, ListItemText, Typography } from '@mui/material'
 import { useHistoricoMovimentacao } from './hooks'
+import { formatarDataHora } from '../../utils/formato'
 
 interface Props {
   dispositivoId: string
@@ -16,7 +17,8 @@ export function MovimentacaoSection({ dispositivoId }: Props) {
             primary={`${h.usuarioOrigemNome ?? 'Estoque'} → ${h.usuarioDestinoNome ?? 'Estoque'}`}
             secondary={
               <>
-                {new Date(h.dataMovimentacao).toLocaleString('pt-BR')}
+                {formatarDataHora(h.dataMovimentacao)}
+                {h.registradoPorAdmNome ? ` — por ${h.registradoPorAdmNome}` : ''}
                 {h.motivo ? ` — ${h.motivo}` : ''}
               </>
             }

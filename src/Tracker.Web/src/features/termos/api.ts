@@ -15,14 +15,13 @@ export const termosApi = {
     dispositivoId: string
     usuarioId: string
     versaoTermo: string
-    registradoPorAdmId: string
     arquivo: File
   }) => {
     const form = new FormData()
     form.append('dispositivoId', data.dispositivoId)
     form.append('usuarioId', data.usuarioId)
     form.append('versaoTermo', data.versaoTermo)
-    form.append('registradoPorAdmId', data.registradoPorAdmId)
+    // A autoria (quem registrou) é resolvida no servidor pelo ADM logado.
     form.append('arquivo', data.arquivo)
     return apiClient.post<TermoDeUso>('/api/termosdeuso', form).then((r) => r.data)
   },

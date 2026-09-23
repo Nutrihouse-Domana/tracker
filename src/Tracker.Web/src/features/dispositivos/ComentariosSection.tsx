@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { List, ListItem, ListItemText, Typography, TextField, Button, Stack } from '@mui/material'
 import { useComentarios, useCriarComentario } from './hooks'
-import { useMe } from '../auth/useAuth'
+import { formatarDataHora } from '../../utils/formato'
+import { usePermissao, PERMISSOES } from '../auth/permissoes'
 
 interface Props {
   dispositivoId: string
@@ -10,39 +11,41 @@ interface Props {
 export function ComentariosSection({ dispositivoId }: Props) {
   const [texto, setTexto] = useState('')
   const { data: comentarios } = useComentarios(dispositivoId)
-  const { data: adm } = useMe()
+  const podeMovimentar = usePermissao(PERMISSOES.dispositivosMovimentar)
   const criar = useCriarComentario(dispositivoId)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!adm || !texto.trim()) return
-    criar.mutate({ texto, criadoPorAdmId: adm.id }, { onSuccess: () => setTexto('') })
+    if (!texto.trim()) return
+    criar.mutate({ texto }, { onSuccess: () => setTexto('') })
   }
 
   return (
     <Stack spacing={2} sx={{ mt: 1 }}>
-      <Stack component="form" onSubmit={handleSubmit} direction="row" spacing={1}>
-        <TextField
-          label="Novo comentário"
-          value={texto}
-          onChange={(e) => setTexto(e.target.value)}
-          required
-          fullWidth
-          size="small"
-          multiline
-          minRows={2}
-        />
-        <Button type="submit" variant="contained" disabled={criar.isPending}>
-          Enviar
-        </Button>
-      </Stack>
+      {podeMovimentar && (
+        <Stack component="form" onSubmit={handleSubmit} direction="row" spacing={1}>
+          <TextField
+            label="Novo comentário"
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            required
+            fullWidth
+            size="small"
+            multiline
+            minRows={2}
+          />
+          <Button type="submit" variant="contained" disabled={criar.isPending}>
+            Enviar
+          </Button>
+        </Stack>
+      )}
 
       <List dense>
         {comentarios?.map((c) => (
           <ListItem key={c.id} divider alignItems="flex-start">
             <ListItemText
               primary={c.texto}
-              secondary={`${c.criadoPorAdmNome} — ${new Date(c.criadoEm).toLocaleString('pt-BR')}`}
+              secondary={`${c.criadoPorAdmNome} — ${formatarDataHora(c.criadoEm)}`}
             />
           </ListItem>
         ))}

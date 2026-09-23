@@ -15,6 +15,7 @@ import androidx.core.app.NotificationCompat
 import br.com.nutrihouse.tracker.agent.AgenteConfig
 import br.com.nutrihouse.tracker.agent.BuildConfig
 import br.com.nutrihouse.tracker.agent.R
+import br.com.nutrihouse.tracker.agent.atualizacao.AtualizadorAgente
 import br.com.nutrihouse.tracker.agent.bloqueio.Bloqueio
 import br.com.nutrihouse.tracker.agent.dados.Armazenamento
 import br.com.nutrihouse.tracker.agent.dados.BackendClient
@@ -58,6 +59,7 @@ class AgenteService : Service() {
     private val bloqueio by lazy { Bloqueio(this) }
     private val geo by lazy { Geolocalizacao(this) }
     private val politica by lazy { Politica(this) }
+    private val atualizador by lazy { AtualizadorAgente(this, backend) }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -134,6 +136,10 @@ class AgenteService : Service() {
                 // Estado desejado do servidor: recupera o bloqueio se o sinal local se perdeu
                 // (app reinstalado, dados limpos) mesmo sem um comando novo.
                 sincronizarBloqueio(resposta.deveEstarBloqueado)
+
+                // Auto-atualizacao OTA: se o servidor anunciou um APK mais novo, baixa, confere
+                // o hash e se instala. Roda por ultimo — bloqueio antes de tudo.
+                resposta.atualizacaoAgente?.let { atualizador.processar(it) }
             }.onFailure { Log.w(TAG, "Heartbeat falhou; nova tentativa no proximo ciclo.", it) }
 
             delay(AgenteConfig.INTERVALO_HEARTBEAT_SEGUNDOS * 1000)

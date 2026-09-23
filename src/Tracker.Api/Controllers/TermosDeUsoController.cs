@@ -2,8 +2,11 @@ using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Tracker.Api.Seguranca;
 using Tracker.Application.Dtos;
+using Tracker.Application.Seguranca;
 using Tracker.Domain.Entities;
+using Tracker.Domain.Enums;
 using Tracker.Infrastructure.Data;
 using Tracker.Infrastructure.Pdf;
 using Tracker.Infrastructure.Storage;
@@ -19,22 +22,26 @@ public class TermosDeUsoController : ControllerBase
     private readonly ITermoDeUsoPdfService _pdfService;
     private readonly IArmazenamentoArquivosService _armazenamento;
     private readonly IValidator<GerarTermoDeUsoRequest> _gerarValidator;
+    private readonly IAuditoria _auditoria;
 
     public TermosDeUsoController(
         TrackerDbContext db,
         ITermoDeUsoPdfService pdfService,
         IArmazenamentoArquivosService armazenamento,
-        IValidator<GerarTermoDeUsoRequest> gerarValidator)
+        IValidator<GerarTermoDeUsoRequest> gerarValidator,
+        IAuditoria auditoria)
     {
         _db = db;
         _pdfService = pdfService;
         _armazenamento = armazenamento;
         _gerarValidator = gerarValidator;
+        _auditoria = auditoria;
     }
 
     /// <summary>Gera o PDF pré-preenchido para impressão. Não persiste nada — o registro só é
     /// criado quando o termo assinado (escaneado) é enviado via <see cref="Upload"/>.</summary>
     [HttpPost("gerar-pdf")]
+    [Authorize(Policy = Permissoes.DispositivosMovimentar)]
     public async Task<IActionResult> GerarPdf(GerarTermoDeUsoRequest request)
     {
         var validation = await _gerarValidator.ValidateAsync(request);
@@ -66,12 +73,12 @@ public class TermosDeUsoController : ControllerBase
 
     /// <summary>Recebe o termo assinado escaneado, calcula o hash e cria o registro do TermoDeUso.</summary>
     [HttpPost]
+    [Authorize(Policy = Permissoes.DispositivosMovimentar)]
     [RequestSizeLimit(20_000_000)]
     public async Task<ActionResult<TermoDeUsoDto>> Upload(
         [FromForm] Guid dispositivoId,
         [FromForm] Guid usuarioId,
         [FromForm] string versaoTermo,
-        [FromForm] Guid registradoPorAdmId,
         IFormFile arquivo)
     {
         if (arquivo is null || arquivo.Length == 0)
@@ -96,10 +103,13 @@ public class TermosDeUsoController : ControllerBase
             VersaoTermo = versaoTermo,
             HashDocumento = hash,
             CaminhoArquivoAnexado = caminhoRelativo,
-            RegistradoPorAdmId = registradoPorAdmId,
+            // Autoria pelo ADM logado, nunca por id vindo do formulário.
+            RegistradoPorAdmId = User.AdmId()!.Value,
         };
 
         _db.TermosDeUso.Add(termo);
+        _auditoria.Registrar(AcaoAuditoria.TermoRegistrado,
+            $"Registrou o termo de uso de {usuario.Nome}.", "Dispositivo", dispositivoId);
         await _db.SaveChangesAsync();
 
         return Ok(new TermoDeUsoDto(
@@ -109,6 +119,7 @@ public class TermosDeUsoController : ControllerBase
     }
 
     [HttpGet("dispositivo/{dispositivoId:guid}")]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<ActionResult<IEnumerable<TermoDeUsoDto>>> ListarPorDispositivo(Guid dispositivoId)
     {
         var termos = await _db.TermosDeUso.AsNoTracking()
@@ -124,6 +135,7 @@ public class TermosDeUsoController : ControllerBase
     }
 
     [HttpGet("{id:guid}/arquivo")]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<IActionResult> BaixarArquivo(Guid id)
     {
         var termo = await _db.TermosDeUso.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id);
@@ -136,6 +148,7 @@ public class TermosDeUsoController : ControllerBase
     /// <summary>Igual a /arquivo, mas sem Content-Disposition: attachment — permite abrir o PDF
     /// direto no navegador (ex.: em um &lt;iframe&gt;) em vez de forçar o download.</summary>
     [HttpGet("{id:guid}/visualizar")]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<IActionResult> Visualizar(Guid id)
     {
         var termo = await _db.TermosDeUso.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id);

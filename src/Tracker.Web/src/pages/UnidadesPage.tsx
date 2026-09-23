@@ -17,23 +17,32 @@ import {
   Box,
   FormControlLabel,
   Switch,
+  TableSortLabel,
+  TablePagination,
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import type { Unidade } from '../api/types'
 import { useUnidades } from '../features/unidades/hooks'
 import { UnidadeFormDialog } from '../features/unidades/UnidadeFormDialog'
+import { useOrdenacao } from '../utils/ordenacao'
+import { usePaginacao } from '../utils/paginacao'
 
 export function UnidadesPage() {
   const navigate = useNavigate()
   const [incluirInativas, setIncluirInativas] = useState(false)
   const [dialogAberto, setDialogAberto] = useState(false)
   const [unidadeEmEdicao, setUnidadeEmEdicao] = useState<Unidade | null>(null)
-  const { data: unidades, isLoading } = useUnidades(incluirInativas)
+  const { data: unidadesCarregadas, isLoading } = useUnidades(incluirInativas)
+  const { ordenados: unidades, coluna, direcao, ordenarPor } = useOrdenacao(
+    unidadesCarregadas,
+    'nome',
+  )
+  const { itensPagina, total, paginacaoProps } = usePaginacao(unidades)
 
   return (
     <>
       <Stack direction="row" sx={{ mb: 2, justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h5">Unidades</Typography>
+        <Typography variant="h5">Unidades ({total})</Typography>
         <Button variant="contained" onClick={() => setDialogAberto(true)}>
           Nova unidade
         </Button>
@@ -59,15 +68,47 @@ export function UnidadesPage() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>Nome</TableCell>
-                <TableCell>Código</TableCell>
-                <TableCell align="center">Dispositivos</TableCell>
-                <TableCell align="center">Status</TableCell>
+                <TableCell sortDirection={coluna === 'nome' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'nome'}
+                    direction={coluna === 'nome' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('nome')}
+                  >
+                    Nome
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell sortDirection={coluna === 'codigo' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'codigo'}
+                    direction={coluna === 'codigo' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('codigo')}
+                  >
+                    Código
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center" sortDirection={coluna === 'quantidadeDispositivos' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'quantidadeDispositivos'}
+                    direction={coluna === 'quantidadeDispositivos' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('quantidadeDispositivos')}
+                  >
+                    Dispositivos
+                  </TableSortLabel>
+                </TableCell>
+                <TableCell align="center" sortDirection={coluna === 'ativa' ? direcao : false}>
+                  <TableSortLabel
+                    active={coluna === 'ativa'}
+                    direction={coluna === 'ativa' ? direcao : 'asc'}
+                    onClick={() => ordenarPor('ativa')}
+                  >
+                    Status
+                  </TableSortLabel>
+                </TableCell>
                 <TableCell align="right" />
               </TableRow>
             </TableHead>
             <TableBody>
-              {unidades?.map((u) => (
+              {itensPagina?.map((u) => (
                 <TableRow key={u.id} hover>
                   <TableCell>{u.nome}</TableCell>
                   <TableCell>{u.codigo ?? '—'}</TableCell>
@@ -99,6 +140,7 @@ export function UnidadesPage() {
               )}
             </TableBody>
           </Table>
+          {total > 0 && <TablePagination {...paginacaoProps} />}
         </TableContainer>
       )}
 

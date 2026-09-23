@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doOnTextChanged
 import androidx.lifecycle.lifecycleScope
+import br.com.nutrihouse.tracker.agent.BuildConfig
 import br.com.nutrihouse.tracker.agent.R
 import br.com.nutrihouse.tracker.agent.dados.Armazenamento
 import br.com.nutrihouse.tracker.agent.dados.BackendClient
@@ -57,6 +58,7 @@ class EnrollmentActivity : AppCompatActivity() {
 
         // O código de instalação é sempre digitado aqui; some da tela depois do registro.
         binding.campoChave.doOnTextChanged { _, _, _, _ -> binding.blocoChave.error = null }
+        binding.campoNumeroSerie.doOnTextChanged { _, _, _, _ -> binding.blocoNumeroSerie.error = null }
         binding.campoChave.setOnEditorActionListener { _, _, _ -> registrar(); true }
 
         binding.botaoRegistrar.setOnClickListener { registrar() }
@@ -64,6 +66,7 @@ class EnrollmentActivity : AppCompatActivity() {
         binding.botaoLocalizacao.setOnClickListener { pedirPermissaoLocalizacao() }
         binding.botaoOverlay.setOnClickListener { pedirSobreposicao() }
         binding.botaoBateria.setOnClickListener { pedirIsencaoDeBateria() }
+        binding.botaoInstalarApps.setOnClickListener { pedirPermissaoDeInstalar() }
     }
 
     override fun onResume() {
@@ -81,10 +84,25 @@ class EnrollmentActivity : AppCompatActivity() {
             return
         }
 
+        // Identificadores digitados pelo tecnico: ligam o registro ao ativo real quando o Android
+        // nao entrega o serial/IMEI ao app (qualquer aparelho sem Device Owner).
+        val numeroSerie = binding.campoNumeroSerie.text?.toString()?.trim()
+
+        // Serie obrigatoria quando o Android nao a entrega: sem ela o aparelho entraria com o
+        // identificador provisorio, que muda se o APK for reinstalado com outra assinatura — foi
+        // o que ja duplicou registros no inventario. Com serie de fabrica disponivel o campo e
+        // dispensavel, porque o proprio agente a informa.
+        if (numeroSerie.isNullOrBlank() && info.numeroSerieReal == null) {
+            binding.blocoNumeroSerie.error = getString(R.string.enrollment_numero_serie_vazio)
+            return
+        }
+
         binding.botaoRegistrar.isEnabled = false
 
         lifecycleScope.launch {
-            val resultado = runCatching { backend.registrar(codigo) }
+            // Só a série identifica o aparelho: patrimônio e IMEI ficam a cargo do painel, onde a
+            // TI já mantém o cadastro do ativo.
+            val resultado = runCatching { backend.registrar(codigo, numeroSerieInformado = numeroSerie) }
 
             binding.botaoRegistrar.isEnabled = true
             resultado
@@ -129,6 +147,12 @@ class EnrollmentActivity : AppCompatActivity() {
             permissoes += Manifest.permission.POST_NOTIFICATIONS
         }
 
+        // Ate o Android 9 esta permissao libera o numero de serie e o IMEI de fabrica. Do 10 em
+        // diante o sistema recusa a leitura a app comum, entao pedi-la seria incomodo sem ganho.
+        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+            permissoes += Manifest.permission.READ_PHONE_STATE
+        }
+
         pedirLocalizacao.launch(permissoes.toTypedArray())
     }
 
@@ -164,6 +188,30 @@ class EnrollmentActivity : AppCompatActivity() {
     private fun semRestricaoDeBateria(): Boolean =
         getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
 
+    /**
+     * "Instalar apps desconhecidos": e o que permite a atualizacao OTA sem loja quando o
+     * aparelho nao e Device Owner (que instala sem pedir nada).
+     */
+    private fun podeInstalarAtualizacoes(): Boolean = when {
+        politica.ehDeviceOwner -> true
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.O -> packageManager.canRequestPackageInstalls()
+        else -> true // Antes do Android 8 vale a configuracao global de fontes desconhecidas.
+    }
+
+    private fun pedirPermissaoDeInstalar() {
+        if (podeInstalarAtualizacoes()) {
+            aviso("O agente já pode instalar as próprias atualizações.")
+            return
+        }
+
+        voltarDeTelaDoSistema.launch(
+            Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:$packageName"),
+            ),
+        )
+    }
+
     /** Redesenha o diagnostico: o que ja esta pronto e o que ainda falta. */
     private fun atualizarTela() {
         val linhas = mutableListOf<String>()
@@ -198,14 +246,32 @@ class EnrollmentActivity : AppCompatActivity() {
             "✖ Bateria restrita: o aparelho pode aparecer offline"
         }
 
-        linhas += "Série: ${info.numeroSerie}"
+        linhas += if (podeInstalarAtualizacoes()) {
+            "✔ Atualizações automáticas permitidas"
+        } else {
+            "✖ Sem permissão de instalar: atualizações do agente não se aplicam"
+        }
+
+        // Distingue o serial de fabrica do identificador provisorio: o provisorio muda quando o
+        // APK e reinstalado com outra assinatura, e e por isso que a serie precisa ser digitada —
+        // sem ela o aparelho voltaria ao inventario como um ativo novo.
+        val serieReal = info.numeroSerieReal
+        linhas += if (serieReal != null) {
+            "✔ Série de fábrica: $serieReal"
+        } else {
+            "Série provisória: ${info.numeroSerie}\n" +
+                "  (o Android não libera a real sem Device Owner — informe a série no registro)"
+        }
+
+        linhas += "Versão do agente: ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
 
         binding.textoStatus.text = linhas.joinToString("\n")
 
-        // Depois de registrado o campo do código e o botão saem da tela: ela passa a servir só
+        // Depois de registrado os campos e o botão saem da tela: ela passa a servir só
         // como diagnóstico do aparelho.
         val precisaRegistrar = !armazenamento.registrado
         binding.blocoChave.visibility = if (precisaRegistrar) View.VISIBLE else View.GONE
+        binding.blocoNumeroSerie.visibility = if (precisaRegistrar) View.VISIBLE else View.GONE
         binding.botaoRegistrar.visibility = if (precisaRegistrar) View.VISIBLE else View.GONE
         binding.botaoRegistrar.isEnabled = precisaRegistrar
     }

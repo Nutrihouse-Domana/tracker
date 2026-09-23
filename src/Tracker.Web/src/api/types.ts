@@ -20,6 +20,83 @@ export interface UsuarioAdm {
   nome: string
   email: string
   roles: string[]
+  /** Permissões do usuário logado (valores do catálogo). Gate da UI. */
+  permissoes: string[]
+}
+
+// --- Acessos (logins da plataforma) e permissões ---
+
+/** Um login gerenciável na tela de Acessos. */
+export interface Acesso {
+  id: string
+  nome: string
+  email: string
+  ativo: boolean
+  ultimoLoginEm: string | null
+  permissoes: string[]
+}
+
+/** Metadados de uma permissão, para montar os checkboxes agrupados. */
+export interface Permissao {
+  valor: string
+  rotulo: string
+  descricao: string
+  grupo: string
+}
+
+export interface CriarAcessoRequest {
+  nome: string
+  email: string
+  cpf?: string | null
+  senha: string
+  permissoes: string[]
+  /** Senha do ADM logado — reconferência da ação sensível. */
+  senhaAdm: string
+}
+
+export interface AtualizarAcessoRequest {
+  nome: string
+  email: string
+  cpf?: string | null
+  permissoes: string[]
+  senhaAdm: string
+}
+
+export interface AlterarAtivoAcessoRequest {
+  ativo: boolean
+  senhaAdm: string
+}
+
+export interface RedefinirSenhaAcessoRequest {
+  novaSenha: string
+  senhaAdm: string
+}
+
+// --- Auditoria ---
+
+export interface LogAuditoria {
+  id: string
+  dataHora: string
+  admId: string | null
+  admNome: string
+  acao: string
+  entidadeTipo: string | null
+  entidadeId: string | null
+  descricao: string
+  detalhes: string | null
+  enderecoIp: string | null
+}
+
+export interface PaginaAuditoria {
+  itens: LogAuditoria[]
+  total: number
+  pagina: number
+  tamanhoPagina: number
+}
+
+export interface AcaoAuditoriaOpcao {
+  valor: string
+  rotulo: string
 }
 
 export interface Usuario {
@@ -72,6 +149,8 @@ export interface Dispositivo {
   numeroSerie: string
   /** Patrimônio. Nulo em periféricos, que não recebem etiqueta. */
   assetTag: string | null
+  /** Rótulo interno definido pela TI. Quando preenchido, é a identificação exibida do aparelho. */
+  identificacaoInterna: string | null
   status: StatusDispositivo
   dataAquisicao: string
   observacoes: string | null
@@ -100,6 +179,12 @@ export interface Dispositivo {
   /** Preenchido só em dispositivos arquivados. */
   excluidoEm: string | null
   motivoExclusao: string | null
+  /**
+   * Vencimento do contrato de aluguel como data pura ("aaaa-mm-dd", DateOnly no backend). Nulo nos
+   * ativos próprios. Não faça `new Date(...)` neste valor: JS lê só-data como UTC e, em UTC-3, o
+   * dia exibido volta um. Use os helpers de features/dispositivos/vencimento.ts.
+   */
+  vencimentoAluguel: string | null
 }
 
 export interface ExcluirDispositivoRequest {
@@ -112,6 +197,19 @@ export interface ExcluirDispositivoRequest {
 export interface DefinirPosseDispositivoRequest {
   pertenceAUsuario: boolean
   unidadeId?: string | null
+  senha: string
+  motivo?: string | null
+}
+
+export interface DefinirVencimentoAluguelRequest {
+  /** Data pura "aaaa-mm-dd"; null limpa o campo. Não exige senha do ADM. */
+  vencimentoAluguel: string | null
+  motivo?: string | null
+}
+
+export interface DefinirIdentificacaoInternaRequest {
+  /** Vazio/null limpa o campo e volta a exibir o hostname/número de série. */
+  identificacaoInterna: string | null
   senha: string
   motivo?: string | null
 }
@@ -157,7 +255,6 @@ export interface AtribuirDispositivoRequest {
   usuarioId: string
   localDestinoId?: string | null
   motivo?: string | null
-  registradoPorAdmId: string
 }
 
 export interface HistoricoMovimentacao {
@@ -173,6 +270,7 @@ export interface HistoricoMovimentacao {
   localDestinoNome: string | null
   dataMovimentacao: string
   motivo: string | null
+  registradoPorAdmNome: string | null
 }
 
 export interface TermoDeUso {
@@ -207,12 +305,12 @@ export interface HistoricoReparo {
   dataAbertura: string
   dataConclusao: string | null
   registradoPorAdmId: string
+  registradoPorAdmNome: string | null
 }
 
 export interface CriarReparoRequest {
   descricao: string
   custoEstimado?: number | null
-  registradoPorAdmId: string
 }
 
 export interface ComentarioDispositivo {
@@ -226,7 +324,6 @@ export interface ComentarioDispositivo {
 
 export interface CriarComentarioRequest {
   texto: string
-  criadoPorAdmId: string
 }
 
 export interface EnrollmentResponse {
@@ -292,4 +389,23 @@ export interface BuscaGlobal {
   termo: string
   dispositivos: BuscaDispositivo[]
   usuarios: BuscaUsuario[]
+}
+
+// --- Atualização OTA do agente Android ---
+
+export interface PacoteAgenteAndroid {
+  id: string
+  versaoCode: number
+  versaoNome: string
+  nomeArquivoOriginal: string
+  hashSha256: string
+  tamanhoBytes: number
+  criadoEm: string
+}
+
+export interface SituacaoAgenteAndroid {
+  pacoteVigente: PacoteAgenteAndroid | null
+  historico: PacoteAgenteAndroid[]
+  dispositivosNaVersao: number
+  dispositivosDesatualizados: number
 }

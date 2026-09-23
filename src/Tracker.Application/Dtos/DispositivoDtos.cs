@@ -7,6 +7,8 @@ public record DispositivoDto(
     TipoDispositivo Tipo,
     string NumeroSerie,
     string? AssetTag,
+    // Apelido/rótulo definido pela TI. Quando presente, é a identificação exibida do aparelho.
+    string? IdentificacaoInterna,
     StatusDispositivo Status,
     DateTime DataAquisicao,
     string? Observacoes,
@@ -31,7 +33,9 @@ public record DispositivoDto(
     // Quem responde pelo ativo: o usuário nominal ou, se for do local, a unidade.
     string? ResponsavelNome = null,
     DateTime? ExcluidoEm = null,
-    string? MotivoExclusao = null);
+    string? MotivoExclusao = null,
+    // Vencimento do contrato de aluguel. Nulo nos ativos próprios (sem contrato registrado).
+    DateOnly? VencimentoAluguel = null);
 
 /// <summary>
 /// Remove o dispositivo do inventário. Exige a senha do ADM logado.
@@ -54,6 +58,23 @@ public record DefinirPosseDispositivoRequest(
     string? Motivo);
 
 public record DefinirUnidadeDispositivoRequest(Guid? UnidadeId);
+
+/// <summary>
+/// Define (ou limpa, enviando nulo) a data de vencimento do contrato de aluguel do equipamento.
+/// Diferente da identificação interna e da posse, NÃO pede a senha do ADM: é um dado operacional
+/// do contrato, não uma ação que muda a responsabilidade sobre o ativo.
+/// </summary>
+public record DefinirVencimentoAluguelRequest(DateOnly? VencimentoAluguel, string? Motivo);
+
+/// <summary>
+/// Define (ou limpa) a identificação interna do dispositivo — um rótulo próprio da TI, à parte do
+/// hostname reportado pelo agente. Exige a senha do ADM logado: passa a ser o nome exibido do ativo.
+/// <c>IdentificacaoInterna = null/vazio</c> volta a exibir o hostname/número de série.
+/// </summary>
+public record DefinirIdentificacaoInternaRequest(
+    string? IdentificacaoInterna,
+    string Senha,
+    string? Motivo);
 
 public record CriarNotebookRequest(
     string NumeroSerie,
@@ -90,8 +111,9 @@ public record CriarPerifericoRequest(
 
 public record AtualizarStatusDispositivoRequest(StatusDispositivo Status);
 
+// A autoria (quem registrou) vem do ADM logado no servidor, não do corpo — por isso não há
+// RegistradoPorAdmId aqui.
 public record AtribuirDispositivoRequest(
     Guid UsuarioId,
     Guid? LocalDestinoId,
-    string? Motivo,
-    Guid RegistradoPorAdmId);
+    string? Motivo);
