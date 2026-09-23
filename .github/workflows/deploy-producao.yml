@@ -15,8 +15,8 @@ concurrency:
 jobs:
   # ---------------------------------------------------------------------------
   # Pipeline completo NO RUNNER SELF-HOSTED on-premises (o repo e privado em plano
-  # free, entao runners GitHub-hosted nao estao disponiveis). O setup-dotnet /
-  # setup-node baixam as ferramentas no proprio runner (nao precisam estar pre-instaladas).
+  # free, entao runners GitHub-hosted nao estao disponiveis). O .NET 8 SDK e o Node ficam
+  # PRE-INSTALADOS no servidor (ver o passo Preflight: o egress bloqueia os CDNs).
   #
   # Os testes rodam contra um banco FAKE (ConnectionStrings abaixo aponta para uma
   # instancia inexistente). Como a migracao no start esta em try/catch (Program.cs),

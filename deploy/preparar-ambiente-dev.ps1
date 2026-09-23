@@ -313,7 +313,7 @@ if ($SemAndroid) {
         # Nao e erro: quem mexe so no backend/site nao precisa do SDK (varios GB).
         Write-Host "   Android SDK nao encontrado - o agente Android fica de fora."
         Write-Host "   Para habilitar: instale o JDK 17 e o Android SDK (API 34 + build-tools 34.0.0),"
-        Write-Host "   depois rode este script de novo. Detalhes em docs/agente-android.md."
+        Write-Host "   depois rode este script de novo. Detalhes em docs/agentes/agente-android.md."
     } else {
         Write-Host "   SDK: $sdk"
 
@@ -371,7 +371,7 @@ if ($SemAndroid) {
                 $cabecalho = @(
                     "# Gerado por deploy/preparar-ambiente-dev.ps1. NAO versionar (esta no .gitignore).",
                     "# Configuracao desta maquina para compilar o agente Android.",
-                    "# O release exige, alem disto, as chaves de keystore - ver docs/agente-android.md."
+                    "# O release exige, alem disto, as chaves de keystore - ver docs/agentes/agente-android.md."
                 )
                 Set-Content $arquivoLocalProps ($cabecalho + $novas) -Encoding ascii
             } else {

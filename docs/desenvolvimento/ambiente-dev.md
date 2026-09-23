@@ -8,7 +8,7 @@ passando o projeto para outra pessoa.
 > PowerShell. Em macOS ou Linux isto **não** funciona sem trabalho adicional.
 
 > **Produção não usa Docker.** Lá é SQL Server on-premises no servidor Windows com IIS
-> (ver [deploy-servidor-onpremises.md](deploy-servidor-onpremises.md)). O container existe
+> (ver [deploy-servidor-onpremises.md](../operacao/deploy-servidor-onpremises.md)). O container existe
 > só para evitar instalar o SQL Server Express na mão em cada máquina de desenvolvimento.
 
 ---
@@ -195,7 +195,7 @@ dotnet run --project src/Tracker.Api --urls http://0.0.0.0:5171
 na aba **Actions**, rode o workflow **APK Agente Android** e baixe o APK pronto e assinado, com o
 `versionCode` e o SHA-256 no resumo do run. O script local não gera keystore de propósito — um APK
 assinado com outra chave é recusado pelo Android nos aparelhos já instalados e duplica os registros
-do inventário. Ver [agente-android.md](agente-android.md).
+do inventário. Ver [agente-android.md](../agentes/agente-android.md).
 
 ---
 
@@ -203,11 +203,11 @@ do inventário. Ver [agente-android.md](agente-android.md).
 
 - **Agente Windows** — é um Serviço do Windows com tarefa agendada, tela de bloqueio e acesso à
   Native Wifi API. Só roda em Windows, na própria máquina. Ver
-  [teste-agente-windows.md](teste-agente-windows.md).
+  [teste-agente-windows.md](../agentes/teste-agente-windows.md).
 - **Agente Android (release)** — o **debug** é configurado pelo script (acima); só o **release**
   fica de fora, por causa da keystore. Testar o bloqueio exige um aparelho de laboratório —
   **nunca o próprio celular**, o bloqueio é persistente e só a TI remove. Ver
-  [agente-android.md](agente-android.md).
+  [agente-android.md](../agentes/agente-android.md).
 - **Geração de PDF** (termo de uso e relatórios) — depende das fontes do Windows (Calibri, com
   Arial como alternativa). Funciona no seu Windows normalmente; só não funcionaria se a API
   fosse rodar dentro de um container Linux, o que não é o caso aqui.

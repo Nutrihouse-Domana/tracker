@@ -92,6 +92,10 @@ $bytes = New-Object byte[] 32; (New-Object System.Security.Cryptography.RNGCrypt
 
 # Onde guardar os termos de uso assinados (pasta com backup)
 [Environment]::SetEnvironmentVariable("Storage__TermosDeUsoPath", "C:\TrackerDados\termos-de-uso", "Machine")
+
+# Onde guardar os APKs do agente Android publicados para OTA. OBRIGATORIO ficar fora de
+# C:\Tracker: o deploy apaga a pasta do site inteira a cada release.
+[Environment]::SetEnvironmentVariable("Storage__PacotesAgentePath", "C:\TrackerDados\pacotes-agente", "Machine")
 ```
 
 > ⚠️ **Anote a `Encryption__CpfKeyBase64`** num cofre de senhas. Se ela for perdida/trocada, os
@@ -154,21 +158,19 @@ Depois, no site, mantenha a vinculação **https 443** com o host `tracker.foods
 
 ## Parte 8 — Apontar os agentes para o domínio
 
-No `appsettings.json` do agente (nos notebooks), use o domínio com **https**:
-```json
-{
-  "Agente": {
-    "BackendBaseUrl": "https://tracker.foodsacademy.com.br",
-    "AgentToken": "",
-    "EnrollmentKey": "A-MESMA-CHAVE-DA-EMPRESA-DO-PASSO-3",
-    "Tipo": "Notebook",
-    "HeartbeatIntervalSeconds": 60,
-    "Simular": false
-  }
-}
+O endereço de produção com **https** e a chave da empresa (Parte 3) vão **embutidos** no
+instalador do agente Windows — não se edita `appsettings.json` à mão em cada notebook:
+
+```powershell
+.\deploy\gerar-pendrive.ps1 -Destino E:\TrackerAgent -BackendUrl https://tracker.foodsacademy.com.br
 ```
-Republique o agente e reinstale nos notebooks (ver `agents/Tracker.Agent.Windows/README.md`).
-Agora eles funcionam **de qualquer rede**, com o endereço fixo e HTTPS.
+
+Com o CI configurado, esse `.exe` é regerado sozinho em `C:\TrackerAgentDist` sempre que uma
+release altera o agente. Instalação nos notebooks: `docs/agentes/instalacao-agente-pendrive.md`.
+Agente Android: a URL de produção vem do `gradle.properties` no build de release
+(`docs/agentes/agente-android.md`).
+
+Assim os agentes funcionam **de qualquer rede**, com o endereço fixo e HTTPS.
 
 ---
 
@@ -178,17 +180,36 @@ Agora eles funcionam **de qualquer rede**, com o endereço fixo e HTTPS.
   e use uma **senha forte** para o ADM inicial.
 - Mantenha o **Windows Server e o Hosting Bundle atualizados**.
 - Deixe no firewall **apenas a 443** aberta para a internet (bloqueie o resto).
-- Faça **backup diário do banco** `TrackerDb` e da pasta de termos (`C:\TrackerDados`).
+- Faça **backup diário do banco** `TrackerDb` e da pasta de dados (`C:\TrackerDados`), e guarde as
+  chaves no cofre. Script, teste de restauração e o que fazer com cada chave:
+  [backup-e-chaves.md](backup-e-chaves.md).
 - Considere **BitLocker** nos notebooks (protege o dado em caso de roubo, complementando o bloqueio).
 
 ---
 
 ## Parte 10 — Atualizar a aplicação no futuro
 
+**Caminho normal (automático):** crie uma tag de versão na `main` — o pipeline compila, roda os
+testes, faz backup de `C:\Tracker`, publica no IIS e confere o `/health`:
+
+```bash
+git checkout main
+git pull
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+Configuração do runner e rollback: `docs/operacao/deploy-automatico-cicd.md`.
+
+**Caminho manual** (runner indisponível):
+
 1. Na máquina de build: rode `deploy\publicar-servidor.ps1` de novo.
 2. No servidor: no IIS, **pare o site** `Tracker`.
 3. Substitua os arquivos em `C:\Tracker` pela nova publicação (preserve a pasta de dados, que fica em `C:\TrackerDados`).
 4. **Inicie o site**. As migrações de banco novas são aplicadas sozinhas no start.
+
+> Em qualquer caminho, as migrações não voltam atrás com o rollback de arquivos — tenha o backup
+> do `TrackerDb` do dia antes de publicar.
 
 ---
 

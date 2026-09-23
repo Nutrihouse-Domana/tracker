@@ -2,7 +2,7 @@
 #
 # Existe para que uma maquina nova (ou outra pessoa) tenha o banco pronto sem instalar
 # SQL Server Express na mao. PRODUCAO NAO USA DOCKER: la e SQL Server on-premises no
-# servidor Windows com IIS (ver docs/deploy-servidor-onpremises.md).
+# servidor Windows com IIS (ver docs/operacao/deploy-servidor-onpremises.md).
 #
 # Uso normal: rode deploy/preparar-ambiente-dev.ps1, que cria o .env, sobe este servico,
 # espera o banco ficar pronto e configura os user-secrets. Manualmente seria:

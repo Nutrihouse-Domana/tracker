@@ -76,7 +76,7 @@ jobs:
             $valor = (Get-Item "env:$nome" -ErrorAction SilentlyContinue).Value
             if ([string]::IsNullOrWhiteSpace($valor)) {
               throw ("Secret ausente: ANDROID_$nome. Configure os quatro secrets do repositorio " +
-                     "(ver docs/agente-android.md).")
+                     "(ver docs/agentes/agente-android.md).")
             }
           }
 
