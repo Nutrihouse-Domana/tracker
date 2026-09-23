@@ -27,7 +27,7 @@ public record LinhaInventarioDto(
     string Status,
     DateTime CadastradoEm,
     /// <summary>Vencimento do contrato de aluguel; nulo quando o ativo não tem contrato registrado.</summary>
-    DateTime? VencimentoAluguel = null);
+    DateOnly? VencimentoAluguel = null);
 
 /// <summary>Contagem de uma fatia do parque (por tipo, status, unidade ou origem).</summary>
 public record ContagemDto(string Rotulo, int Quantidade);

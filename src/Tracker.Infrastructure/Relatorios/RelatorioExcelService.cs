@@ -71,10 +71,11 @@ public class RelatorioExcelService : IRelatorioExcelService
             aba.Cell(linha, 8).Style.DateFormat.Format = "dd/mm/yyyy";
             if (l.VencimentoAluguel is { } vence)
             {
-                aba.Cell(linha, 9).Value = vence;
+                // ClosedXML não escreve DateOnly: vira DateTime à meia-noite só na hora de gravar.
+                aba.Cell(linha, 9).Value = vence.ToDateTime(TimeOnly.MinValue);
                 aba.Cell(linha, 9).Style.DateFormat.Format = "dd/mm/yyyy";
                 // Número (não texto) para a TI ordenar e filtrar "o que vence em menos de X dias".
-                aba.Cell(linha, 10).Value = (vence.Date - DateTime.Today).Days;
+                aba.Cell(linha, 10).Value = vence.DayNumber - DateOnly.FromDateTime(DateTime.Today).DayNumber;
             }
             linha++;
         }

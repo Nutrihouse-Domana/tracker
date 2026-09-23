@@ -112,16 +112,23 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   fallback inclui o **hostname**, e o heartbeat sobrescreve o hostname a cada ciclo, um aparelho SEM
   `IdentificacaoInterna` pode mudar de classificação sozinho — só o rótulo manual da TI é estável.
   Se um dia a origem virar dado de verdade, isso vira campo no `Dispositivo` e a função sai daqui.
-- **`Dispositivo.VencimentoAluguel` (DateTime?) é o fim do CONTRATO DE ALUGUEL**, não garantia nem
+- **`Dispositivo.VencimentoAluguel` (DateOnly?) é o fim do CONTRATO DE ALUGUEL**, não garantia nem
   vida útil. Nulo = sem contrato (o caso dos próprios); o campo existe em todos os tipos, mas quem
   diz que o ativo é alugado continua sendo o prefixo `MAQ` da identificação. Endpoint
   `PUT /api/dispositivos/{id}/vencimento-aluguel` exige `dispositivos.cadastrar` e **NÃO pede a
   senha do ADM** (é dado operacional do contrato, não mudança de responsabilidade) — mas audita
-  (`DispositivoVencimentoAluguelDefinido`). O controller **zera a hora** (`.Date`): com hora, "vence
-  hoje" dependeria do horário do clique e a contagem de dias oscilaria. No site, a regra de situação
+  (`DispositivoVencimentoAluguelDefinido`). No site, a regra de situação
   (vencido / vence em ≤30 dias / em dia) fica em `features/dispositivos/vencimento.ts` e alimenta a
   coluna "Vence em", o chip do detalhe e o alerta do topo da lista — que conta sobre a lista inteira,
   não a página visível, senão o aviso sumiria ao paginar.
+- **DATA CIVIL É `DateOnly`, NUNCA `DateTime` (pegadinha que já foi a produção).** A API registra o
+  `UtcDateTimeConverter` (`src/Tracker.Api/Json/`), que carimba **todo** `DateTime` com `Z` — certo
+  para timestamps (gravados em UTC e devolvidos pelo SQL Server com `Kind=Unspecified`), mas fatal
+  para uma data sem hora: `2026-10-05` saía `2026-10-05T00:00:00.000Z` e o navegador em UTC-3
+  exibia **04/10**. `DateOnly` não passa pelo conversor, vira coluna `date` no banco e trafega como
+  `"2026-10-05"`. **No front, `new Date("2026-10-05")` erra igual** — o JS lê string só-data como
+  UTC e volta um dia; faça parse manual (`vencimento.ts` tem o helper). Coberto por
+  `VencimentoAluguelTests`, que serializa com as MESMAS opções do `Program.cs`.
 - **Relatórios do inventário** (`RelatoriosController`, `GET /api/relatorios/{tipo}/{pdf|xlsx}` com
   tipo = `inventario`/`aluguel`/`unidades`): dados em `Tracker.Infrastructure/Relatorios`
   (`RelatorioInventarioService` monta as linhas; `RelatorioPdfService` e `RelatorioExcelService`
