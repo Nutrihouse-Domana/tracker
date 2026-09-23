@@ -63,8 +63,83 @@ jobs:
           ConnectionStrings__TrackerDb: 'Server=localhost\CI_INEXISTENTE;Database=Tracker_CI_DUMMY;Trusted_Connection=True;Connect Timeout=2;TrustServerCertificate=True'
         run: dotnet test Tracker.sln -c Release --no-build --logger "trx;LogFileName=testes.trx"
 
+      # ---------------------------------------------------------------------------
+      # node_modules vem de um cache LOCAL do servidor (fora do workspace), porque o
+      # 'git clean -ffdx' do actions/checkout apaga a pasta a cada run e o npm install
+      # resultante custava ~9 min - 76% do deploy inteiro.
+      #
+      # A chave do cache e o hash do package-lock.json: lock igual => dependencias iguais
+      # => restaura a copia (~30s); lock alterado => nao existe pasta com esse hash =>
+      # instala do zero e semeia o cache novo. E impossivel reaproveitar um cache
+      # desatualizado. O passo roda DEPOIS dos testes, para nao gastar tempo se eles falharem.
+      #
+      # Nao usamos actions/cache: ele trafega pelo servico de cache do GitHub e o egress
+      # deste runner e restrito (mesmo motivo de nao usarmos setup-node).
+      # ---------------------------------------------------------------------------
+      - name: Restaurar node_modules (cache local do servidor)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cronometro = [System.Diagnostics.Stopwatch]::StartNew()
+          $web       = Join-Path $env:GITHUB_WORKSPACE 'src\Tracker.Web'
+          $destino   = Join-Path $web 'node_modules'
+          $raizCache = if ($env:TRACKER_CI_CACHE) { $env:TRACKER_CI_CACHE } else { 'C:\TrackerCI' }
+          $hash      = (Get-FileHash (Join-Path $web 'package-lock.json') -Algorithm SHA256).Hash.Substring(0, 16)
+          $cache     = Join-Path $raizCache "node_modules-$hash"
+          # Distingue "o lock mudou" de "primeira execucao": se ja existe cache de ALGUM outro
+          # lock, a ausencia do nosso significa que as dependencias foram alteradas.
+          $jaHaviaCache = @(Get-ChildItem $raizCache -Directory -Filter 'node_modules-*' -ErrorAction SilentlyContinue).Count -gt 0
+
+          # O marcador '.ok' so e gravado depois que a copia termina: um cache interrompido
+          # no meio nao tem marcador e e reinstalado em vez de restaurado pela metade.
+          if (Test-Path (Join-Path $cache '.ok')) {
+            Write-Host "Cache encontrado ($hash). Restaurando node_modules..."
+            robocopy $cache $destino /MIR /MT:16 /XF .ok /NFL /NDL /NJH /NJS /NP | Out-Null
+            if ($LASTEXITCODE -ge 8) { throw "robocopy falhou ao restaurar o cache (codigo $LASTEXITCODE)." }
+            # Marca o cache como usado AGORA: restaurar so le, e sem isto a poda mais abaixo
+            # (que ordena por data) poderia apagar justamente o cache em uso.
+            (Get-Item $cache).LastWriteTime = Get-Date
+            $resumo = "Cache reaproveitado (hash $hash). Nenhum 'npm install' foi necessario."
+          } else {
+            $motivo = if ($jaHaviaCache) { "package-lock.json ALTERADO" } else { "primeira execucao com cache" }
+            Write-Host "Sem cache para $hash ($motivo). Instalando as dependencias (demora ~9 min)..."
+            Push-Location $web
+            try {
+              npm ci --prefer-offline --no-audit --no-fund
+              if ($LASTEXITCODE -ne 0) { throw "npm ci falhou (codigo $LASTEXITCODE)." }
+            } finally { Pop-Location }
+            robocopy $destino $cache /MIR /MT:16 /NFL /NDL /NJH /NJS /NP | Out-Null
+            if ($LASTEXITCODE -ge 8) { throw "robocopy falhou ao semear o cache (codigo $LASTEXITCODE)." }
+            New-Item -ItemType File (Join-Path $cache '.ok') -Force | Out-Null
+            Write-Host "Cache semeado em $cache."
+            $resumo = "$motivo. Dependencias reinstaladas do zero e cache renovado (hash $hash)."
+          }
+
+          # Mantem apenas os 3 caches mais recentes (cada um ocupa algumas centenas de MB).
+          Get-ChildItem $raizCache -Directory -Filter 'node_modules-*' -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -Skip 3 |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+          # Registra o que aconteceu na pagina do run (aba Actions), sem precisar abrir o log.
+          $cronometro.Stop()
+          $linhas = @(
+            '### Dependencias do site (node_modules)',
+            '',
+            $resumo,
+            '',
+            ("Tempo deste passo: " + [int]$cronometro.Elapsed.TotalSeconds + "s.")
+          )
+          Write-Host ($linhas -join [Environment]::NewLine)
+          if ($env:GITHUB_STEP_SUMMARY) { Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $linhas }
+
+          # O robocopy usa 0-7 para sucesso (1 = arquivos copiados). Sem este exit explicito,
+          # o wrapper do Actions leria o $LASTEXITCODE=1 do robocopy e falharia o passo.
+          exit 0
+
       - name: Gerar pacote (site + API)
-        run: .\deploy\publicar-servidor.ps1 -Saida "$env:GITHUB_WORKSPACE\publish"
+        # -SemBuild: o passo "Build (Release)" acima ja compilou a solucao inteira nesta
+        # mesma copia do codigo; sem ele o publish repetia restore + build da API.
+        run: .\deploy\publicar-servidor.ps1 -Saida "$env:GITHUB_WORKSPACE\publish" -SemBuild
 
       - name: Publicar no IIS (producao)
         # Sem -Destino: o script publica na pasta real que o site 'Tracker' serve (PhysicalPath do IIS).

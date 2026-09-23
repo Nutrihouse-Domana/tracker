@@ -457,6 +457,34 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   API); `TRACKER_BACKEND_URL` e `TRACKER_AGENTE_DIST` são env opcionais (default: URL de produção e
   `C:\TrackerAgentDist`). O checkout usa `fetch-depth: 0` para o diff enxergar a tag anterior.
   (Auto-update OTA da frota Windows ainda NÃO existe — a TI baixa o `.exe` e reinstala.)
+- **`node_modules` vem de um cache LOCAL do servidor, não do `npm install`.** O `actions/checkout`
+  roda `git clean -ffdx` e apaga `node_modules` a cada run, então o guard
+  `if (-not (Test-Path node_modules))` do `publicar-servidor.ps1` NUNCA pegava: eram **9min15s de
+  `npm install` em todo deploy — 76% dos 12 min**. O passo "Restaurar node_modules" restaura de
+  `C:\TrackerCI` (fora do workspace, sobrevive ao clean), chaveado pelo **hash do
+  `package-lock.json`**: lock igual restaura por `robocopy` (~30s); lock alterado não acha a pasta
+  daquele hash, roda `npm ci` e semeia o cache novo — impossível reaproveitar cache desatualizado.
+  Guarda os 3 mais recentes. **Não use `actions/cache`**: ele trafega pelo serviço do GitHub e o
+  egress do runner é restrito (mesmo motivo de não usarmos `setup-node`/`setup-dotnet`).
+  Três detalhes que quebram se mexerem neles:
+  - **`robocopy` devolve 1 em caso de SUCESSO** (1 = arquivos copiados; erro é só `>= 8`). O wrapper
+    do `shell: powershell` do Actions lê o `$LASTEXITCODE` final e **falharia o passo** — por isso o
+    step termina com `exit 0` explícito.
+  - O marcador `.ok` só é gravado **depois** do robocopy. Cache interrompido no meio fica sem
+    marcador e é reinstalado, em vez de restaurado pela metade.
+  - Restaurar só LÊ o cache, logo a data da pasta não muda sozinha: o step faz
+    `(Get-Item $cache).LastWriteTime = Get-Date`, senão a poda "3 mais recentes" apagaria justamente
+    o cache em uso (e o próximo deploy pagaria os 9 min de novo).
+  O passo escreve no `GITHUB_STEP_SUMMARY` se reaproveitou o cache ou reinstalou **e por quê**
+  (lock alterado x primeira execução), com o tempo gasto: aparece na página do run, sem abrir o log.
+- **`publicar-servidor.ps1 -SemBuild`** publica com `--no-build --no-restore`, reaproveitando o
+  `dotnet build -c Release` do passo anterior do CI (em dev, sem build prévio, o publish falha — por
+  isso é opcional). Seguro para o site: o `wwwroot` é lido do disco **no momento do publish** (passo
+  2 do script já copiou o `dist` lá), e o publish ainda remove da pasta de saída os arquivos do site
+  antigo que sumiram.
+- **`$ErrorActionPreference = "Stop"` NÃO captura falha de executável nativo** (`npm`, `dotnet`).
+  Sem checar `$LASTEXITCODE` depois de cada um, um build/publish quebrado passava batido e o deploy
+  seguia publicando o pacote da release anterior — falha silenciosa. `publicar-servidor.ps1` checa.
 
 ## Nunca versionar
 
