@@ -102,7 +102,8 @@ public class DispositivosController : ControllerBase
         // Ativo do local não tem detentor: quem aparece no lugar do usuário é a unidade.
         d.PertenceAUsuario ? d.UsuarioAtual?.Nome : d.Unidade?.Nome,
         d.ExcluidoEm,
-        d.MotivoExclusao);
+        d.MotivoExclusao,
+        d.VencimentoAluguel);
 
     /// <summary>Dispositivos ativos. Os arquivados ficam de fora (filtro global) — veja /arquivados.</summary>
     [HttpGet]
@@ -442,6 +443,32 @@ public class DispositivosController : ControllerBase
             valor is null
                 ? $"Removeu a identificação interna de {dispositivo.NumeroSerie}."
                 : $"Definiu a identificação interna de {dispositivo.NumeroSerie} como \"{valor}\".",
+            "Dispositivo", dispositivo.Id, request.Motivo);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Define ou limpa (enviando nulo) o vencimento do contrato de aluguel do equipamento.
+    /// Não pede a senha do ADM: é dado operacional do contrato, não mudança de responsabilidade
+    /// sobre o ativo — mas continua auditado, como toda escrita.
+    /// </summary>
+    [HttpPut("{id:guid}/vencimento-aluguel")]
+    [Authorize(Policy = Permissoes.DispositivosCadastrar)]
+    public async Task<IActionResult> DefinirVencimentoAluguel(Guid id, DefinirVencimentoAluguelRequest request)
+    {
+        var dispositivo = await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id);
+        if (dispositivo is null) return NotFound();
+
+        // Só a data importa: guardar a hora faria "vence hoje" depender do horário do clique, e a
+        // contagem de dias restantes oscilaria conforme o fuso de quem cadastrou.
+        var valor = request.VencimentoAluguel?.Date;
+        dispositivo.VencimentoAluguel = valor;
+
+        _auditoria.Registrar(AcaoAuditoria.DispositivoVencimentoAluguelDefinido,
+            valor is null
+                ? $"Removeu o vencimento de aluguel de {dispositivo.NumeroSerie}."
+                : $"Definiu o vencimento de aluguel de {dispositivo.NumeroSerie} para {valor:dd/MM/yyyy}.",
             "Dispositivo", dispositivo.Id, request.Motivo);
         await _db.SaveChangesAsync();
         return NoContent();

@@ -54,7 +54,7 @@ public class RelatorioExcelService : IRelatorioExcelService
         using var livro = new XLWorkbook();
 
         var aba = livro.Worksheets.Add("Alugados");
-        var cabecalhos = new[] { "Identificação", "Tipo", "Nº de série", "Patrimônio", "Unidade", "Responsável", "Status", "Cadastrado em" };
+        var cabecalhos = new[] { "Identificação", "Tipo", "Nº de série", "Patrimônio", "Unidade", "Responsável", "Status", "Cadastrado em", "Vence em", "Dias restantes" };
         EscreverCabecalho(aba, cabecalhos);
 
         var linha = 2;
@@ -69,6 +69,13 @@ public class RelatorioExcelService : IRelatorioExcelService
             aba.Cell(linha, 7).Value = l.Status;
             aba.Cell(linha, 8).Value = l.CadastradoEm;
             aba.Cell(linha, 8).Style.DateFormat.Format = "dd/mm/yyyy";
+            if (l.VencimentoAluguel is { } vence)
+            {
+                aba.Cell(linha, 9).Value = vence;
+                aba.Cell(linha, 9).Style.DateFormat.Format = "dd/mm/yyyy";
+                // Número (não texto) para a TI ordenar e filtrar "o que vence em menos de X dias".
+                aba.Cell(linha, 10).Value = (vence.Date - DateTime.Today).Days;
+            }
             linha++;
         }
 

@@ -74,12 +74,12 @@ public class RelatorioPdfService : IRelatorioPdfService
         titulo.Format.SpaceAfter = "0.2cm";
 
         Tabela(section,
-            cabecalhos: new[] { "Identificação", "Tipo", "Nº de série", "Patrimônio", "Unidade", "Responsável", "Status", "Cadastrado em" },
-            larguras: new[] { 4.2, 2.2, 3.8, 3.0, 3.8, 4.6, 2.6, 2.2 },
+            cabecalhos: new[] { "Identificação", "Tipo", "Nº de série", "Patrimônio", "Unidade", "Responsável", "Status", "Vence em" },
+            larguras: new[] { 4.2, 2.2, 3.6, 2.8, 3.6, 4.4, 2.6, 2.6 },
             linhas: alugados.Select(l => new[]
             {
                 l.Identificacao, l.Tipo, l.NumeroSerie, l.Patrimonio ?? "—",
-                l.Unidade ?? "—", l.Responsavel ?? "—", l.Status, l.CadastradoEm.ToString("dd/MM/yyyy"),
+                l.Unidade ?? "—", l.Responsavel ?? "—", l.Status, TextoVencimento(l.VencimentoAluguel),
             }).ToList());
 
         return Renderizar(documento);
@@ -234,6 +234,21 @@ public class RelatorioPdfService : IRelatorioPdfService
         using var stream = new MemoryStream();
         renderer.PdfDocument.Save(stream);
         return stream.ToArray();
+    }
+
+    /// <summary>
+    /// Data do vencimento com a situação junto: no papel não há cor nem chip, então "(vencido)" e
+    /// "(faltam N dias)" é o que permite bater o olho e achar o contrato que pede ação.
+    /// </summary>
+    private static string TextoVencimento(DateTime? vencimento)
+    {
+        if (vencimento is null) return "—";
+        var dias = (vencimento.Value.Date - DateTime.Today).Days;
+        var situacao = dias < 0 ? $"vencido há {Math.Abs(dias)}d"
+            : dias == 0 ? "vence hoje"
+            : dias <= 30 ? $"faltam {dias}d"
+            : null;
+        return situacao is null ? $"{vencimento:dd/MM/yyyy}" : $"{vencimento:dd/MM/yyyy} ({situacao})";
     }
 
     private static string Percentual(int parte, int total) =>

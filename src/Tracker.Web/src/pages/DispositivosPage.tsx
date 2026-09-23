@@ -38,6 +38,13 @@ import { AtribuirDialog } from '../features/dispositivos/AtribuirDialog'
 import { ExcluirDispositivoDialog } from '../features/dispositivos/ExcluirDispositivoDialog'
 import { corStatus, rotuloStatus } from '../features/dispositivos/status'
 import { ehAlugado, identificacaoExibida, rotuloAluguel } from '../features/dispositivos/aluguel'
+import {
+  DIAS_DE_ALERTA,
+  corVencimento,
+  formatarVencimento,
+  rotuloVencimento,
+  situacaoVencimento,
+} from '../features/dispositivos/vencimento'
 import { useUnidades } from '../features/unidades/hooks'
 import { usePermissoes, PERMISSOES } from '../features/auth/permissoes'
 import { usePaginacao } from '../utils/paginacao'
@@ -60,7 +67,14 @@ const filtrosStatus: { label: string; status: StatusDispositivo | undefined }[] 
   { label: 'Baixado', status: 'Baixado' },
 ]
 
-type ColunaOrdenavel = 'identificacao' | 'patrimonio' | 'aluguel' | 'unidade' | 'responsavel' | 'status'
+type ColunaOrdenavel =
+  | 'identificacao'
+  | 'patrimonio'
+  | 'aluguel'
+  | 'vencimento'
+  | 'unidade'
+  | 'responsavel'
+  | 'status'
 type Direcao = 'asc' | 'desc'
 
 /**
@@ -75,6 +89,9 @@ function valorOrdenacao(d: Dispositivo, coluna: ColunaOrdenavel, arquivados: boo
       return d.assetTag ?? ''
     case 'aluguel':
       return rotuloAluguel(d)
+    case 'vencimento':
+      // ISO ordena cronologicamente como texto; sem data vai para o fim (valor vazio).
+      return d.vencimentoAluguel ?? ''
     case 'unidade':
       return d.unidadeNome ?? ''
     case 'responsavel':
@@ -158,6 +175,20 @@ export function DispositivosPage() {
     })
   }, [dispositivos, ordenarPor, direcao, mostrandoArquivados])
 
+  // Aviso de contratos: conta sobre a lista carregada inteira, não só a página visível — senão o
+  // alerta sumiria ao paginar. Arquivados ficam de fora: contrato de ativo baixado não pede ação.
+  const vencimentos = useMemo(() => {
+    if (mostrandoArquivados || !dispositivosCarregados) return { vencidos: 0, proximos: 0 }
+    let vencidos = 0
+    let proximos = 0
+    for (const d of dispositivosCarregados) {
+      const situacao = situacaoVencimento(d.vencimentoAluguel)
+      if (situacao === 'vencido') vencidos++
+      else if (situacao === 'proximo') proximos++
+    }
+    return { vencidos, proximos }
+  }, [dispositivosCarregados, mostrandoArquivados])
+
   const { itensPagina, total, setPagina, paginacaoProps } = usePaginacao(dispositivosOrdenados)
 
   // Trocar de aba, status, unidade ou busca reinicia a paginação (senão ficaria numa página
@@ -217,6 +248,21 @@ export function DispositivosPage() {
         </Alert>
       )}
 
+      {(vencimentos.vencidos > 0 || vencimentos.proximos > 0) && (
+        <Alert severity={vencimentos.vencidos > 0 ? 'error' : 'warning'} sx={{ mb: 2 }}>
+          {vencimentos.vencidos > 0 && (
+            <strong>
+              {vencimentos.vencidos}{' '}
+              {vencimentos.vencidos === 1 ? 'aluguel vencido' : 'aluguéis vencidos'}
+            </strong>
+          )}
+          {vencimentos.vencidos > 0 && vencimentos.proximos > 0 && ' · '}
+          {vencimentos.proximos > 0 &&
+            `${vencimentos.proximos} ${vencimentos.proximos === 1 ? 'vence' : 'vencem'} nos próximos ${DIAS_DE_ALERTA} dias`}
+          {'. Ordene pela coluna "Vence em" para ver quais.'}
+        </Alert>
+      )}
+
       <Tabs value={aba} onChange={(_, v) => setAba(v)} variant="scrollable" scrollButtons="auto" sx={{ mb: 2 }}>
         {abas.map((a) => (
           <Tab key={a.label} label={a.label} />
@@ -253,6 +299,8 @@ export function DispositivosPage() {
                 {cabecalho('patrimonio', 'Patrimônio')}
                 {/* Alugado x próprio: derivado do prefixo "MAQ" na identificação. */}
                 {cabecalho('aluguel', 'Aluguel', 'center')}
+                {/* Vencimento do contrato de aluguel: destaca vencido e o que vence em breve. */}
+                {cabecalho('vencimento', 'Vence em', 'center')}
                 {cabecalho('unidade', 'Unidade')}
                 {/* Usuário nominal ou, nos ativos do local, o nome da unidade. */}
                 {cabecalho('responsavel', 'Responsável')}
@@ -272,6 +320,22 @@ export function DispositivosPage() {
                       color={ehAlugado(d) ? 'warning' : 'default'}
                       variant={ehAlugado(d) ? 'filled' : 'outlined'}
                     />
+                  </TableCell>
+                  <TableCell align="center">
+                    {d.vencimentoAluguel ? (
+                      <Stack spacing={0.5} sx={{ alignItems: 'center' }}>
+                        <span>{formatarVencimento(d.vencimentoAluguel)}</span>
+                        {situacaoVencimento(d.vencimentoAluguel) !== 'emDia' && (
+                          <Chip
+                            size="small"
+                            label={rotuloVencimento(d.vencimentoAluguel)}
+                            color={corVencimento(situacaoVencimento(d.vencimentoAluguel))}
+                          />
+                        )}
+                      </Stack>
+                    ) : (
+                      '—'
+                    )}
                   </TableCell>
                   <TableCell>{d.unidadeNome ?? '—'}</TableCell>
                   <TableCell>
@@ -347,7 +411,7 @@ export function DispositivosPage() {
               ))}
               {dispositivosOrdenados?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} align="center">
+                  <TableCell colSpan={8} align="center">
                     {termoBusca
                       ? `Nenhum dispositivo encontrado para "${termoBusca}".`
                       : mostrandoArquivados

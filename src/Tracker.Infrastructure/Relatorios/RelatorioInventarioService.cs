@@ -67,6 +67,7 @@ public class RelatorioInventarioService : IRelatorioInventarioService
                 d.AssetTag,
                 d.Status,
                 d.CriadoEm,
+                d.VencimentoAluguel,
                 d.PertenceAUsuario,
                 UnidadeNome = d.Unidade != null ? d.Unidade.Nome : null,
                 UsuarioNome = d.UsuarioAtual != null ? d.UsuarioAtual.Nome : null,
@@ -92,7 +93,9 @@ public class RelatorioInventarioService : IRelatorioInventarioService
                 Status: RotuloStatus[d.Status],
                 // CriadoEm é gravado em UTC (EntidadeBase), mas o SQL Server devolve Kind=Unspecified:
                 // sem marcar antes de converter, a data de um cadastro da noite sai um dia adiantada.
-                CadastradoEm: DateTime.SpecifyKind(d.CriadoEm, DateTimeKind.Utc).ToLocalTime());
+                CadastradoEm: DateTime.SpecifyKind(d.CriadoEm, DateTimeKind.Utc).ToLocalTime(),
+                // Vencimento é gravado como data pura (sem hora): não passa por conversão de fuso.
+                VencimentoAluguel: d.VencimentoAluguel);
         })
         .OrderBy(l => l.Identificacao, StringComparer.CurrentCultureIgnoreCase)
         .ToList();
