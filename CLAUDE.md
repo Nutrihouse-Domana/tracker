@@ -25,8 +25,20 @@ agents/
   Tracker.Agent.Android/   App Kotlin (tablets/celulares): mesmo protocolo, bloqueio via DevicePolicyManager.
 tests/Tracker.Api.Tests/   xUnit + WebApplicationFactory.
 deploy/                    Scripts PowerShell (publicar, instalar agente).
-docs/                      Guias de implantação (COMECE-AQUI, deploy on-premises, teste agente).
+docs/                      Guias de implantação, dev, CI/CD e agentes (índice: COMECE-AQUI.md).
 ```
+
+**Guia novo em `docs/` entra nos DOIS índices** — a tabela "Documentação" do `README.md` e a
+"Guias que você tem" do `docs/COMECE-AQUI.md`. Os dois já ficaram defasados (sem Android, CI,
+pendrive, ambiente-dev). Ao mudar um fluxo (ex.: instalação do agente, deploy), atualize também o
+guia que o descreve: o `deploy-automatico-cicd.md` chegou a afirmar que o CI baixava .NET/Node
+via `setup-*`, o que o egress impede. **Mudou o comportamento de uma tela** (botão, regra,
+confirmação, permissão)? Atualize `docs/manual-do-usuario.md` — inclusive a seção "Limitações
+conhecidas" quando corrigir uma delas. **Limitação conhecida vive em `docs/melhorias-pendentes.md`**
+(problema, onde, correção sugerida, como verificar): ao corrigir, marque o item como resolvido
+lá (data + PR) e tire-o do manual; ao descobrir uma nova, acrescente nos dois. Chave/segredo novo entra na tabela de `docs/backup-e-chaves.md`.
+**Nunca escreva o VALOR de chave ou código de instalação em doc versionado** (o `agente-android.md`
+já trouxe o `Enrollment:CompanyKey` real): use marcador `<CODIGO-DO-COFRE>`.
 
 Frontend organizado por feature em `src/Tracker.Web/src/features/<feature>/` (api.ts + hooks.ts + componentes).
 
@@ -184,6 +196,10 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   maior `PacoteAgenteAndroid.VersaoCode` e anuncia a oferta; o agente baixa
   (`GET /api/agente/atualizacao/apk`, token do dispositivo), confere o SHA-256 e se instala via
   `PackageInstaller`. APKs ficam em `App_Data/pacotes-agente` (`Storage:PacotesAgentePath`).
+  **Em produção `Storage__PacotesAgentePath` PRECISA apontar para fora de `C:\Tracker`** (ex.:
+  `C:\TrackerDados\pacotes-agente`): o padrão é relativo ao ContentRoot, e o
+  `atualizar-servidor.ps1` apaga a pasta do site inteira a cada deploy — o banco seguiria
+  anunciando o APK, mas o arquivo teria sumido e a OTA falharia até republicar.
 
 ## Pegadinhas já resolvidas (não repita)
 

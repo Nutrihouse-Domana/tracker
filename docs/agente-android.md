@@ -419,20 +419,21 @@ arquivo versionado.
 Desenvolvimento (a partir da raiz do repositório):
 
 ```bash
-dotnet user-secrets set "Enrollment:CompanyKey" "Tr4cker" --project src/Tracker.Api
+dotnet user-secrets set "Enrollment:CompanyKey" "<CODIGO-DE-DEV>" --project src/Tracker.Api
 ```
 
 Produção (IIS, variável de ambiente do pool ou do sistema):
 
 ```powershell
-[Environment]::SetEnvironmentVariable('Enrollment__CompanyKey', 'Tr4cker', 'Machine')
+[Environment]::SetEnvironmentVariable('Enrollment__CompanyKey', '<CODIGO-DO-COFRE>', 'Machine')
 ```
 
 Reinicie a API depois de definir. Para trocar o código, mude o valor e reinicie — os aparelhos já
 registrados continuam funcionando, porque eles usam o token individual, não o código.
 
-> O código atual (`Tr4cker`) é curto. Quem o tiver consegue cadastrar aparelhos no inventário.
-> Como trocá-lo não exige recompilar o APK, vale considerar algo mais longo quando a frota crescer.
+> Quem tiver o código consegue cadastrar aparelhos no inventário: guarde-o **só no cofre de
+> senhas**, nunca em documento versionado. Use um valor longo (20+ caracteres). Troca e demais
+> cuidados: [backup-e-chaves.md](backup-e-chaves.md#enrollment__companykey-o-código-de-instalação-dos-agentes).
 
 ---
 
