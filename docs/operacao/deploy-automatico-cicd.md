@@ -17,7 +17,7 @@ Você cria a tag v1.2.0  ->  GitHub Actions (self-hosted runner on-prem)
 
 - **Build + testes:** se algum teste falhar, o deploy **não acontece**. Os testes rodam contra um
   **banco fake** (instância inexistente): como a migração no start está em `try/catch`
-  ([Program.cs](../src/Tracker.Api/Program.cs)), a API sobe mesmo sem banco e o `/health` passa —
+  ([Program.cs](../../src/Tracker.Api/Program.cs)), a API sobe mesmo sem banco e o `/health` passa —
   logo os testes **nunca tocam o banco de produção** configurado na máquina.
 - **node_modules:** restaurado de um cache local do servidor (`C:\TrackerCI`), chaveado pelo
   hash do `package-lock.json` — só roda `npm ci` quando o lock muda.
@@ -26,8 +26,8 @@ Você cria a tag v1.2.0  ->  GitHub Actions (self-hosted runner on-prem)
 - **Instalador do agente Windows:** regerado em `C:\TrackerAgentDist` **só se o agente mudou**
   desde a tag anterior (roda depois do deploy; falha aqui não desfaz o site).
 
-Arquivos: [`.github/workflows/deploy-producao.yml`](../.github/workflows/deploy-producao.yml) e
-[`deploy/atualizar-servidor.ps1`](../deploy/atualizar-servidor.ps1).
+Arquivos: [`.github/workflows/deploy-producao.yml`](../../.github/workflows/deploy-producao.yml) e
+[`deploy/atualizar-servidor.ps1`](../../deploy/atualizar-servidor.ps1).
 
 ---
 

@@ -201,7 +201,7 @@ Contém a senha do login SQL `tracker_app`. Para trocar: altere a senha no SQL
 
 ### Keystore do APK Android
 
-Tudo sobre ela está em [agente-android.md](agente-android.md#gerar-o-apk-de-release-distribuição-na-frota).
+Tudo sobre ela está em [agente-android.md](../agentes/agente-android.md#gerar-o-apk-de-release-distribuição-na-frota).
 O essencial para a guarda:
 
 - O `.jks` e as senhas precisam de **pelo menos duas cópias fora do repositório**, uma delas fora
@@ -225,7 +225,7 @@ dotnet .\Tracker.Api.dll --redefinir-senha-adm --senha "NOVA_SENHA_FORTE"
 ```
 
 Com mais de um ADM, acrescente `--email <email-do-adm>`. Em dev, o comando equivalente está no
-[ambiente-dev.md](ambiente-dev.md). Se houver outro login com a permissão **Acessos**, é mais
+[ambiente-dev.md](../desenvolvimento/ambiente-dev.md). Se houver outro login com a permissão **Acessos**, é mais
 simples redefinir pela tela.
 
 ---

@@ -344,22 +344,21 @@ adb shell dpm remove-active-admin br.com.nutrihouse.tracker.agent/.admin.Tracker
 
 ## Identificação no inventário
 
-### Sempre informe o patrimônio
+### Informe o número de série da etiqueta
 
-A tela de registro pede três identificadores. O **patrimônio é o que importa** — é por ele que o
-backend reencontra um cadastro que já existe, em vez de criar um ativo duplicado:
+A tela de registro pede o **código de instalação** e o **número de série** da etiqueta/caixa do
+aparelho (ou de Configurações > Sobre o aparelho). A série é obrigatória quando o Android não a
+entrega ao app — ou seja, em qualquer aparelho moderno sem Device Owner.
 
-| Campo | Para que serve |
-|---|---|
-| **Patrimônio** | O da etiqueta do ativo. Reencontra o cadastro existente. **Preencha sempre.** |
-| Número de série | O da etiqueta/caixa. Dá identidade real ao registro quando o Android não a entrega. |
-| IMEI | Só aparece em aparelho com modem — tablet Wi-Fi não tem IMEI nenhum. |
+**Patrimônio e IMEI não são digitados no aparelho** (desde a v1.1.2): ficam a cargo do painel,
+onde a TI já mantém o cadastro do ativo. Se o ativo já existe no inventário com a mesma série,
+o registro o reencontra; se não existe, ele entra com patrimônio provisório `AUTO-<série>`, que a
+TI corrige no painel.
 
-Deixando o patrimônio em branco, o agente se identifica por um valor derivado do `ANDROID_ID`,
-gravado como `ANDROID-<id>`. **Esse valor não é estável**: o Android o escopa por chave de
-assinatura do APK, então ele muda sempre que o app é reinstalado assinado com outra chave — é
-exatamente o que acontece ao trocar um APK de teste pelo de release. Quando ele muda e não há
-patrimônio, o mesmo aparelho volta ao inventário como um ativo novo.
+Sem a série digitada, o agente se identificaria por `ANDROID-<ANDROID_ID>`, e **esse valor não é
+estável**: o Android o escopa por chave de assinatura do APK, então ele muda sempre que o app é
+reinstalado assinado com outra chave (trocar um APK de teste pelo de release faz isso). Quando
+ele muda, o mesmo aparelho volta ao inventário como um ativo novo — já duplicou a frota assim.
 
 O reencontro segue a ordem **patrimônio → número de série → IMEI**, e os identificadores só
 melhoram: um serial de fábrica nunca é substituído pelo provisório, e um patrimônio real nunca
@@ -433,7 +432,7 @@ registrados continuam funcionando, porque eles usam o token individual, não o c
 
 > Quem tiver o código consegue cadastrar aparelhos no inventário: guarde-o **só no cofre de
 > senhas**, nunca em documento versionado. Use um valor longo (20+ caracteres). Troca e demais
-> cuidados: [backup-e-chaves.md](backup-e-chaves.md#enrollment__companykey-o-código-de-instalação-dos-agentes).
+> cuidados: [backup-e-chaves.md](../operacao/backup-e-chaves.md#enrollment__companykey-o-código-de-instalação-dos-agentes).
 
 ---
 

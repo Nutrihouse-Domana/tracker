@@ -186,7 +186,8 @@ Aba **Agente & Bloqueio** (Notebook/Mobile), com permissão de bloquear.
   localização negada". Depois de resolver no aparelho, clique **Tratar**.
 - **Gerar token do agente:** só para instalação manual/reconexão. O token aparece **uma única
   vez** — copie na hora. Com o instalador (`Instalar-Agente.exe`) ou o registro do app Android,
-  não é necessário.
+  não é necessário. **Atenção:** gerar um token novo **invalida o atual**. O notebook se recadastra
+  sozinho, mas o **celular/tablet para de comunicar** até alguém refazer o registro no aparelho.
 
 ---
 
@@ -282,7 +283,7 @@ o quê, motivo e IP — inclusive logins efetuados e recusados.
 Menu da conta → **Agente**. Publica uma versão nova do app para todos os celulares e tablets.
 
 1. Obtenha o APK de release (workflow **APK Agente Android** no GitHub — ver
-   [agente-android.md](agente-android.md)).
+   [agente-android.md](../agentes/agente-android.md)).
 2. **Publicar nova versão** → escolha o `.apk` → informe `versionCode` e `versionName` **iguais**
    aos do build (o resumo do workflow mostra) → sua senha → **Publicar**.
 3. Os cards mostram quantos aparelhos já estão na versão e quantos faltam; os desatualizados se
@@ -292,7 +293,7 @@ O `versionCode` precisa ser **maior** que o vigente — o Android recusa versão
 **Publicar afeta a frota inteira**: publique só APK testado num aparelho de laboratório.
 
 O código de instalação usado no registro dos aparelhos **não aparece no painel** — está no cofre
-de senhas da TI (ver [backup-e-chaves.md](backup-e-chaves.md)).
+de senhas da TI (ver [backup-e-chaves.md](../operacao/backup-e-chaves.md)).
 
 ### Perfil
 
@@ -322,7 +323,7 @@ pessoa: peça a um gestor de Acessos para **Redefinir senha**.
 ## Limitações conhecidas
 
 Comportamentos atuais do sistema que vale conhecer. Detalhes técnicos e correção sugerida de
-cada um: [melhorias-pendentes.md](melhorias-pendentes.md).
+cada um: [melhorias-pendentes.md](../desenvolvimento/melhorias-pendentes.md).
 
 - A tela de login não distingue senha errada de login desativado/bloqueado.
 - **Bloquear, Desbloquear, Restaurar** e **desativar detentor** não pedem confirmação.
@@ -335,3 +336,6 @@ cada um: [melhorias-pendentes.md](melhorias-pendentes.md).
   e, na auditoria, a ação de vencimento de aluguel.
 - A busca global não encontra pela identificação interna (use Enter para buscar na lista).
 - Relatórios não estão disponíveis no menu do celular.
+- A versão do agente Windows aparece sempre como **1.0.0**, seja qual for o instalador usado.
+- Celular/tablet que perde o token (token regenerado, servidor restaurado) **não volta sozinho**:
+  é preciso refazer o registro no app.

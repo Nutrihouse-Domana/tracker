@@ -41,7 +41,7 @@ val urlDesenvolvimento = configuracaoLocal("tracker.backendBaseUrl").ifBlank { u
 /**
  * Keystore de assinatura do release. O APK e distribuido internamente (fora da Play Store),
  * entao a chave e nossa: sem ela o Android recusa a instalacao. O caminho e as senhas ficam em
- * local.properties, fora do Git — ver docs/agente-android.md.
+ * local.properties, fora do Git — ver docs/agentes/agente-android.md.
  *
  * **Aponte para um caminho ABSOLUTO fora do repositorio** (ex.: C:\NutrihouseChaves). Um keystore
  * guardado dentro da arvore de trabalho ja foi perdido uma vez: a pasta era descartavel e sumiu,
@@ -130,7 +130,7 @@ tasks.matching { it.name == "assembleRelease" }.configureEach {
             throw GradleException(
                 "Release sem keystore. Configure tracker.keystoreFile, tracker.keystorePassword, " +
                     "tracker.keyAlias e tracker.keyPassword em local.properties " +
-                    "(ver docs/agente-android.md), ou use ./gradlew :app:assembleDebug para testes.",
+                    "(ver docs/agentes/agente-android.md), ou use ./gradlew :app:assembleDebug para testes.",
             )
         }
 

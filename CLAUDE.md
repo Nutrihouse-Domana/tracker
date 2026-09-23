@@ -25,19 +25,29 @@ agents/
   Tracker.Agent.Android/   App Kotlin (tablets/celulares): mesmo protocolo, bloqueio via DevicePolicyManager.
 tests/Tracker.Api.Tests/   xUnit + WebApplicationFactory.
 deploy/                    Scripts PowerShell (publicar, instalar agente).
-docs/                      Guias de implantação, dev, CI/CD e agentes (índice: COMECE-AQUI.md).
+docs/                      Documentação por assunto (índice: docs/COMECE-AQUI.md):
+  uso/                     manual do usuário do painel
+  operacao/                servidor on-premises, CI/CD, backup e chaves, recuperação de desastre
+  agentes/                 pendrive, teste Windows, Android, protocolo servidor<->agente
+  desenvolvimento/         ambiente de dev, melhorias pendentes (backlog)
+  privacidade/             inventário de dados pessoais (LGPD)
 ```
 
-**Guia novo em `docs/` entra nos DOIS índices** — a tabela "Documentação" do `README.md` e a
+**Guia novo vai na subpasta do assunto em `docs/` e entra nos DOIS índices** — a tabela "Documentação" do `README.md` e a
 "Guias que você tem" do `docs/COMECE-AQUI.md`. Os dois já ficaram defasados (sem Android, CI,
 pendrive, ambiente-dev). Ao mudar um fluxo (ex.: instalação do agente, deploy), atualize também o
 guia que o descreve: o `deploy-automatico-cicd.md` chegou a afirmar que o CI baixava .NET/Node
 via `setup-*`, o que o egress impede. **Mudou o comportamento de uma tela** (botão, regra,
-confirmação, permissão)? Atualize `docs/manual-do-usuario.md` — inclusive a seção "Limitações
-conhecidas" quando corrigir uma delas. **Limitação conhecida vive em `docs/melhorias-pendentes.md`**
+confirmação, permissão)? Atualize `docs/uso/manual-do-usuario.md` — inclusive a seção "Limitações
+conhecidas" quando corrigir uma delas. **Limitação conhecida vive em `docs/desenvolvimento/melhorias-pendentes.md`**
 (problema, onde, correção sugerida, como verificar): ao corrigir, marque o item como resolvido
-lá (data + PR) e tire-o do manual; ao descobrir uma nova, acrescente nos dois. Chave/segredo novo entra na tabela de `docs/backup-e-chaves.md`.
-**Nunca escreva o VALOR de chave ou código de instalação em doc versionado** (o `agente-android.md`
+lá (data + PR) e tire-o do manual; ao descobrir uma nova, acrescente nos dois. Chave/segredo novo entra na tabela de `docs/operacao/backup-e-chaves.md`.
+**Antes de criar uma tag `v*`**, acrescente a seção da versão no `CHANGELOG.md` (com as marcas
+Banco / Agente Windows / Agente Android). **Mudou endpoint, DTO ou evento do agente?** Atualize
+`docs/agentes/protocolo-agente.md` — é o único lugar com o contrato inteiro e a tabela de diferenças
+Windows x Android. **Coleta nova de dado pessoal, terceiro novo ou mudança de retenção?**
+Atualize `docs/privacidade/privacidade-lgpd.md` (e avise que o jurídico precisa ver).
+**Nunca escreva o VALOR de chave ou código de instalação em doc versionado** (o `docs/agentes/agente-android.md`
 já trouxe o `Enrollment:CompanyKey` real): use marcador `<CODIGO-DO-COFRE>`.
 
 Frontend organizado por feature em `src/Tracker.Web/src/features/<feature>/` (api.ts + hooks.ts + componentes).
@@ -50,7 +60,7 @@ gera o `.env` com a senha do SA e grava os `user-secrets` que faltarem. É **ide
 **preserva** o que já existe — em especial `Encryption:CpfKeyBase64`, que regenerada tornaria
 ilegíveis os CPFs já gravados, e a `ConnectionStrings:TrackerDb` de quem já usa SQL Express
 local (para apontar ao container mesmo assim: `-Forcar`; para pular o Docker: `-SemDocker`).
-Guia: `docs/ambiente-dev.md`. **Produção não usa Docker** — lá é SQL Server on-premises com IIS.
+Guia: `docs/desenvolvimento/ambiente-dev.md`. **Produção não usa Docker** — lá é SQL Server on-premises com IIS.
 O Docker Desktop precisa do **WSL2**; sem ele o engine nunca fica pronto e o sintoma é idêntico
 ao de "Docker fechado" (`wsl --install` como Administrador + reiniciar). O script detecta e avisa.
 
@@ -499,7 +509,7 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
 - Em produção, o app ASP.NET Core serve o **site (wwwroot) + API** no mesmo endereço; segredos vêm
   de **variáveis de ambiente** (`ConnectionStrings__TrackerDb`, `Encryption__CpfKeyBase64`,
   `Enrollment__CompanyKey`, `Seed__*`).
-- Gerar pacote: `deploy/publicar-servidor.ps1`. Guia completo: `docs/deploy-servidor-onpremises.md`.
+- Gerar pacote: `deploy/publicar-servidor.ps1`. Guia completo: `docs/operacao/deploy-servidor-onpremises.md`.
 - **CI (`.github/workflows/deploy-producao.yml`)** roda num **runner self-hosted no próprio servidor**,
   dispara em tag `v*` (build → testes → publica site+API no IIS). O último passo **regera o
   instalador do agente Windows SÓ quando o agente mudou nesta release** (diff contra a tag anterior

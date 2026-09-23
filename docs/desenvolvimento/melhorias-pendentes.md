@@ -6,7 +6,7 @@ Cada item diz o problema, onde está no código, a correção sugerida e como co
 **Ao corrigir um item:**
 
 1. Marque-o como resolvido aqui, com data e PR.
-2. Remova-o da seção "Limitações conhecidas" do [manual-do-usuario.md](manual-do-usuario.md) e
+2. Remova-o da seção "Limitações conhecidas" do [manual-do-usuario.md](../uso/manual-do-usuario.md) e
    atualize o trecho do manual que descreve a tela.
 3. Registre no `CLAUDE.md` a pegadinha que tiver aparecido no caminho.
 
@@ -35,13 +35,27 @@ As regras do projeto continuam valendo em toda correção:
 | 12 | [Cancelar reparo deixa o aparelho em manutenção](#12-cancelar-reparo-deixa-o-aparelho-em-manutenção) | Baixa | Pequeno |
 | 13 | [Chave do CPF sem rotação](#13-chave-do-cpf-sem-rotação) | Média | Grande |
 | 14 | [Comentários desatualizados sobre relatórios no Perfil](#14-comentários-desatualizados-sobre-relatórios-no-perfil) | Baixa | Trivial |
+| 15 | [Localização gravada a cada minuto, para sempre](#15-localização-gravada-a-cada-minuto-para-sempre) | **Alta** | Médio |
+| 16 | [CPF completo para quem só vê o inventário](#16-cpf-completo-para-quem-só-vê-o-inventário) | **Alta** | Pequeno |
+| 17 | [Geolocalização do Windows por HTTP em serviço gratuito](#17-geolocalização-do-windows-por-http-em-serviço-gratuito) | Média | Pequeno |
+| 18 | [Sem exclusão/anonimização de detentor](#18-sem-exclusãoanonimização-de-detentor) | Média | Médio |
+| 19 | [Token do agente na URL e em texto puro](#19-token-do-agente-na-url-e-em-texto-puro) | Média | Médio |
+| 20 | [Conferir o IP gravado na auditoria](#20-conferir-o-ip-gravado-na-auditoria) | Baixa | Pequeno |
+| 21 | [HSTS não configurado na aplicação](#21-hsts-não-configurado-na-aplicação) | Baixa | Trivial |
+| 22 | [Agente Windows ignora "deve estar bloqueado"](#22-agente-windows-ignora-deve-estar-bloqueado) | Média | Pequeno |
+| 23 | [Agente Android não se recadastra sozinho](#23-agente-android-não-se-recadastra-sozinho) | Média | Médio |
+| 24 | [Agente Windows informa sempre a versão 1.0.0](#24-agente-windows-informa-sempre-a-versão-100) | Média | Trivial |
+| 25 | [Inconsistências menores nos agentes](#25-inconsistências-menores-nos-agentes) | Baixa | Trivial |
 
 **Sugestão de ordem:**
 
 1. Itens **1 e 3**: são os que mais afetam o dia a dia.
 2. Itens **2, 4 e 5**: mesmo tipo de mudança, cabem num PR só.
-3. Itens **8 e 11**.
-4. Os demais, conforme houver tempo.
+3. Itens **8, 11, 22 e 24** (os dois últimos são pequenos e melhoram o diagnóstico da frota).
+4. Itens **15 a 19** (privacidade): vários dependem de decisão do jurídico/DPO — ver
+   [privacidade-lgpd.md](../privacidade/privacidade-lgpd.md#para-o-jurídico-decidir). O **16** não depende e pode
+   ir já.
+5. Os demais, conforme houver tempo.
 
 ---
 
@@ -310,7 +324,7 @@ concluir um não deveria tirar o aparelho de manutenção enquanto o outro segue
 
 **Problema:** `AesStringEncryptor` trabalha com uma chave só. Trocar `Encryption__CpfKeyBase64`
 deixa todos os CPFs gravados ilegíveis, e as telas que carregam detentores quebram. Detalhes em
-[backup-e-chaves.md](backup-e-chaves.md#encryption__cpfkeybase64-a-mais-crítica).
+[backup-e-chaves.md](../operacao/backup-e-chaves.md#encryption__cpfkeybase64-a-mais-crítica).
 
 **Impacto:** se a chave vazar, não há como trocá-la.
 
@@ -337,3 +351,222 @@ deixa todos os CPFs gravados ilegíveis, e as telas que carregam detentores queb
 na página de Perfil. Não estão: ficam só no menu da conta.
 
 **Correção:** ajustar os comentários. É trivial e pode entrar em qualquer PR.
+
+---
+
+## 15. Localização gravada a cada minuto, para sempre
+
+**Problema:** todo heartbeat com coordenadas insere uma linha em `HistoricoLocalizacoes`, sem
+comparar com a anterior e sem expurgo — **~1.440 linhas por aparelho por dia**, indefinidamente.
+A tela usa só a última.
+
+**Impacto:** privacidade (trilha minuto a minuto do colaborador, inclusive fora do expediente, em
+aparelho que ele leva para casa) e crescimento do banco e do backup.
+
+**Onde:** `src/Tracker.Api/Controllers/AgenteController.cs` (heartbeat, `HistoricoLocalizacoes.Add`).
+
+**Correção sugerida:**
+
+- **Deduplicar:** só gravar ponto novo se o aparelho se moveu mais que N metros (acima da
+  precisão) ou se passou X tempo desde o último ponto.
+- **Retenção:** rotina (`BackgroundService`) que apaga os pontos mais velhos que o prazo
+  definido. Use `ExecuteDeleteAsync` em lotes, porque a tabela é grande.
+- **Decisão a tomar (jurídico):** prazo de retenção, e se a coleta precisa mesmo ser contínua ou
+  pode acontecer só quando o aparelho for dado como perdido.
+
+**Verificar:** teste que manda dois heartbeats na mesma posição e espera uma linha só.
+
+---
+
+## 16. CPF completo para quem só vê o inventário
+
+**Problema:** `GET /api/usuarios` pede só `dispositivos.ver`, porque alimenta o diálogo de
+atribuição, e devolve o **CPF inteiro**. A tela *Usuários* o mostra sem máscara.
+
+**Impacto:** a permissão mais básica do sistema dá acesso ao CPF de todos os colaboradores.
+
+**Onde:** `src/Tracker.Api/Controllers/UsuariosController.cs` (`Listar`, `UsuarioDto`) e
+`src/Tracker.Web/src/pages/UsuariosPage.tsx`.
+
+**Correção sugerida:**
+
+- Devolver o CPF **mascarado** (`***.456.789-**`) na listagem.
+- A geração do termo já busca o CPF no servidor e não precisa dele no front.
+- Se alguém precisar ver o CPF completo, criar uma permissão própria (valor novo no **fim** de
+  `Permissoes.Todas`) com auditoria de leitura.
+
+**Verificar:** teste de API em que um login só com `dispositivos.ver` não recebe o CPF completo
+e o PDF do termo continua saindo com o CPF certo.
+
+---
+
+## 17. Geolocalização do Windows por HTTP em serviço gratuito
+
+**Problema:** o agente Windows consulta `http://ip-api.com/json/...` sem TLS, num serviço externo
+sem contrato. Pelo que se sabe do serviço, o plano gratuito não oferece HTTPS e restringe uso
+comercial. **Confirme nos termos atuais do serviço.**
+
+**Impacto:**
+
+- o IP de cada notebook trafega em claro para um terceiro a cada minuto;
+- a resposta pode ser adulterada no caminho;
+- há possível violação dos termos de uso do serviço.
+
+**Onde:** `agents/Tracker.Agent.Windows/Geolocalizacao.cs`.
+
+**Correção sugerida (escolha uma):**
+
+- Provedor contratado com HTTPS.
+- O **servidor** faz a geolocalização pelo IP de origem do heartbeat, e o notebook deixa de falar
+  com terceiros. Antes, confira o IP que chega atrás de NAT (item 20).
+- Reduzir a frequência da consulta, já que o IP muda pouco.
+
+Qualquer opção exige nova versão do agente Windows, com instalador regerado e reinstalação nos
+notebooks.
+
+---
+
+## 18. Sem exclusão/anonimização de detentor
+
+**Problema:** "Desativar" só marca `Ativo = false`, e não há como eliminar os dados de um
+ex-colaborador. As FKs `Restrict` de Termo e Movimentação impedem um `DELETE` simples.
+
+**Impacto:** um pedido de eliminação do titular só se atende mexendo direto no banco.
+
+**Correção sugerida:** **anonimizar** em vez de apagar:
+
+- trocar nome, e-mail, telefone e CPF por marcadores (ex.: "Ex-colaborador #1234");
+- preservar o vínculo com termos e histórico, que podem ter obrigação legal de guarda;
+- pedir a senha do ADM e registrar na auditoria.
+
+**Decisão a tomar (jurídico):** o destino dos PDFs dos termos, que trazem o CPF impresso, e do
+texto livre de comentários e motivos.
+
+---
+
+## 19. Token do agente na URL e em texto puro
+
+**Problema:**
+
+- A conexão SignalR passa o token na **query string** (`?token=...`), que pode ficar gravada em
+  log do IIS ou de proxy.
+- No Windows, o `token.dat` fica em **texto puro**.
+- No Android, se o armazenamento cifrado falhar, o app cai para o armazenamento comum sem avisar.
+
+**Onde:** `agents/Tracker.Agent.Windows/Worker.cs` e `EnrollmentService.cs`;
+`src/Tracker.Api/Agente/ComandoRemotoHub.cs`; Android `dados/Armazenamento.kt`.
+
+**Correção sugerida:**
+
+- **Query string:** tirá-la dos logs do IIS, ou mandar o token por header no *negotiate*, se o
+  transporte usado permitir (o WebSocket só aceita query). Valide nos dois clientes.
+- **`token.dat`:** proteger com **DPAPI** (`ProtectedData`, escopo máquina) e ACL só para SYSTEM
+  e Administradores.
+- **Android:** gerar um alerta quando o app cair no armazenamento comum.
+
+Mudar o formato do `token.dat` exige compatibilidade: o agente novo precisa ler o arquivo antigo,
+senão a frota inteira se recadastra de uma vez.
+
+---
+
+## 20. Conferir o IP gravado na auditoria
+
+**Problema:** a auditoria grava `Connection.RemoteIpAddress` e o app não usa
+`UseForwardedHeaders`. No IIS in-process o IP do cliente costuma chegar certo. Mas, se houver
+NAT, proxy ou firewall reescrevendo a origem, todos os registros sairão com o mesmo IP.
+
+**Verificar primeiro:** na tela *Auditoria*, os logins de pessoas diferentes mostram IPs
+diferentes e coerentes? Se sim, feche o item sem mudança. Se todos forem iguais, configure
+`ForwardedHeaders` **com a lista de proxies confiáveis**. Sem essa lista, qualquer um forja o IP
+pelo header `X-Forwarded-For`.
+
+---
+
+## 21. HSTS não configurado na aplicação
+
+**Problema:** `Program.cs` tem `UseHttpsRedirection`, mas não `UseHsts`.
+
+**Correção:**
+
+1. Confira se o IIS já envia `Strict-Transport-Security`, com
+   `curl -I https://tracker.foodsacademy.com.br`.
+2. Se não enviar, use `app.UseHsts()` fora de Development.
+
+Cuidado: o domínio `foodsacademy.com.br` é compartilhado. **Não** use `includeSubDomains` nem
+`preload` sem alinhar com quem cuida do FOOD-ACADEMY.
+
+---
+
+## 22. Agente Windows ignora "deve estar bloqueado"
+
+**Problema:** a resposta do heartbeat traz `deveEstarBloqueado`, e o Android reaplica o bloqueio
+quando ele vem verdadeiro (gera o alerta *Bloqueio reaplicado*). O agente Windows lê só a lista
+de comandos. Se o arquivo-sinal `locked.flag` sumir (limpeza, restauração, alguém com acesso de
+administrador), um notebook que o servidor considera **Bloqueado** volta a funcionar e o painel
+não fica sabendo.
+
+**Onde:** `agents/Tracker.Agent.Windows/BackendClient.cs` (`HeartbeatResposta` só com a lista de
+comandos) e `Worker.cs`.
+
+**Correção sugerida:**
+
+- Ler `deveEstarBloqueado` e, se for verdadeiro e o sinal local não existir, recriar o sinal e
+  subir a tela de bloqueio.
+- Reportar o alerta `BloqueioReaplicado` (o endpoint `/api/agente/alertas` já existe; o Windows
+  hoje não reporta alerta nenhum).
+
+Exige nova versão do agente Windows.
+
+---
+
+## 23. Agente Android não se recadastra sozinho
+
+**Problema:** quando o servidor rejeita o token (401), o agente Windows se recadastra sozinho. O
+Android apaga o token e fica esperando alguém registrar de novo no aparelho.
+
+**Impacto:** após restaurar um backup antigo, regenerar o token no painel ou trocar de servidor,
+**cada celular e tablet** precisa que um técnico pegue o aparelho e refaça o registro.
+
+**Por que não é automático hoje:** o código de instalação não é guardado no aparelho, de
+propósito, para não ficar exposto num aparelho perdido. Sem ele, não há como recadastrar.
+
+**Correção sugerida:**
+
+- Guardar no armazenamento cifrado uma **credencial de recadastro** específica do aparelho, e
+  não o código da empresa.
+- Ou aceitar o recadastro com o token antigo durante uma janela, depois de validado no servidor.
+
+Precisa de desenho de segurança antes de implementar. Mexe no protocolo e exige `versionCode`
+novo.
+
+---
+
+## 24. Agente Windows informa sempre a versão 1.0.0
+
+**Problema:** o agente Windows manda `agenteVersao = "1.0.0"` fixo no código, em qualquer release.
+
+**Impacto:** a coluna de versão do agente no painel não serve para saber quais notebooks rodam o
+instalador antigo, justo a informação necessária para decidir quem reinstalar (a frota Windows
+não tem OTA).
+
+**Onde:** `agents/Tracker.Agent.Windows/Worker.cs` (constante de versão).
+
+**Correção sugerida:**
+
+- Ler a versão do assembly (`Assembly.GetEntryAssembly().GetName().Version`, ou
+  `AssemblyInformationalVersion`).
+- Carimbar essa versão no build do instalador, em `gerar-pendrive.ps1`, com a tag da release.
+
+---
+
+## 25. Inconsistências menores nos agentes
+
+Nenhuma afeta o funcionamento. Corrija quando mexer nos arquivos.
+
+- `agents/Tracker.Agent.Windows/AgenteOptions.cs`: o comentário sugere o tipo `"Telefone"`, que não
+  existe mais (é `Mobile`). E o default de `Simular` é **true** no código e **false** no
+  `appsettings.json`: se o arquivo perder a chave, o agente para de bloquear de verdade sem avisar.
+- Android `servico/AgenteService.kt`: os comentários falam em heartbeat de 2 min, mas a constante é 60 s.
+- Android: o token vai na URL do hub sem URL-encode. É inofensivo com base64url, mas vale
+  codificar por consistência com o Windows.
+- Android: a origem da localização é sempre `GpsAndroid`, mesmo quando a posição veio da rede.

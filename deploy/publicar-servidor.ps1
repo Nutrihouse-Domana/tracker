@@ -57,4 +57,4 @@ if ($LASTEXITCODE -ne 0) { throw "Falha no dotnet publish (codigo $LASTEXITCODE)
 
 Write-Host ""
 Write-Host "Pronto! Pacote gerado em: $Saida"
-Write-Host "Copie essa pasta para o servidor e siga o guia docs/deploy-servidor-onpremises.md."
+Write-Host "Copie essa pasta para o servidor e siga o guia docs/operacao/deploy-servidor-onpremises.md."

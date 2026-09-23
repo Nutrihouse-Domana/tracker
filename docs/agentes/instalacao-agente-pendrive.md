@@ -34,13 +34,13 @@ Três restrições do ambiente da Nutrihouse moldaram o desenho — vale conhece
 1. **`.cmd`/`.bat` não conseguem pedir elevação.** Só executável com manifesto declarando
    `requireAdministrator` faz o Windows exibir a caixa de usuário e senha — é por isso que os
    instaladores comerciais conseguem e um `.bat` nunca vai conseguir. Ver
-   [deploy/Instalador/app.manifest](../deploy/Instalador/app.manifest).
+   [deploy/Instalador/app.manifest](../../deploy/Instalador/app.manifest).
 2. **Execution Policy do PowerShell bloqueada por GPO.** Nenhum `.ps1` do pendrive executa, e
    `-ExecutionPolicy Bypass` é ignorado quando a política vem de diretiva de máquina. Nem a
    elevação pode depender do `powershell.exe`.
 3. **Arquivo solto ao lado do executável falha em uso real.** Payload, scripts de passos e XML
    separados quebraram na mão do usuário; por isso todo o conteúdo é *embedded resource* e a
-   lógica de instalação vive em C# ([deploy/Instalador/Program.cs](../deploy/Instalador/Program.cs)),
+   lógica de instalação vive em C# ([deploy/Instalador/Program.cs](../../deploy/Instalador/Program.cs)),
    não em batch.
 
 O `TrackerAgentLock.xml` é escrito em `%TEMP%` em UTF-16 LE na hora de registrar a tarefa —

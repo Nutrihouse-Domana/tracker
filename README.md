@@ -51,27 +51,27 @@ npm --prefix src/Tracker.Web run dev
 
 Segredos de desenvolvimento ficam em `dotnet user-secrets` do `Tracker.Api` (não versionados):
 `Encryption:CpfKeyBase64`, `Enrollment:CompanyKey`, `Seed:AdmEmail`, `Seed:AdmSenha`, `Seed:AdmNome`.
-Guia completo: [docs/ambiente-dev.md](docs/ambiente-dev.md).
+Guia completo: [docs/desenvolvimento/ambiente-dev.md](docs/desenvolvimento/ambiente-dev.md).
 
 Antes de abrir PR: `dotnet build Tracker.sln`, `dotnet test Tracker.sln` e
 `npm --prefix src/Tracker.Web run build`.
 
 ## Documentação
 
-| Guia | Para quê |
+Tudo fica em [`docs/`](docs/), separado por assunto. Comece pelo índice
+[docs/COMECE-AQUI.md](docs/COMECE-AQUI.md).
+
+| Pasta | Conteúdo |
 |---|---|
-| [docs/COMECE-AQUI.md](docs/COMECE-AQUI.md) | Índice geral e roteiro de implantação |
-| [docs/manual-do-usuario.md](docs/manual-do-usuario.md) | Uso do painel pela TI: cadastro, entrega, termo, bloqueio, relatórios, acessos |
-| [docs/melhorias-pendentes.md](docs/melhorias-pendentes.md) | Backlog de limitações conhecidas, com local no código e correção sugerida |
-| [docs/backup-e-chaves.md](docs/backup-e-chaves.md) | Backup/restauração do banco e guarda das chaves (CPF, agentes, keystore) |
-| [docs/ambiente-dev.md](docs/ambiente-dev.md) | Preparar uma máquina de desenvolvimento |
-| [docs/deploy-servidor-onpremises.md](docs/deploy-servidor-onpremises.md) | Servidor de produção (IIS, HTTPS, SQL, DNS, segredos) |
-| [docs/deploy-automatico-cicd.md](docs/deploy-automatico-cicd.md) | Deploy por tag `v*` e rollback |
-| [docs/instalacao-agente-pendrive.md](docs/instalacao-agente-pendrive.md) | Instalar o agente Windows nos notebooks (`Instalar-Agente.exe`) |
-| [docs/teste-agente-windows.md](docs/teste-agente-windows.md) | Roteiro de teste do agente Windows |
-| [agents/Tracker.Agent.Windows/README.md](agents/Tracker.Agent.Windows/README.md) | Referência técnica do agente Windows |
-| [docs/agente-android.md](docs/agente-android.md) | Agente Android: compilar, instalar, Device Owner, OTA, keystore |
-| [CLAUDE.md](CLAUDE.md) | Convenções do código e pegadinhas já resolvidas |
+| [`docs/uso/`](docs/uso/) | [Manual do usuário](docs/uso/manual-do-usuario.md) do painel |
+| [`docs/operacao/`](docs/operacao/) | [Servidor on-premises](docs/operacao/deploy-servidor-onpremises.md), [deploy por tag (CI/CD)](docs/operacao/deploy-automatico-cicd.md), [backup e chaves](docs/operacao/backup-e-chaves.md), [recuperação de desastre](docs/operacao/recuperacao-de-desastre.md) |
+| [`docs/agentes/`](docs/agentes/) | [Instalação por pendrive](docs/agentes/instalacao-agente-pendrive.md), [teste do agente Windows](docs/agentes/teste-agente-windows.md), [agente Android](docs/agentes/agente-android.md), [protocolo servidor ↔ agente](docs/agentes/protocolo-agente.md) |
+| [`docs/desenvolvimento/`](docs/desenvolvimento/) | [Ambiente de dev](docs/desenvolvimento/ambiente-dev.md), [melhorias pendentes](docs/desenvolvimento/melhorias-pendentes.md) |
+| [`docs/privacidade/`](docs/privacidade/) | [Dados pessoais e LGPD](docs/privacidade/privacidade-lgpd.md) (para o jurídico/DPO) |
+
+Na raiz: [CHANGELOG.md](CHANGELOG.md) (versões) e [CLAUDE.md](CLAUDE.md) (convenções e
+pegadinhas). Junto do código: [agente Windows](agents/Tracker.Agent.Windows/README.md) e
+[front-end](src/Tracker.Web/README.md).
 
 ## Segurança
 

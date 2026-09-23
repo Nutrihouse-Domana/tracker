@@ -1,0 +1,176 @@
+# Changelog
+
+Mudanças de cada versão do Tracker publicadas em produção. Cada tag `v*` é um deploy (ver
+[docs/operacao/deploy-automatico-cicd.md](docs/operacao/deploy-automatico-cicd.md)).
+
+**Como ler:**
+
+- **Banco:** a versão aplica uma migração no start. Rollback só de arquivos **não** desfaz a
+  migração; é preciso restaurar o backup do banco ([docs/operacao/backup-e-chaves.md](docs/operacao/backup-e-chaves.md)).
+- **Agente Windows:** o instalador (`Instalar-Agente.exe`) mudou. O CI o regera em
+  `C:\TrackerAgentDist`. A frota Windows **não se atualiza sozinha**: reinstale nos notebooks
+  quando a mudança importar para eles.
+- **Agente Android:** saiu um APK novo (`versionCode`). Ele chega à frota por OTA **depois de
+  publicado na página Agente do painel**.
+
+**Ao criar uma tag:** acrescente a seção da versão no topo, antes do `git tag`. Use as mesmas
+marcações e escreva do ponto de vista de quem usa ou opera, não do código.
+
+---
+
+## [Não publicado]
+
+- Documentação: índices revisados, manual do usuário, guia de backup e chaves, backlog de
+  melhorias, protocolo do agente, privacidade/LGPD, recuperação de desastre e este changelog.
+- Ambiente de desenvolvimento reproduzível: SQL Server em container e `preparar-ambiente-dev.ps1`.
+- APK de release do agente Android gerado pelo CI (workflow manual **APK Agente Android**), sem a
+  keystore sair do cofre de secrets.
+
+## v1.10.2 — 23/09/2026
+
+- Deploy mais rápido: `node_modules` restaurado de um cache local do servidor em vez de
+  reinstalado a cada release (o `npm install` consumia ~9 min dos ~12 min do deploy; a
+  restauração leva ~30 s).
+
+## v1.10.1 — 23/09/2026 · Banco
+
+- Corrige o vencimento do aluguel, que era exibido **um dia antes**. O campo passa a ser data sem
+  hora (`date`).
+
+## v1.10.0 — 23/09/2026 · Banco
+
+- **Vencimento do contrato de aluguel** por dispositivo, com coluna "Vence em", chip no detalhe e
+  alerta de vencidos ou a vencer em 30 dias no topo da lista.
+
+## v1.9.0 — 23/09/2026
+
+- **Relatórios** em PDF e Excel no menu da conta: inventário, alugados x próprios e parque por
+  unidade.
+- Coluna **Aluguel** (Alugado/Próprio pelo prefixo `MAQ`) na lista de dispositivos.
+
+## v1.8.0 — 22/09/2026
+
+- Diálogo de atribuição com busca por nome/e-mail e lista paginada.
+
+## v1.7.1 — 22/09/2026
+
+- O cadastro de usuário mostra o erro real do servidor.
+
+## v1.7.0 — 22/09/2026
+
+- Listas paginadas em 10 por página, com contagem total no título.
+
+## v1.6.1 — 22/09/2026
+
+- Mapa de localização sempre em OpenStreetMap. O mapa escuro da CARTO passou a exigir chave de API.
+
+## v1.6.0 — 21/09/2026
+
+- Opção **"Colocar em uso"** para ativos do local com unidade definida.
+
+## v1.5.0 — 17/09/2026
+
+- **Modo claro/escuro** no site.
+- Ordenação por coluna em Usuários e Unidades.
+
+## v1.4.0 — 03/09/2026 · Banco
+
+- **Identificação interna**: rótulo próprio da TI por dispositivo, que o agente não sobrescreve
+  (pede senha do ADM).
+
+## v1.3.2 — 02/09/2026
+
+- Corrige 3 erros de digitação herdados do modelo oficial do termo.
+
+## v1.3.1 — 01/09/2026
+
+- Termo de responsabilidade no **novo modelo oficial** (versão 2.0 do termo).
+- Fonte do PDF garantida em produção (Calibri Light, com Arial como reserva).
+
+## v1.3.0 — 31/08/2026 · Agente Windows
+
+- Tela de bloqueio lista as redes Wi-Fi de verdade (varredura pela API nativa), para o usuário
+  reconectar e receber o desbloqueio.
+- O agente se recadastra sozinho quando o token é rejeitado (401), em vez de ficar fora do
+  inventário.
+- O CI passa a regerar o instalador do agente Windows quando o agente muda.
+
+## v1.2.3 — 25/08/2026
+
+- Nova logo no favicon.
+
+## v1.2.2 — 25/08/2026
+
+- Nova identidade visual (logo) do site.
+
+## v1.2.1 — 20/08/2026
+
+- Lista de dispositivos com ordenação; coluna Tipo removida (as abas já separam).
+
+## v1.2.0 — 19/08/2026 · Banco
+
+- **Acessos por permissão**: cada login recebe permissões granulares (tela Acessos).
+- **Auditoria**: trilha de quem fez o quê e quando.
+
+## v1.1.2 — 19/08/2026 · Agente Android (versionCode 4)
+
+- O agente Android passa a se identificar pelo **número de série da etiqueta**, digitado no
+  registro, que sobrevive a reinstalação e troca de assinatura.
+- Menu com o grupo Cadastros e menu da conta.
+
+## v1.1.1 — 17/08/2026 · Agente Android (versionCode 3)
+
+- Auto-cadastro reencontra o ativo pelo **patrimônio**, sem duplicar no inventário.
+- Script para gerar o APK de release.
+
+## v1.1.0 — 17/08/2026 · Banco · Agente Android (versionCode 2)
+
+- **Atualização OTA** do agente Android pelo painel, sem loja.
+- Identificação do aparelho por IMEI/série.
+
+## v1.0.9 — 17/08/2026 · Banco
+
+- **Unidades**, posse por usuário ou por local, e exclusão de dispositivo com senha (arquivar ou
+  apagar de vez).
+
+## v1.0.8 — 13/08/2026 · Banco · Agente Android (versionCode 1)
+
+- **Agente Android** para tablets e celulares, com bloqueio remoto.
+- Telefone e tablet unificados no tipo **Mobile**.
+
+## v1.0.7 — 13/08/2026 · Agente Windows
+
+- Instalador do agente Windows em **um único executável** (`Instalar-Agente.exe`) para pendrive.
+
+## v1.0.6 — 05/08/2026 · Banco
+
+- Busca no topo funcionando (dispositivos e usuários).
+- Periférico sem patrimônio; status coerente na atribuição.
+- Edição de usuário pela lista, com máscaras de CPF e telefone.
+
+## v1.0.5 — 31/07/2026
+
+- Horários corrigidos (vinham 3h adiantados).
+- Status exibido com rótulo legível.
+
+## v1.0.4 — 31/07/2026
+
+- Sessão expirada devolve 401/403 à API em vez de redirecionar.
+
+## v1.0.3 — 30/07/2026
+
+- Termo: estado do dispositivo, hostname e data no documento.
+
+## v1.0.2 — 30/07/2026
+
+- Filtro por status e ações de status na lista de dispositivos.
+- Deploy publica na pasta real do site no IIS; CI usa .NET/Node pré-instalados.
+
+## v1.0.1 — 29/07/2026
+
+- CI inteiro no runner self-hosted.
+
+## v1.0.0 — 29/07/2026
+
+- Versão inicial: inventário, histórico, termo de uso, agente Windows com bloqueio remoto e
+  deploy por CI.

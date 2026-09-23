@@ -166,9 +166,9 @@ instalador do agente Windows — não se edita `appsettings.json` à mão em cad
 ```
 
 Com o CI configurado, esse `.exe` é regerado sozinho em `C:\TrackerAgentDist` sempre que uma
-release altera o agente. Instalação nos notebooks: `docs/instalacao-agente-pendrive.md`.
+release altera o agente. Instalação nos notebooks: `docs/agentes/instalacao-agente-pendrive.md`.
 Agente Android: a URL de produção vem do `gradle.properties` no build de release
-(`docs/agente-android.md`).
+(`docs/agentes/agente-android.md`).
 
 Assim os agentes funcionam **de qualquer rede**, com o endereço fixo e HTTPS.
 
@@ -199,7 +199,7 @@ git tag v1.2.0
 git push origin v1.2.0
 ```
 
-Configuração do runner e rollback: `docs/deploy-automatico-cicd.md`.
+Configuração do runner e rollback: `docs/operacao/deploy-automatico-cicd.md`.
 
 **Caminho manual** (runner indisponível):
 
