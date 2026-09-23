@@ -163,7 +163,54 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app\build\outputs\apk\debug\app
 
 ### Gerar o APK de release (distribuição na frota)
 
-**Caminho recomendado** — um comando que faz tudo (cria a keystore na primeira vez, escreve o
+**Caminho recomendado — pelo CI, sem ter a keystore na máquina.** Serve para qualquer pessoa da
+equipe com acesso ao repositório:
+
+1. Aba **Actions** → workflow **APK Agente Android** → **Run workflow**.
+2. No fim, o resumo do run mostra o `versionCode` e o **SHA-256**, e o APK fica disponível como
+   artefato para baixar.
+3. Publique esse APK na página **Agente** do painel (pede a senha do ADM) — a OTA distribui.
+
+A chave da frota nunca sai do cofre de secrets: o workflow a decodifica num arquivo temporário
+**fora do workspace**, assina e apaga em seguida, mesmo se o build falhar. As senhas vão por
+variável de ambiente (`ORG_GRADLE_PROJECT_*`), não por `-P`, porque argumento de linha de comando
+aparece na lista de processos para qualquer usuário logado no servidor.
+
+> **Por que não distribuir a chave para a equipe.** Um APK assinado com chave diferente é recusado
+> pelo Android nos aparelhos já instalados e duplica os registros do inventário — a saída seria
+> reinstalar aparelho por aparelho. Centralizar a assinatura no CI é o que permite que qualquer
+> pessoa gere o APK **sem** que a chave se espalhe por várias máquinas.
+
+#### Configurar os secrets (uma vez só)
+
+Quem tem a keystore roda isto uma única vez, na máquina onde ela está, com o
+[gh](https://cli.github.com) autenticado. O script lê as credenciais de um `local.properties` que
+já as tenha e envia os quatro secrets — **você não digita nem vê senha nenhuma**:
+
+```powershell
+.\deploy\configurar-secrets-android.ps1 -LocalProperties caminho\para\local.properties
+```
+
+Antes de enviar, ele **abre a keystore com a senha** para conferir que ela está certa: falhar aqui
+é muito melhor que descobrir no CI, onde o sintoma seria um build quebrado sem pista da causa. Use
+`-Simular` para conferir tudo sem enviar nada. Os valores vão pela entrada padrão do `gh`, nunca
+pela linha de comando — argumento de comando aparece no `tasklist` para qualquer usuário logado.
+
+> Se o `gh auth status` reclamar de outra conta, não é problema: ele devolve erro quando **qualquer**
+> login antigo na máquina está com token inválido, mesmo com a conta ativa perfeita. O script checa
+> a conta ativa com `gh api user`, que é a que grava o secret.
+
+Depois disso a keystore continua guardada fora do repositório, com backup — ela segue sendo
+insubstituível, e o secret é uma cópia de trabalho, não o backup.
+
+**Requisitos no runner:** JDK 17 e Android SDK (API 34 + build-tools 34.0.0) **pré-instalados**. O
+egress da rede bloqueia os CDNs de download, então `setup-java`/`setup-android` não funcionam ali
+(mesmo motivo do deploy de produção). O workflow confere no início e falha com a instrução se
+faltar algum. No runner não existe `local.properties`, então o SDK é localizado por `ANDROID_HOME`.
+
+---
+
+**Com a keystore na máquina** — um comando que faz tudo (cria a keystore na primeira vez, escreve o
 `local.properties`, compila e mostra o que digitar no painel):
 
 ```powershell
