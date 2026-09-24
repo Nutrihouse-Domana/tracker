@@ -18,7 +18,7 @@ marcações e escreva do ponto de vista de quem usa ou opera, não do código.
 
 ---
 
-## [Não publicado] · Agente Windows · Agente Android (versionCode 5)
+## v1.11.0 — 24/09/2026 · Agente Windows · Agente Android (versionCode 5)
 
 Correções da revisão completa do código (24/09/2026).
 
@@ -77,13 +77,16 @@ Correções da revisão completa do código (24/09/2026).
 produção está no histórico do Git e precisa ser **trocado** (ver
 [backup-e-chaves.md](docs/operacao/backup-e-chaves.md#enrollment__companykey-o-código-de-instalação-dos-agentes)).
 
-**Também não publicado:**
+**Também nesta versão:**
 
 - Documentação: índices revisados, manual do usuário, guia de backup e chaves, backlog de
   melhorias, protocolo do agente, privacidade/LGPD, recuperação de desastre e este changelog.
 - Ambiente de desenvolvimento reproduzível: SQL Server em container e `preparar-ambiente-dev.ps1`.
 - APK de release do agente Android gerado pelo CI (workflow manual **APK Agente Android**), sem a
   keystore sair do cofre de secrets.
+  **Ainda não funciona:** o runner do servidor não tem o Android SDK (o preflight falha). O APK
+  1.1.3 (`TrackerAgent-v1.1.3-vc5.apk`, SHA-256 `D0355FD3…D448`) foi gerado na máquina de TI com a
+  keystore da frota — mesmo certificado da 1.1.2.
 
 ## v1.10.2 — 23/09/2026
 
