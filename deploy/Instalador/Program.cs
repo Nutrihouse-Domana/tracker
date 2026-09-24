@@ -89,6 +89,11 @@ internal static class Program
 
         var exeDestino = Path.Combine(PastaInstalacao, NomeExecutavel);
 
+        // Permissões ANTES de mexer no serviço: se falharem, a instalação anterior segue intacta.
+        Registrar($"Criando {PastaInstalacao} e aplicando permissoes...");
+        Directory.CreateDirectory(PastaInstalacao);
+        if (!ProtegerPastas()) return Encerrar(1);
+
         PararEremoverServico();
 
         // Preserva o token do dispositivo em reinstalações, para não duplicar o registro no Tracker.
@@ -96,8 +101,7 @@ internal static class Program
         byte[]? token = File.Exists(tokenOriginal) ? File.ReadAllBytes(tokenOriginal) : null;
         if (token is not null) Registrar("token.dat existente preservado.");
 
-        Registrar($"Criando {PastaInstalacao} e extraindo o agente...");
-        Directory.CreateDirectory(PastaInstalacao);
+        Registrar($"Extraindo o agente em {PastaInstalacao}...");
         using (var zip = new ZipArchive(payload, ZipArchiveMode.Read))
         {
             ExtrairSobrescrevendo(zip, PastaInstalacao);
@@ -252,6 +256,56 @@ internal static class Program
 
         if (!CriarServico(exeDestino)) return false;
         AplicarConfiguracaoDoServico();
+        return true;
+    }
+
+    /// <summary>
+    /// ACL explícita e SEM herança nas duas pastas do agente. Sem isto, <c>C:\TrackerAgent</c>
+    /// herdava de <c>C:\</c> o "Modificar" para Usuários Autenticados: qualquer usuário trocava o
+    /// .exe (ou plantava uma DLL ao lado) e o serviço o executava como SYSTEM.
+    ///   - SYSTEM (S-1-5-18) e Administradores (S-1-5-32-544): controle total;
+    ///   - Usuários (S-1-5-32-545): só Leitura e Execução na pasta do agente (a tarefa da tela de
+    ///     bloqueio roda como o usuário INTERACTIVE e precisa executar o .exe) e só Leitura na pasta
+    ///     de dados (a tela LÊ o locked.flag; não grava nada — a detecção de tela viva é por processo).
+    /// SIDs, não nomes: no Windows em pt-BR "Administrators"/"Users" não existem.
+    /// Dono vira Administradores e os filhos são resetados para herdar só da pasta: um arquivo
+    /// plantado antes da correção perde as permissões próprias.
+    /// </summary>
+    private static bool ProtegerPastas()
+    {
+        var pastaDados = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "TrackerAgent");
+
+        if (!ProtegerPasta(PastaInstalacao, "RX") || !ProtegerPasta(pastaDados, "R")) return false;
+
+        // Marcador antigo da tela de bloqueio, criado pelo usuário (substituído pela detecção por processo).
+        try { File.Delete(Path.Combine(pastaDados, "overlay-alive.flag")); } catch { }
+        return true;
+    }
+
+    private static bool ProtegerPasta(string pasta, string direitoUsuarios)
+    {
+        Directory.CreateDirectory(pasta);
+
+        string[][] passos =
+        [
+            [pasta, "/setowner", "*S-1-5-32-544", "/T", "/C", "/Q"],
+            [pasta, "/reset", "/T", "/C", "/Q"],
+            [pasta, "/inheritance:r", "/grant:r",
+                "*S-1-5-18:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F", $"*S-1-5-32-545:(OI)(CI){direitoUsuarios}", "/Q"],
+        ];
+
+        foreach (var argumentos in passos)
+        {
+            if (!Executar("icacls.exe", argumentos))
+            {
+                Registrar($"ERRO: nao foi possivel aplicar as permissoes em {pasta} (icacls {argumentos[1]}).");
+                Registrar("A instalacao foi interrompida para nao deixar o agente em pasta gravavel por usuarios.");
+                return false;
+            }
+        }
+
+        Registrar($"Permissoes aplicadas em {pasta} (usuarios: {(direitoUsuarios == "RX" ? "leitura e execucao" : "leitura")}).");
         return true;
     }
 

@@ -8,23 +8,57 @@ namespace Tracker.Agent.Windows;
 /// monitores com uma janela por tela, fica sempre por cima e não pode ser fechada pelo usuário.
 /// Reconstrói as janelas quando a configuração de monitores muda (plugar/desplugar), evitando
 /// que o desktop apareça. Só some quando o serviço remove o arquivo-sinal (Desbloquear da TI).
+///
+/// A tela NÃO grava nada em disco: o serviço descobre se ela está viva olhando o PROCESSO na
+/// sessão (ver <see cref="BloqueioTela"/>). As pastas do agente são somente leitura para usuários.
 /// </summary>
 public static class LockOverlay
 {
+    /// <summary>Uma tela por sessão. "Local\" é o namespace da sessão: cada usuário logado tem o seu.</summary>
+    private const string NomeMutex = @"Local\TrackerAgentOverlay";
+
     public static void Executar()
     {
-        if (!File.Exists(Caminhos.FlagBloqueio)) return;
+        // Sem sinal de bloqueio: é o disparo de logon, o de limpeza pós-desbloqueio (o serviço
+        // roda a tarefa ao desbloquear) ou uma tela que abriu tarde demais. Em todos os casos,
+        // garante que a política do Gerenciador de Tarefas não ficou para trás — ela é do HKCU
+        // e sobreviveria a um crash ou a um encerramento forçado da tela anterior.
+        if (!File.Exists(Caminhos.FlagBloqueio))
+        {
+            LockContext.DesabilitarGerenciadorTarefas(false);
+            return;
+        }
 
-        Application.SetHighDpiMode(HighDpiMode.SystemAware);
-        Application.EnableVisualStyles();
-        Application.Run(new LockContext());
+        // Já há uma tela nesta sessão (a tarefa roda com MultipleInstances=Parallel): sai sem
+        // tocar na política — quem a ligou foi a outra instância, que continua na tela.
+        using var mutex = new Mutex(initiallyOwned: true, NomeMutex, out var criado);
+        if (!criado) return;
+
+        // Qualquer saída do processo (normal, exceção, encerramento) desliga a política.
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => LockContext.DesabilitarGerenciadorTarefas(false);
+        AppDomain.CurrentDomain.UnhandledException += (_, _) => LockContext.DesabilitarGerenciadorTarefas(false);
+        // Exceção num evento de UI não derruba a tela nem abre a caixa de erro do WinForms por
+        // cima dela: a trava continua (e o serviço relançaria a tela de qualquer forma).
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (_, _) => { };
+
+        try
+        {
+            Application.SetHighDpiMode(HighDpiMode.SystemAware);
+            Application.EnableVisualStyles();
+            Application.Run(new LockContext());
+        }
+        finally
+        {
+            LockContext.DesabilitarGerenciadorTarefas(false);
+        }
     }
 }
 
 /// <summary>
-/// Gerencia o conjunto de janelas de bloqueio (uma por monitor), o gancho de teclado, o
-/// marcador "vivo" e o encerramento. Um único timer cuida de tudo: some se o sinal sumir,
-/// reconstrói se os monitores mudarem e reafirma o "sempre no topo".
+/// Gerencia o conjunto de janelas de bloqueio (uma por monitor), o gancho de teclado e o
+/// encerramento. Um único timer cuida de tudo: some se o sinal sumir, reconstrói se os
+/// monitores mudarem e reafirma o "sempre no topo".
 /// </summary>
 internal sealed class LockContext : ApplicationContext
 {
@@ -36,8 +70,9 @@ internal sealed class LockContext : ApplicationContext
 
     public bool PodeFechar => _encerrando;
 
-    /// <summary>Quando o painel de Wi-Fi está aberto, pausamos a reafirmação de "topo" e a
-    /// reconstrução de telas, para não causar flicker/perda de foco durante a digitação.</summary>
+    /// <summary>Painel de Wi-Fi aberto. Enquanto isso o "topo" é reafirmado SEM ativar janela
+    /// (senão o foco sairia da caixa de senha a cada 500ms) e a troca de monitores reconstrói
+    /// só as janelas secundárias, preservando o painel e o que já foi digitado.</summary>
     public static bool InteragindoWifi;
 
     public LockContext()
@@ -45,7 +80,6 @@ internal sealed class LockContext : ApplicationContext
         InteragindoWifi = false;
         _hook = new GanchoTeclado();
         DesabilitarGerenciadorTarefas(true);
-        EscreverMarcadorVivo();
         Reconstruir();
         _timer.Tick += Tick;
         _timer.Start();
@@ -54,13 +88,13 @@ internal sealed class LockContext : ApplicationContext
     private void Tick(object? sender, EventArgs e)
     {
         if (!File.Exists(Caminhos.FlagBloqueio)) { Encerrar(); return; }
-        EscreverMarcadorVivo();
 
-        // Enquanto o usuário mexe no Wi-Fi, não reconstrói nem reafirma topo (evita flicker).
-        if (InteragindoWifi) return;
-
+        // Hotplug de monitor é checado SEMPRE, inclusive com o painel de Wi-Fi aberto: antes o
+        // Tick retornava cedo e um monitor plugado durante a digitação mostrava o desktop.
         if (AssinaturaTelas() != _assinaturaTelas) Reconstruir();
-        foreach (var f in _forms) f.TopMost = true;
+
+        if (InteragindoWifi) ReafirmarTopoSemAtivar();
+        else foreach (var f in _forms) f.TopMost = true;
     }
 
     private static string AssinaturaTelas() =>
@@ -69,18 +103,68 @@ internal sealed class LockContext : ApplicationContext
     private void Reconstruir()
     {
         _assinaturaTelas = AssinaturaTelas();
+        var telas = Screen.AllScreens;
+        var principalAtual = _forms.FirstOrDefault(f => f.Principal);
+        var telaPrincipal = telas.FirstOrDefault(s => s.Primary);
+
+        // Painel de Wi-Fi aberto e o monitor principal não mudou: troca só as secundárias.
+        if (InteragindoWifi && principalAtual is not null && telaPrincipal is not null &&
+            principalAtual.AreaTela == telaPrincipal.Bounds)
+        {
+            ReconstruirSecundarias(principalAtual, telas);
+            return;
+        }
+
+        // Reconstrução completa (o painel, se estava aberto, fecha junto com a janela principal).
+        InteragindoWifi = false;
         var antigos = _forms.ToList();
         _forms.Clear();
 
-        foreach (var scr in Screen.AllScreens)
+        foreach (var scr in telas)
         {
-            var f = new LockForm(scr, scr.Primary, this);
+            var f = new LockForm(scr, scr.Primary, this, semAtivar: false);
             _forms.Add(f);
             f.Show();
         }
 
         foreach (var f in antigos) f.FecharForcado();
         foreach (var f in _forms) { f.TopMost = true; f.Activate(); }
+    }
+
+    /// <summary>Mantém a janela principal (com o painel) e cria/fecha as dos demais monitores,
+    /// sem roubar o foco. O monitor novo fica coberto no mesmo ciclo.</summary>
+    private void ReconstruirSecundarias(LockForm principal, Screen[] telas)
+    {
+        var sobra = _forms.Where(f => f != principal).ToList();
+        var novas = new List<LockForm> { principal };
+
+        foreach (var scr in telas.Where(s => !s.Primary))
+        {
+            var existente = sobra.FirstOrDefault(f => f.AreaTela == scr.Bounds);
+            if (existente is not null)
+            {
+                sobra.Remove(existente);
+                novas.Add(existente);
+                continue;
+            }
+
+            var f = new LockForm(scr, principal: false, this, semAtivar: true);
+            novas.Add(f);
+            f.Show();
+        }
+
+        foreach (var f in sobra) f.FecharForcado();
+        _forms.Clear();
+        _forms.AddRange(novas);
+        ReafirmarTopoSemAtivar();
+    }
+
+    /// <summary>Coloca todas as janelas no topo sem ativá-las; a principal por último, para o
+    /// painel de Wi-Fi ficar acima de qualquer outra janela de bloqueio.</summary>
+    private void ReafirmarTopoSemAtivar()
+    {
+        foreach (var f in _forms.Where(f => !f.Principal)) f.TopoSemAtivar();
+        foreach (var f in _forms.Where(f => f.Principal)) f.TopoSemAtivar();
     }
 
     private void Encerrar()
@@ -90,14 +174,8 @@ internal sealed class LockContext : ApplicationContext
         _hook?.Dispose();
         _hook = null;
         DesabilitarGerenciadorTarefas(false);
-        try { if (File.Exists(Caminhos.MarcadorOverlay)) File.Delete(Caminhos.MarcadorOverlay); } catch { }
         foreach (var f in _forms.ToList()) f.FecharForcado();
         ExitThread();
-    }
-
-    internal static void EscreverMarcadorVivo()
-    {
-        try { File.WriteAllText(Caminhos.MarcadorOverlay, DateTime.Now.ToString("o")); } catch { }
     }
 
     /// <summary>Liga/desliga a política que bloqueia o Gerenciador de Tarefas para o usuário atual.</summary>
@@ -117,16 +195,33 @@ internal sealed class LockContext : ApplicationContext
 /// <summary>Uma janela de bloqueio cobrindo exatamente um monitor. Só a principal traz o Wi-Fi.</summary>
 internal sealed class LockForm : Form
 {
+    private static readonly IntPtr HWND_TOPMOST = new(-1);
+    private const uint SWP_NOSIZE = 0x0001, SWP_NOMOVE = 0x0002, SWP_NOACTIVATE = 0x0010;
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint flags);
+
     private readonly LockContext _ctx;
+    private readonly bool _semAtivar;
     private bool _permitirFechar;
+    private bool _conectando;
 
     private ListBox _lstRedes = null!;
     private TextBox _txtSenha = null!;
     private Label _lblStatusWifi = null!;
 
-    public LockForm(Screen tela, bool principal, LockContext ctx)
+    /// <summary>Área do monitor que esta janela cobre (a de criação, não a atual da janela).</summary>
+    public Rectangle AreaTela { get; }
+
+    /// <summary>Janela do monitor principal (a que tem o painel de Wi-Fi).</summary>
+    public bool Principal { get; }
+
+    public LockForm(Screen tela, bool principal, LockContext ctx, bool semAtivar)
     {
         _ctx = ctx;
+        _semAtivar = semAtivar;
+        AreaTela = tela.Bounds;
+        Principal = principal;
 
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
@@ -140,6 +235,16 @@ internal sealed class LockForm : Form
         else MontarConteudoSecundario();
 
         FormClosing += (_, e) => { if (!_permitirFechar && !_ctx.PodeFechar) e.Cancel = true; };
+    }
+
+    /// <summary>Janela criada com o painel de Wi-Fi aberto aparece sem tomar o foco da digitação.</summary>
+    protected override bool ShowWithoutActivation => _semAtivar;
+
+    /// <summary>"Sempre no topo" sem ativar a janela (o setter de TopMost ativa e rouba o foco).</summary>
+    public void TopoSemAtivar()
+    {
+        if (!IsHandleCreated || IsDisposed) return;
+        SetWindowPos(Handle, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
     public void FecharForcado()
@@ -294,12 +399,33 @@ internal sealed class LockForm : Form
 
     private void ConectarWifi()
     {
+        if (_conectando) return;
         var ssid = _lstRedes.SelectedItem?.ToString();
         if (string.IsNullOrEmpty(ssid)) { _lblStatusWifi.Text = "Selecione uma rede na lista."; return; }
-        _lblStatusWifi.Text = "Conectando...";
-        var (_, msg) = WifiConnect.Conectar(ssid, _txtSenha.Text);
-        _lblStatusWifi.Text = msg;
+
+        var senha = _txtSenha.Text;
         _txtSenha.Clear();
+        _conectando = true;
+        _lblStatusWifi.Text = "Conectando...";
+
+        // O netsh leva segundos: fora da thread de UI, senão a tela congela e o gancho de teclado
+        // (que roda nesta mesma thread) deixa de responder — o Windows o remove por timeout.
+        Task.Run(() =>
+        {
+            string msg;
+            try { msg = WifiConnect.Conectar(ssid, senha).mensagem; }
+            catch (Exception ex) { msg = "Erro ao conectar: " + ex.Message; }
+
+            try
+            {
+                BeginInvoke(() =>
+                {
+                    _conectando = false;
+                    _lblStatusWifi.Text = msg;
+                });
+            }
+            catch { /* form já fechado */ }
+        });
     }
 }
 

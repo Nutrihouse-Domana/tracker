@@ -16,7 +16,8 @@ public class AgenteOptions
     /// <summary>Chave única da empresa para auto-cadastro. Igual em todas as instalações.</summary>
     public string EnrollmentKey { get; set; } = string.Empty;
 
-    /// <summary>Tipo do dispositivo para o auto-cadastro: "Notebook" ou "Telefone".</summary>
+    /// <summary>Tipo do dispositivo para o auto-cadastro: "Notebook" ou "Mobile" (valores de
+    /// TipoDispositivo aceitos pelo auto-cadastro; "Telefone" deixou de existir).</summary>
     public string Tipo { get; set; } = "Notebook";
 
     public int HeartbeatIntervalSeconds { get; set; } = 60;

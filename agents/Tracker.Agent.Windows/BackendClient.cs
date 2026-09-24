@@ -1,10 +1,48 @@
 using System.Net.Http;
 using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 
 namespace Tracker.Agent.Windows;
 
-public record ComandoPendente(Guid Id, string TipoComando);
+/// <summary>
+/// Comando remoto. <see cref="TipoComando"/> chega como texto ("Bloquear") pelo heartbeat e,
+/// com o servidor bem configurado, também pelo hub — mas o SignalR já entregou o enum como
+/// NÚMERO quando o <c>AddJsonProtocol</c> faltava, e o comando era descartado em silêncio.
+/// O conversor aceita os dois formatos como defesa.
+/// </summary>
+public record ComandoPendente(
+    Guid Id,
+    [property: JsonConverter(typeof(TipoComandoTolerante))] string TipoComando);
+
+/// <summary>
+/// Lê <c>tipoComando</c> como texto ou como número do enum <c>TipoComandoRemoto</c> do backend
+/// (Bloquear = 0, Desbloquear = 1 — a ordem do enum em Tracker.Domain). Número desconhecido vira
+/// o próprio número em texto, que o executor ignora.
+/// </summary>
+public sealed class TipoComandoTolerante : JsonConverter<string>
+{
+    private static readonly string[] PorNumero = ["Bloquear", "Desbloquear"];
+
+    public override string Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.String:
+                return reader.GetString() ?? string.Empty;
+            case JsonTokenType.Number when reader.TryGetInt32(out var n):
+                return n >= 0 && n < PorNumero.Length ? PorNumero[n] : n.ToString();
+            case JsonTokenType.Null:
+                return string.Empty;
+            default:
+                throw new JsonException($"tipoComando em formato inesperado: {reader.TokenType}.");
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value);
+}
 public record HeartbeatResposta(List<ComandoPendente> ComandosPendentes);
 
 /// <summary>O backend rejeitou o token (401). Sinaliza ao Worker que é hora de re-cadastrar.</summary>
