@@ -101,6 +101,9 @@ class BackendClient(
             armazenamento.token = json.getString("token")
             armazenamento.dispositivoId = json.optString("dispositivoId").takeIf { it.isNotBlank() }
             armazenamento.assetTag = json.optString("assetTag").takeIf { it.isNotBlank() }
+            // A serie digitada e a identidade do aparelho no inventario: guarda para a tela de
+            // bloqueio mostrar a mesma da etiqueta, e nao o ANDROID-<id> provisorio.
+            numeroSerieInformado?.takeIf { it.isNotBlank() }?.let { armazenamento.numeroSerie = it }
             true
         }
     }
@@ -208,7 +211,10 @@ class BackendClient(
         http.newCall(requisicao).execute().use { resposta ->
             val texto = resposta.body?.string().orEmpty()
 
-            // 401 significa token revogado no painel: limpa o local para o agente se registrar de novo.
+            // 401 significa token revogado no painel: limpa o token para o aparelho ser registrado
+            // de novo pelo tecnico. O sinal de bloqueio NAO e tocado de proposito: um aparelho
+            // bloqueado cujo token foi revogado continua bloqueado, inclusive apos reiniciar — o
+            // enforcement depende so de Armazenamento.bloqueado, nunca do token.
             if (resposta.code == 401) {
                 armazenamento.token = null
                 throw BackendException("Token do aparelho recusado; sera necessario registrar de novo.")
