@@ -17,6 +17,23 @@ export const PERMISSOES = {
 
 export type Permissao = (typeof PERMISSOES)[keyof typeof PERMISSOES]
 
+/** Uma permissão ou uma lista delas que precisam estar TODAS presentes. */
+export type ExigenciaPermissao = Permissao | readonly Permissao[]
+
+/**
+ * Cadastros de Usuários e Unidades: a tela lista pelos GETs, que no backend pedem
+ * `dispositivos.ver` (alimentam formulários do inventário). Só a gestão não basta — sem
+ * `dispositivos.ver` a página abriria com 403 e tabela vazia.
+ */
+export const EXIGENCIA_USUARIOS: ExigenciaPermissao = [PERMISSOES.usuariosGerir, PERMISSOES.dispositivosVer]
+export const EXIGENCIA_UNIDADES: ExigenciaPermissao = [PERMISSOES.unidadesGerir, PERMISSOES.dispositivosVer]
+
+/** True se `permissoes` atende a exigência (todas as permissões, quando for lista). */
+export function atendeExigencia(permissoes: readonly string[], exigencia: ExigenciaPermissao): boolean {
+  const lista: readonly Permissao[] = typeof exigencia === 'string' ? [exigencia] : exigencia
+  return lista.every((p) => permissoes.includes(p))
+}
+
 /** True se o usuário logado tem a permissão. Enquanto o /me carrega, devolve false. */
 export function usePermissao(permissao: Permissao): boolean {
   const { data } = useMe()
@@ -40,10 +57,10 @@ export function usePermissoes() {
  * negada. '/sem-acesso' é o último recurso (usuário sem nenhuma permissão de navegação).
  */
 export function primeiraRotaPermitida(permissoes: string[]): string {
-  const tem = (p: string) => permissoes.includes(p)
+  const tem = (p: ExigenciaPermissao) => atendeExigencia(permissoes, p)
   if (tem(PERMISSOES.dispositivosVer)) return '/'
-  if (tem(PERMISSOES.usuariosGerir)) return '/usuarios'
-  if (tem(PERMISSOES.unidadesGerir)) return '/unidades'
+  if (tem(EXIGENCIA_USUARIOS)) return '/usuarios'
+  if (tem(EXIGENCIA_UNIDADES)) return '/unidades'
   if (tem(PERMISSOES.agentePublicar)) return '/agente-android'
   if (tem(PERMISSOES.auditoriaVer)) return '/auditoria'
   if (tem(PERMISSOES.acessosGerir)) return '/acessos'

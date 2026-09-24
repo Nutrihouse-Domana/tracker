@@ -3,6 +3,7 @@ import { Box, Button, Paper, TextField, Typography, Alert } from '@mui/material'
 import { useNavigate } from 'react-router-dom'
 import { useLogin } from '../features/auth/useAuth'
 import { LogoTracker } from '../layout/LogoTracker'
+import { mensagemErroApi } from '../utils/erroApi'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
@@ -39,7 +40,8 @@ export function LoginPage() {
 
         {login.isError && (
           <Alert severity="error" sx={{ mt: 2 }}>
-            Credenciais inválidas.
+            {/* O servidor distingue, por exemplo, login desativado de senha errada. */}
+            {mensagemErroApi(login.error, 'Credenciais inválidas.')}
           </Alert>
         )}
 

@@ -30,13 +30,16 @@ export function VencimentoAluguelDialog({ dispositivo, onClose }: Props) {
   const [motivo, setMotivo] = useState('')
   const definir = useDefinirVencimentoAluguel()
 
+  const dispositivoId = dispositivo?.id
+  // Reseta só quando o diálogo ABRE ou troca de aparelho (muda o id). O objeto `dispositivo` é
+  // recriado a cada refetch da query e, com ele na dependência, a senha/o texto digitado sumia.
   useEffect(() => {
     if (!dispositivo) return
     setVencimento(paraCampoData(dispositivo.vencimentoAluguel))
     setMotivo('')
     definir.reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispositivo])
+  }, [dispositivoId])
 
   if (!dispositivo) return null
 

@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { ListSubheader, Menu, MenuItem, Stack, Typography } from '@mui/material'
+import { Alert, ListSubheader, Menu, MenuItem, Stack, Typography } from '@mui/material'
 import ChevronRightIcon from '@mui/icons-material/ChevronRightOutlined'
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdfOutlined'
 import TableChartIcon from '@mui/icons-material/TableChartOutlined'
 import { useBaixarRelatorio } from './hooks'
 import type { FormatoRelatorio, TipoRelatorio } from './api'
+import { mensagemErroApi } from '../../utils/erroApi'
 
 const relatorios: { tipo: TipoRelatorio; titulo: string }[] = [
   { tipo: 'inventario', titulo: 'Inventário de ativos' },
@@ -33,11 +34,13 @@ export function MenuRelatorios({ onBaixou }: { onBaixou: () => void }) {
     baixar.mutate(
       { tipo, formato },
       {
-        onSettled: () => {
-          setBaixando(null)
+        onSuccess: () => {
           setAncora(null)
           onBaixou()   // fecha também o menu da conta, que é o pai deste
         },
+        // Na falha os menus ficam ABERTOS com o aviso: fechar desmontaria este componente (o menu
+        // da conta não mantém os filhos montados) e o erro sumiria junto, como acontecia antes.
+        onSettled: () => setBaixando(null),
       },
     )
   }
@@ -54,13 +57,21 @@ export function MenuRelatorios({ onBaixou }: { onBaixou: () => void }) {
       <Menu
         anchorEl={ancora}
         open={Boolean(ancora)}
-        onClose={() => setAncora(null)}
+        onClose={() => {
+          setAncora(null)
+          baixar.reset()
+        }}
         anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         // Painel com subheader no escuro ganha dois tons por causa do degradê de elevação do MUI:
         // sem backgroundImage e com borda, fica de um tom só (ver CLAUDE.md).
         slotProps={{ paper: { sx: { backgroundImage: 'none', border: 1, borderColor: 'divider', minWidth: 240 } } }}
       >
+        {baixar.isError && (
+          <Alert severity="error" sx={{ mx: 1, mb: 1, maxWidth: 320 }} onClose={() => baixar.reset()}>
+            {mensagemErroApi(baixar.error, 'Não foi possível gerar o relatório.')}
+          </Alert>
+        )}
         {relatorios.map((r) => [
           <ListSubheader key={`${r.tipo}-titulo`} sx={{ lineHeight: 2.2, fontWeight: 700 }}>
             {r.titulo}

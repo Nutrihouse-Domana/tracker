@@ -1,4 +1,21 @@
+import { isAxiosError } from 'axios'
 import { apiClient } from '../../api/client'
+
+/**
+ * Com `responseType: 'blob'` o corpo de ERRO também chega como Blob, e o `{ message }` do backend
+ * ficaria ilegível para o `mensagemErroApi`. Converte o Blob de volta para JSON antes de repassar.
+ */
+async function erroLegivel(erro: unknown): Promise<unknown> {
+  if (isAxiosError(erro) && erro.response?.data instanceof Blob) {
+    try {
+      erro.response.data = JSON.parse(await erro.response.data.text())
+    } catch {
+      // Corpo não era JSON (ex.: página de erro do IIS): fica sem mensagem e vale o fallback.
+      erro.response.data = undefined
+    }
+  }
+  return erro
+}
 
 /** Relatórios oferecidos no menu da conta. O valor é o segmento da rota da API. */
 export type TipoRelatorio = 'inventario' | 'aluguel' | 'unidades'
@@ -10,7 +27,11 @@ export const relatoriosApi = {
    * não chegar (proxy que o remove), cai num nome local com a data para não salvar "download".
    */
   baixar: async (tipo: TipoRelatorio, formato: FormatoRelatorio) => {
-    const resposta = await apiClient.get(`/api/relatorios/${tipo}/${formato}`, { responseType: 'blob' })
+    const resposta = await apiClient
+      .get(`/api/relatorios/${tipo}/${formato}`, { responseType: 'blob' })
+      .catch(async (erro: unknown) => {
+        throw await erroLegivel(erro)
+      })
     const nomeDoHeader = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(
       (resposta.headers['content-disposition'] as string) ?? '',
     )?.[1]
