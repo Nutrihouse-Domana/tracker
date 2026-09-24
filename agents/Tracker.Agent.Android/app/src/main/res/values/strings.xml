@@ -43,7 +43,7 @@
     <string name="bloqueio_wifi_nenhuma">Nenhuma rede encontrada. Toque em \"Atualizar lista\".</string>
     <string name="bloqueio_wifi_encontradas">%1$d rede(s) encontrada(s). Selecione e conecte.</string>
     <string name="bloqueio_wifi_sem_permissao">Sem permissão para conectar sozinho neste aparelho. Use \"Abrir Wi-Fi do sistema\".</string>
-    <string name="bloqueio_wifi_sistema_aberto">O bloqueio volta em instantes. Conecte-se à rede agora.</string>
+    <string name="bloqueio_wifi_sistema_aberto">Conecte-se à rede no painel. O bloqueio volta assim que o painel for fechado.</string>
 
     <string name="notificacao_canal_nome">Agente Tracker</string>
     <string name="notificacao_canal_descricao">Mantém o inventário de TI atualizado.</string>
