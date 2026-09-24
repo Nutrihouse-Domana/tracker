@@ -30,6 +30,9 @@ export function EditarIdentificacaoInternaDialog({ dispositivo, onClose }: Props
   const [motivo, setMotivo] = useState('')
   const definir = useDefinirIdentificacaoInterna()
 
+  const dispositivoId = dispositivo?.id
+  // Reseta só quando o diálogo ABRE ou troca de aparelho (muda o id). O objeto `dispositivo` é
+  // recriado a cada refetch da query e, com ele na dependência, a senha/o texto digitado sumia.
   useEffect(() => {
     if (!dispositivo) return
     setIdentificacao(dispositivo.identificacaoInterna ?? '')
@@ -37,7 +40,7 @@ export function EditarIdentificacaoInternaDialog({ dispositivo, onClose }: Props
     setMotivo('')
     definir.reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispositivo])
+  }, [dispositivoId])
 
   if (!dispositivo) return null
 

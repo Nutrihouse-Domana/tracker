@@ -13,6 +13,7 @@ import { PerfilPage } from './pages/PerfilPage'
 import { LoginPage } from './pages/LoginPage'
 import { AuthGuard } from './features/auth/AuthGuard'
 import { PermissaoRoute, PERMISSOES } from './features/auth/RequirePermissao'
+import { EXIGENCIA_UNIDADES, EXIGENCIA_USUARIOS } from './features/auth/permissoes'
 
 function App() {
   return (
@@ -27,10 +28,11 @@ function App() {
             <Route path="dispositivos" element={<DispositivosPage />} />
             <Route path="dispositivos/:id" element={<DispositivoDetalhePage />} />
           </Route>
-          <Route element={<PermissaoRoute permissao={PERMISSOES.usuariosGerir} />}>
+          {/* Usuários/Unidades: gestão + dispositivos.ver (os GETs da listagem pedem esta). */}
+          <Route element={<PermissaoRoute permissao={EXIGENCIA_USUARIOS} />}>
             <Route path="usuarios" element={<UsuariosPage />} />
           </Route>
-          <Route element={<PermissaoRoute permissao={PERMISSOES.unidadesGerir} />}>
+          <Route element={<PermissaoRoute permissao={EXIGENCIA_UNIDADES} />}>
             <Route path="unidades" element={<UnidadesPage />} />
           </Route>
           <Route element={<PermissaoRoute permissao={PERMISSOES.agentePublicar} />}>

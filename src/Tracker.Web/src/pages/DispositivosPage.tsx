@@ -36,7 +36,7 @@ import {
 import { DispositivoFormDialog } from '../features/dispositivos/DispositivoFormDialog'
 import { AtribuirDialog } from '../features/dispositivos/AtribuirDialog'
 import { ExcluirDispositivoDialog } from '../features/dispositivos/ExcluirDispositivoDialog'
-import { corStatus, rotuloStatus } from '../features/dispositivos/status'
+import { corStatus, rotuloStatus, statusPermiteAtribuir } from '../features/dispositivos/status'
 import { ehAlugado, identificacaoExibida, rotuloAluguel } from '../features/dispositivos/aluguel'
 import {
   DIAS_DE_ALERTA,
@@ -384,8 +384,9 @@ export function DispositivosPage() {
                         </>
                       ) : (
                         <>
-                          {/* Ativo do local não tem detentor: atribuir aqui não faz sentido. */}
-                          {podeMovimentar && d.pertenceAUsuario && (
+                          {/* Ativo do local não tem detentor: atribuir aqui não faz sentido. Nem
+                              baixado/em manutenção/bloqueado (o backend recusa). */}
+                          {podeMovimentar && d.pertenceAUsuario && statusPermiteAtribuir(d.status) && (
                             <Button size="small" onClick={() => setDispositivoParaAtribuir(d)}>
                               Atribuir
                             </Button>

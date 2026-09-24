@@ -19,6 +19,7 @@ import {
   Switch,
   TableSortLabel,
   TablePagination,
+  Alert,
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import type { Unidade } from '../api/types'
@@ -26,13 +27,14 @@ import { useUnidades } from '../features/unidades/hooks'
 import { UnidadeFormDialog } from '../features/unidades/UnidadeFormDialog'
 import { useOrdenacao } from '../utils/ordenacao'
 import { usePaginacao } from '../utils/paginacao'
+import { mensagemErroApi } from '../utils/erroApi'
 
 export function UnidadesPage() {
   const navigate = useNavigate()
   const [incluirInativas, setIncluirInativas] = useState(false)
   const [dialogAberto, setDialogAberto] = useState(false)
   const [unidadeEmEdicao, setUnidadeEmEdicao] = useState<Unidade | null>(null)
-  const { data: unidadesCarregadas, isLoading } = useUnidades(incluirInativas)
+  const { data: unidadesCarregadas, isLoading, isError, error } = useUnidades(incluirInativas)
   const { ordenados: unidades, coluna, direcao, ordenarPor } = useOrdenacao(
     unidadesCarregadas,
     'nome',
@@ -63,6 +65,8 @@ export function UnidadesPage() {
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
           <CircularProgress />
         </Box>
+      ) : isError ? (
+        <Alert severity="error">{mensagemErroApi(error, 'Não foi possível carregar as unidades.')}</Alert>
       ) : (
         <TableContainer component={Paper}>
           <Table>

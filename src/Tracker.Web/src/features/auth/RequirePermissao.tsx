@@ -1,7 +1,13 @@
 import type { ReactNode } from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useMe } from './useAuth'
-import { PERMISSOES, primeiraRotaPermitida, type Permissao } from './permissoes'
+import {
+  PERMISSOES,
+  atendeExigencia,
+  primeiraRotaPermitida,
+  type ExigenciaPermissao,
+  type Permissao,
+} from './permissoes'
 
 /**
  * Esconde o conteúdo quando falta a permissão — princípio "ocultar, não desabilitar". Não renderiza
@@ -23,12 +29,13 @@ export function RequirePermissao({
 
 /**
  * Guarda de rota: bloqueia acesso direto por URL a uma página sem permissão, redirecionando para a
- * primeira página que o usuário pode ver (nunca deixa cair numa tela negada).
+ * primeira página que o usuário pode ver (nunca deixa cair numa tela negada). Com uma lista, exige
+ * TODAS as permissões.
  */
-export function PermissaoRoute({ permissao }: { permissao: Permissao }) {
+export function PermissaoRoute({ permissao }: { permissao: ExigenciaPermissao }) {
   const { data } = useMe()
   const permissoes = data?.permissoes ?? []
-  if (permissoes.includes(permissao)) return <Outlet />
+  if (atendeExigencia(permissoes, permissao)) return <Outlet />
   return <Navigate to={primeiraRotaPermitida(permissoes)} replace />
 }
 
