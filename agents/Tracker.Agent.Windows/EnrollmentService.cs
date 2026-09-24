@@ -90,7 +90,16 @@ public class EnrollmentService
             };
 
             var resp = await http.PostAsJsonAsync("/api/agente/auto-enrollment", body, ct);
-            resp.EnsureSuccessStatusCode();
+            if (!resp.IsSuccessStatusCode)
+            {
+                // 400/409 trazem a razão em {message} (ex.: serial genérico recusado, dispositivo
+                // arquivado). Sem registrar o corpo, o log só diria "400 Bad Request".
+                var detalhe = await resp.Content.ReadAsStringAsync(ct);
+                _logger.LogError(
+                    "Auto-cadastro recusado ({Status}) para o número de série {Serie}: {Detalhe}",
+                    (int)resp.StatusCode, body.numeroSerie, detalhe);
+                return false;
+            }
             var dados = await resp.Content.ReadFromJsonAsync<EnrollmentResp>(cancellationToken: ct);
 
             if (dados is null || string.IsNullOrWhiteSpace(dados.token))
