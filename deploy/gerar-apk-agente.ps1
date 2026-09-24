@@ -6,7 +6,8 @@
   Roda na maquina de TI. Faz, em um comando so:
     1) localiza o keytool (JDK) e o SDK do Android
     2) cria a keystore de assinatura, se ainda nao existir (a senha e digitada por voce)
-    3) escreve o local.properties (fora do Git) com o caminho do SDK e as credenciais
+    3) atualiza no local.properties (fora do Git) so as credenciais de assinatura,
+       preservando as demais chaves (sdk.dir, tracker.backendBaseUrl)
     4) compila o APK de release assinado
     5) mostra versionCode, versionName e o SHA-256 do APK para conferencia no painel
 
@@ -118,24 +119,94 @@ if (Test-Path $Keystore) {
 }
 
 # --- local.properties ---------------------------------------------------------------------
-Write-Host "3/5 - Escrevendo o local.properties (fora do Git)..."
+Write-Host "3/5 - Atualizando o local.properties (fora do Git)..."
 
-# Barras normais: o formato .properties trata a barra invertida como escape.
+# Escapa um VALOR no formato .properties do Java. A barra invertida e o caractere de escape
+# ([char]92 escrito assim de proposito, ver preparar-ambiente-dev.ps1): uma senha com "\" gravada
+# crua chegaria ao Gradle sem a barra e a assinatura falharia com "senha incorreta". No inicio do
+# valor, espaco e ": = # !" tambem sao escapados. Fora do ASCII vira \uXXXX, porque o Gradle le o
+# arquivo com Properties.load(InputStream), que decodifica ISO-8859-1.
+function EscaparValorProperties {
+    param([string]$Valor)
+    $barra = [string][char]92
+    $sb = New-Object System.Text.StringBuilder
+    for ($i = 0; $i -lt $Valor.Length; $i++) {
+        $ch = $Valor[$i]
+        $cod = [int]$ch
+        if ($cod -eq 92) {
+            [void]$sb.Append($barra + $barra)
+        } elseif ($i -eq 0 -and (' :=#!'.IndexOf($ch) -ge 0)) {
+            [void]$sb.Append($barra + $ch)
+        } elseif ($cod -lt 0x20 -or $cod -gt 0x7E) {
+            [void]$sb.Append($barra + 'u' + $cod.ToString('X4'))
+        } else {
+            [void]$sb.Append($ch)
+        }
+    }
+    return $sb.ToString()
+}
+
+# Barras normais no caminho: validas no Java e dispensam escape.
 $sdkNormalizado = $SdkDir -replace '\\', '/'
 $keystoreNormalizado = $Keystore -replace '\\', '/'
 
-$conteudo = @"
-# Gerado por deploy/gerar-apk-agente.ps1. NAO versionar (ja coberto pelo .gitignore).
-sdk.dir=$sdkNormalizado
+# So as chaves de assinatura sao (re)escritas. O resto do arquivo - em especial
+# tracker.backendBaseUrl (sem ela o build debug aponta para PRODUCAO) e sdk.dir - e preservado.
+$novasChaves = [ordered]@{
+    'tracker.keystoreFile'     = $keystoreNormalizado
+    'tracker.keystorePassword' = $senhaTexto
+    'tracker.keyAlias'         = $Alias
+    'tracker.keyPassword'      = $senhaTexto
+}
 
-tracker.keystoreFile=$keystoreNormalizado
-tracker.keystorePassword=$senhaTexto
-tracker.keyAlias=$Alias
-tracker.keyPassword=$senhaTexto
-"@
+# ISO-8859-1 na leitura e na escrita: e a codificacao que o Properties.load usa, entao as
+# linhas existentes voltam byte a byte. (Set-Content -Encoding UTF8 gravava BOM.)
+$latin1 = [System.Text.Encoding]::GetEncoding(28591)
+$linhas = @()
+if (Test-Path $localProperties) {
+    $linhas = @([System.IO.File]::ReadAllLines($localProperties, $latin1))
+    # BOM deixado pela versao anterior do script (lido em Latin-1 como tres caracteres).
+    if ($linhas.Count -gt 0 -and $linhas[0].StartsWith([string][char]0xEF + [char]0xBB + [char]0xBF)) {
+        $linhas[0] = $linhas[0].Substring(3)
+    }
+}
 
-Set-Content -Path $localProperties -Value $conteudo -Encoding UTF8
-Write-Host "      $localProperties"
+$saida = New-Object System.Collections.Generic.List[string]
+$gravadas = @{}
+$temSdk = $false
+$pularContinuacao = $false
+foreach ($linha in $linhas) {
+    if ($pularContinuacao) {
+        # Linha de continuacao de um valor antigo que esta sendo substituido.
+        $pularContinuacao = ([regex]::Match($linha, '(\\+)$').Groups[1].Value.Length % 2) -eq 1
+        continue
+    }
+    $m = [regex]::Match($linha, '^\s*([^\s=:#!][^\s=:]*)')
+    $chave = if ($m.Success -and -not ($linha.TrimStart().StartsWith('#') -or $linha.TrimStart().StartsWith('!'))) { $m.Groups[1].Value } else { $null }
+    if ($chave -eq 'sdk.dir') { $temSdk = $true }
+    if ($chave -and $novasChaves.Contains($chave)) {
+        $pularContinuacao = ([regex]::Match($linha, '(\\+)$').Groups[1].Value.Length % 2) -eq 1
+        if (-not $gravadas.ContainsKey($chave)) {
+            $saida.Add("$chave=" + (EscaparValorProperties $novasChaves[$chave]))
+            $gravadas[$chave] = $true
+        }
+        continue
+    }
+    $saida.Add($linha)
+}
+
+if ($linhas.Count -eq 0) {
+    $saida.Add("# Criado por deploy/gerar-apk-agente.ps1. NAO versionar (ja coberto pelo .gitignore).")
+}
+if (-not $temSdk) { $saida.Add("sdk.dir=" + (EscaparValorProperties $sdkNormalizado)) }
+foreach ($chave in $novasChaves.Keys) {
+    if (-not $gravadas.ContainsKey($chave)) {
+        $saida.Add("$chave=" + (EscaparValorProperties $novasChaves[$chave]))
+    }
+}
+
+[System.IO.File]::WriteAllLines($localProperties, $saida, $latin1)
+Write-Host "      $localProperties (demais chaves preservadas)"
 
 # --- Compilacao -----------------------------------------------------------------------------
 Write-Host "4/5 - Compilando o APK de release (pode levar alguns minutos)..."
