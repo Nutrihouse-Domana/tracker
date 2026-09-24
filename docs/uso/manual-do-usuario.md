@@ -121,9 +121,10 @@ anexado não pode ser apagado pela tela.
 No detalhe, chip de status → **Alterar status** → **Devolver ao estoque**. O detentor é
 liberado e a devolução fica no histórico de movimentação.
 
-> **Aparelho Bloqueado não muda de status.** O menu **Alterar status** some e aparece a dica
-> "Desbloqueie pelo comando remoto." — devolver, dar baixa ou colocar em uso só depois de o
-> agente confirmar o **Desbloquear**. "Bloqueado" também não é escolha manual: só o comando
+> **Aparelho Bloqueado só aceita a baixa.** O menu **Alterar status** oferece apenas **Dar baixa**
+> e mostra a dica "Desbloqueie pelo comando remoto (só a baixa é manual)." — devolver ao estoque,
+> enviar para manutenção ou colocar em uso só depois de o agente confirmar o **Desbloquear**. Dar
+> baixa **não destrava** o aparelho: se ele voltar a se conectar, continua bloqueado. "Bloqueado" também não é escolha manual: só o comando
 > remoto leva a ele. Se o sistema recusar uma mudança, a mensagem aparece na tela.
 
 ### Enviar para conserto
@@ -182,8 +183,8 @@ Aba **Agente & Bloqueio** (Notebook/Mobile), com permissão de bloquear.
 - **Desbloquear:** quando o agente confirma, o aparelho que estava **Bloqueado** volta para
   **Em uso** se tiver responsável (o detentor, ou a unidade no ativo do local) ou para **Em
   estoque**. O desbloqueio não mexe em outro status (Baixado e Em manutenção ficam como estão).
-- Enquanto está **Bloqueado**, o aparelho não muda de status, não abre nem conclui reparo e não
-  recebe detentor.
+- Enquanto está **Bloqueado**, o aparelho não muda de status (a única exceção é **Dar baixa**,
+  que não destrava), não abre nem conclui reparo e não recebe detentor.
 - Um aparelho **bloqueado não pode ser arquivado nem excluído**, nem um com **Bloquear ainda a
   caminho** (comando Pendente/Enviado sem Desbloquear depois) — desbloqueie antes.
 
@@ -192,10 +193,10 @@ Aba **Agente & Bloqueio** (Notebook/Mobile), com permissão de bloquear.
 1. **Bloquear** imediatamente.
 2. Aba **Localização**: última posição conhecida e horário (só a mais recente).
 3. Registre o ocorrido em **Comentários** (data, quem comunicou, boletim de ocorrência se houver).
-4. Recuperado: **Desbloquear** e conferir o estado. Não recuperado: mantenha bloqueado. Hoje
-   ele **não pode receber baixa nem ser arquivado** enquanto estiver Bloqueado, e só sai desse
-   status quando o próprio aparelho confirmar um Desbloquear (ver
-   [Limitações conhecidas](#limitações-conhecidas)).
+4. Recuperado: **Desbloquear** e conferir o estado. Não recuperado: **Dar baixa** (chip de
+   status → Dar baixa). A baixa tira o aparelho do parque ativo **sem destravá-lo**: se ele
+   reaparecer, continua bloqueado. Não arquive: enquanto houver Bloquear a caminho o sistema
+   recusa, e arquivado o aparelho não recebe mais comandos.
 
 ### O que mais aparece nesta aba
 
@@ -355,9 +356,6 @@ cada um: [melhorias-pendentes.md](../desenvolvimento/melhorias-pendentes.md).
 - O login bloqueado por muitas tentativas erradas aparece como "Credenciais inválidas." (login
   desativado já tem mensagem própria).
 - **Bloquear, Desbloquear** e **Restaurar** não pedem confirmação (Desativar detentor já pede).
-- Aparelho **perdido e Bloqueado** que nunca mais se conecta fica **Bloqueado para sempre**: não
-  recebe baixa nem pode ser arquivado, porque só sai desse status quando o próprio aparelho
-  confirma um Desbloquear.
 - Celular/tablet **Bloqueado** cujo token foi revogado (token regenerado, servidor restaurado)
   **fica preso na tela de bloqueio**: o Desbloquear não chega e a tela cobre o registro. Só a TI
   resolve, com o aparelho conectado por cabo (`adb`).

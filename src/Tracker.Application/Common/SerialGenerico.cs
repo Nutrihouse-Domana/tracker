@@ -30,20 +30,30 @@ public static class SerialGenerico
             "Base Board Serial Number",
             "INVALID",
             "XXXXXXXXXX",
+            "To Be Filled By O.E.M",
+            "NA",
+            "Serial Number",
+            "SerialNumber",
+            "OEM",
+            "Not Available",
+            "Unknown",
         ],
         StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
-    /// True quando o serial não identifica o aparelho: nulo, vazio, só espaços, só zeros ou um
-    /// dos valores genéricos conhecidos de BIOS.
+    /// True quando o serial não identifica o aparelho: nulo, vazio, só espaços, um único caractere
+    /// repetido ("00000000", "XXXXXXXX"), qualquer texto com "O.E.M" ou um dos valores genéricos
+    /// conhecidos de BIOS. Mesma regra de <c>InfoMaquina.EhSerialGenerico</c> no agente Windows.
     /// </summary>
     public static bool EhGenerico(string? numeroSerie)
     {
         if (string.IsNullOrWhiteSpace(numeroSerie)) return true;
 
         var valor = numeroSerie.Trim();
-        if (valor.All(c => c == '0')) return true;
+        if (ValoresConhecidos.Contains(valor)) return true;
+        if (valor.Contains("O.E.M", StringComparison.OrdinalIgnoreCase)) return true;
 
-        return ValoresConhecidos.Contains(valor);
+        var primeiro = char.ToUpperInvariant(valor[0]);
+        return valor.All(c => char.ToUpperInvariant(c) == primeiro);
     }
 }

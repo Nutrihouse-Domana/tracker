@@ -29,6 +29,16 @@ public class RegrasDispositivoTests
     }
 
     [Fact]
+    public void BaixaDeAparelhoBloqueado_NaoDestrava()
+    {
+        // Aparelho roubado: bloqueado e depois baixado pela TI. A baixa é permitida justamente
+        // porque a trava vem do último comando, não do status.
+        var ultimo = Comando(TipoComandoRemoto.Bloquear, StatusComandoRemoto.Confirmado);
+
+        Assert.True(RegrasDispositivo.DeveEstarBloqueado(StatusDispositivo.Baixado, ultimo));
+    }
+
+    [Fact]
     public void DesbloquearMaisRecente_Desbloqueia_MesmoComStatusBloqueado()
     {
         var ultimo = Comando(TipoComandoRemoto.Desbloquear, StatusComandoRemoto.Pendente);

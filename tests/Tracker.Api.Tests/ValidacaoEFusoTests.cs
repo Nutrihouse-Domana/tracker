@@ -79,6 +79,9 @@ public class ValidacaoEFusoTests : IClassFixture<WebApplicationFactory<Program>>
     [InlineData("N/A")]
     [InlineData("123456789")]
     [InlineData("xxxxxxxxxx")]
+    [InlineData("FFFFFFFF")]
+    [InlineData("Filled by O.E.M. vendor")]
+    [InlineData("Unknown")]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData(null)]
@@ -92,6 +95,7 @@ public class ValidacaoEFusoTests : IClassFixture<WebApplicationFactory<Program>>
     [InlineData("ANDROID-abc123")]
     [InlineData("R58N123ABC")]
     [InlineData("1000")]
+    [InlineData("WIN-4C4C4544-0042-3510-8051-B7C04F4D4E32")]
     public void SerialReal_NaoEhGenerico(string serial)
     {
         Assert.False(SerialGenerico.EhGenerico(serial));

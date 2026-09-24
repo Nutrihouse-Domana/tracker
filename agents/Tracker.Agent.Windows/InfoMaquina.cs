@@ -10,7 +10,8 @@ public static class InfoMaquina
     /// Seriais "de fábrica" que NÃO identificam nada: placas genéricas, montadoras que não gravam o
     /// campo e VMs saem todas com o mesmo texto. Usados como identidade, fariam várias máquinas
     /// caírem no MESMO registro do inventário (o auto-cadastro reencontra pelo número de série).
-    /// Comparação sem diferenciar maiúsculas, após trim. O backend recusa estes valores com 400.
+    /// Comparação sem diferenciar maiúsculas, após trim. O backend recusa estes valores com 400:
+    /// a lista e a regra têm espelho em src/Tracker.Application/Common/SerialGenerico.cs (mude os dois).
     /// </summary>
     private static readonly HashSet<string> SeriaisGenericos = new(StringComparer.OrdinalIgnoreCase)
     {

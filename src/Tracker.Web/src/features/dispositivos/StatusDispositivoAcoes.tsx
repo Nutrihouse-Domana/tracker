@@ -50,37 +50,39 @@ export function StatusDispositivoAcoes({ dispositivoId, status, pertenceAUsuario
 
   // Bloqueado só sai pelo comando remoto "Desbloquear" (o agente precisa receber o comando e tirar a
   // trava). Trocar o status à mão deixaria o aparelho travado com o painel dizendo outra coisa —
-  // o backend também recusa. Por isso nenhuma transição manual aparece aqui.
+  // o backend também recusa. A única transição manual é a BAIXA (aparelho roubado/perdido que nunca
+  // confirma o desbloqueio): ela não destrava, porque a trava vem do último comando, não do status.
   const bloqueado = status === 'Bloqueado'
 
   // Ativo do local vira "Em uso" pela atribuição a uma unidade (não passa por detentor); a opção
   // só aparece quando ele é de local, tem unidade definida e ainda não está em uso. O backend
   // (AtualizarStatus) reforça a mesma regra.
   const podeColocarEmUso = !pertenceAUsuario && unidadeId != null && status !== 'EmUso'
-  const opcoes = [
+  const opcoes = bloqueado
+    ? acoesStatus.filter((a) => a.destino === 'Baixado')
+    : [
     ...(podeColocarEmUso
       ? [{ destino: 'EmUso' as StatusDispositivo, label: 'Colocar em uso' }]
       : []),
     ...acoesStatus.filter((a) => a.destino !== status),
-  ]
+      ]
 
   return (
     <>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
         <Chip label={rotuloStatus[status] ?? status} color={corStatus[status] ?? 'default'} />
-        {bloqueado ? (
+        <IconButton
+          size="small"
+          aria-label="Alterar status"
+          onClick={(e) => setMenuAncora(e.currentTarget)}
+          disabled={atualizar.isPending}
+        >
+          <EditIcon fontSize="small" />
+        </IconButton>
+        {bloqueado && (
           <Typography variant="caption" color="text.secondary">
-            Desbloqueie pelo comando remoto.
+            Desbloqueie pelo comando remoto (só a baixa é manual).
           </Typography>
-        ) : (
-          <IconButton
-            size="small"
-            aria-label="Alterar status"
-            onClick={(e) => setMenuAncora(e.currentTarget)}
-            disabled={atualizar.isPending}
-          >
-            <EditIcon fontSize="small" />
-          </IconButton>
         )}
       </Stack>
 
@@ -96,7 +98,7 @@ export function StatusDispositivoAcoes({ dispositivoId, status, pertenceAUsuario
         </Alert>
       </Snackbar>
 
-      <Menu anchorEl={menuAncora} open={!!menuAncora && !bloqueado} onClose={() => setMenuAncora(null)}>
+      <Menu anchorEl={menuAncora} open={!!menuAncora} onClose={() => setMenuAncora(null)}>
         {opcoes.map((a) => (
           <MenuItem
             key={a.destino}

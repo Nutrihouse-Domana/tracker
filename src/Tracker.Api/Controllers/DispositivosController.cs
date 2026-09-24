@@ -312,8 +312,11 @@ public class DispositivosController : ControllerBase
         if (dispositivo is null) return NotFound();
 
         // E o inverso: tirar de Bloqueado à mão deixaria o aparelho travado sem comando de
-        // desbloqueio a caminho (o agente reaplica a trava sozinho).
-        if (dispositivo.Status == StatusDispositivo.Bloqueado)
+        // desbloqueio a caminho (o agente reaplica a trava sozinho). A exceção é a BAIXA: é o
+        // destino de um aparelho roubado/perdido que nunca mais confirma o Desbloquear. Ela é
+        // segura porque o estado de trava que o heartbeat manda vem do último comando
+        // (RegrasDispositivo.DeveEstarBloqueado), não do status — dar baixa não destrava nada.
+        if (dispositivo.Status == StatusDispositivo.Bloqueado && request.Status != StatusDispositivo.Baixado)
             return BadRequest(new { message = MensagemDesbloqueieAntes });
 
         // "Em uso" exige um responsável: usuário nominal, ou a unidade quando o ativo é do local.

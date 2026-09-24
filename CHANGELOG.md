@@ -34,7 +34,7 @@ Correções da revisão completa do código (24/09/2026).
 
 - O "deve estar bloqueado" do heartbeat segue o **último comando** Bloquear/Desbloquear: o
   Android não destrava mais logo depois de aplicar um Bloquear ainda não confirmado.
-- Aparelho **Bloqueado** não muda de status à mão, não abre nem conclui reparo e não pode ser
+- Aparelho **Bloqueado** só aceita a **baixa** manual (sem destravar), não abre nem conclui reparo e não pode ser
   arquivado/excluído com um Bloquear a caminho. "Bloqueado" deixou de ser opção manual.
 - Desbloquear só tira de Bloqueado; volta a Em uso só com responsável (detentor ou unidade).
 - Trocar a posse não deixa mais um aparelho "Em uso" sem responsável.

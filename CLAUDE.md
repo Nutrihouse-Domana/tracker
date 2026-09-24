@@ -271,12 +271,13 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   `DefinirPosse` também corrige: `EmUso` que fica sem responsável na posse nova volta a `EmEstoque`
   (`RegrasDispositivo.StatusCoerenteComResponsavel`).
 - **`Bloqueado` só entra e sai pelo COMANDO REMOTO.** `AtualizarStatus` recusa `Bloqueado` manual
-  e qualquer mudança num aparelho `Bloqueado` (400); abrir e concluir reparo idem; arquivar/excluir
+  e qualquer mudança num aparelho `Bloqueado` (400) — **exceto a baixa** (aparelho roubado que nunca
+  confirma o Desbloquear), segura porque a trava vem do último comando, não do status; um Bloquear
+  confirmado depois da baixa mantém `Baixado`. Abrir e concluir reparo idem; arquivar/excluir
   recusa `Bloqueado` **e** Bloquear a caminho (`RegrasDispositivo.TemBloqueioAChegar`). No site, o
-  menu de status some e mostra "Desbloqueie pelo comando remoto.". Confirmar `Desbloquear` só mexe
+  menu de status de um `Bloqueado` só oferece "Dar baixa". Confirmar `Desbloquear` só mexe
   se o status era `Bloqueado` (`StatusAposDesbloqueio`: `EmUso` com responsável, senão
-  `EmEstoque`; `Baixado`/`EmManutencao` ficam). Efeito colateral conhecido: aparelho perdido que
-  nunca confirma o Desbloquear não recebe baixa (item 33 do backlog).
+  `EmEstoque`; `Baixado`/`EmManutencao` ficam).
 - **O estado DESEJADO de bloqueio vem do ÚLTIMO COMANDO, não do status.** `deveEstarBloqueado` do
   heartbeat = `RegrasDispositivo.DeveEstarBloqueado(status, ultimoComando)`, com o comando de
   `ConsultasComandoRemoto.UltimoComandoVigenteAsync` (mais recente por `DataEmissao`, exceto

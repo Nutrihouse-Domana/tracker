@@ -54,7 +54,7 @@ As regras do projeto continuam valendo em toda correção:
 | 30 | [Heartbeat sem a data da leitura da localização](#30-heartbeat-sem-a-data-da-leitura-da-localização) | Baixa | Médio |
 | 31 | [DisableTaskMgr removido em todo logon](#31-disabletaskmgr-removido-em-todo-logon) | Baixa | Pequeno |
 | 32 | [Atribuir aparelho Bloqueado: só o site recusa](#32-atribuir-aparelho-bloqueado-só-o-site-recusa) | Baixa | Trivial |
-| 33 | [Aparelho perdido fica Bloqueado para sempre](#33-aparelho-perdido-fica-bloqueado-para-sempre) | Média | Pequeno |
+| 33 | [Aparelho perdido fica Bloqueado para sempre](#33-aparelho-perdido-fica-bloqueado-para-sempre) — ✅ Resolvido em 24/09/2026 | Média | Pequeno |
 
 **Sugestão de ordem:**
 
@@ -188,8 +188,8 @@ arquivado**, sem essa permissão não sobra ação nenhuma, e o diálogo nem dev
 > ✅ **Resolvido em 24/09/2026 (revisão completa do código).** **Resolvido:** os dois mostram a
 > mensagem do servidor via `mensagemErroApi`. Além disso, **Atribuir** nem aparece para
 > aparelho *Baixado*, *Em manutenção* ou *Bloqueado* (`statusPermiteAtribuir` em
-> `features/dispositivos/status.ts`), e o menu de status some para *Bloqueado*, com a dica
-> "Desbloqueie pelo comando remoto.". Ver também o item 32.
+> `features/dispositivos/status.ts`), e o menu de status de um *Bloqueado* só oferece
+> **Dar baixa** (item 33), com a dica "Desbloqueie pelo comando remoto (só a baixa é manual).". Ver também o item 32.
 
 **Problema:**
 
@@ -778,6 +778,12 @@ incompleto.
 ---
 
 ## 33. Aparelho perdido fica Bloqueado para sempre
+
+> ✅ **Resolvido em 24/09/2026 (revisão completa do código).** `AtualizarStatus` aceita **Bloqueado →
+> Baixado** (só esse destino); o menu de status do site oferece só "Dar baixa" num Bloqueado; um
+> Bloquear confirmado depois da baixa mantém `Baixado`. Coberto por
+> `RegrasDispositivoTests.BaixaDeAparelhoBloqueado_NaoDestrava`. Arquivar continua recusado com
+> Bloquear a caminho.
 
 **Problema:** desde a revisão de 24/09/2026, `AtualizarStatus` recusa qualquer mudança em
 aparelho *Bloqueado*, e a exclusão/arquivamento já recusava. O status só sai de *Bloqueado*

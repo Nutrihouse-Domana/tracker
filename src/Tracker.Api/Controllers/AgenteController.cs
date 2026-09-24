@@ -407,8 +407,10 @@ public class AgenteController : ControllerBase
 
         // Reflete o efeito do comando no status do dispositivo. O desbloqueio só tira de
         // Bloqueado (Baixado/Em manutenção ficam) e só volta a "Em uso" com responsável.
+        // Um Bloquear confirmado depois da baixa não "desfaz" a baixa: o aparelho continua travado
+        // (o estado de trava vem do último comando), mas segue fora do parque ativo.
         dispositivo.Status = comando.TipoComando == TipoComandoRemoto.Bloquear
-            ? StatusDispositivo.Bloqueado
+            ? (dispositivo.Status == StatusDispositivo.Baixado ? StatusDispositivo.Baixado : StatusDispositivo.Bloqueado)
             : RegrasDispositivo.StatusAposDesbloqueio(dispositivo);
 
         await _db.SaveChangesAsync();
