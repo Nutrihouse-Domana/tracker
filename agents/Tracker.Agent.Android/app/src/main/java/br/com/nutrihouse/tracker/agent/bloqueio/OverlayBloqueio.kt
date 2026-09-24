@@ -171,7 +171,15 @@ object OverlayBloqueio {
             binding.textoStatusWifi.setText(R.string.bloqueio_wifi_sistema_aberto)
             // A sobreposição precisa sair da frente, senão o painel do sistema fica inacessível.
             Bloqueio(context).suspenderParaWifi()
-            WifiConnect.abrirPainelDoSistema(context)
+            // Android 10+: o painel é aberto pela PainelWifiActivity, que devolve a trava assim
+            // que o usuário fecha o painel ou tenta sair dele (Home, Recentes). Abaixo disso só há
+            // a tela cheia de Configurações e vale o prazo da suspensão.
+            val abriu = if (WifiConnect.temPainelRestrito) {
+                PainelWifiActivity.abrir(context)
+            } else {
+                WifiConnect.abrirPainelDoSistema(context)
+            }
+            if (!abriu) Bloqueio(context).retomarAposWifi()
         }
     }
 

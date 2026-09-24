@@ -44,6 +44,13 @@ object WifiConnect {
     /** True quando conseguimos conectar sozinhos, sem mandar o usuario para o sistema. */
     fun podeConectarDireto(context: Context): Boolean = Politica(context).ehDeviceOwner
 
+    /**
+     * `Settings.Panel` (Android 10+): janela translucida so com a lista de redes. Abaixo disso o
+     * que abre e a tela cheia de Configuracoes de Wi-Fi.
+     */
+    val temPainelRestrito: Boolean
+        get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+
     /** Quanto esperar a varredura terminar antes de se contentar com o que o sistema tem. */
     private const val TIMEOUT_VARREDURA_MS = 8_000L
 
@@ -158,13 +165,18 @@ object WifiConnect {
      * mostra **somente** a lista de redes sobre o app atual — o usuario nao chega ao resto das
      * Configuracoes por ali. Em versoes anteriores nao existe painel restrito e caimos nas
      * Configuracoes de Wi-Fi.
+     *
+     * Chamado de uma Activity ([PainelWifiActivity]), o painel entra na MESMA tarefa, por cima
+     * dela — e o ciclo de vida dela passa a dizer quando o usuario sai do painel. De um contexto
+     * que nao e Activity, `NEW_TASK` e obrigatorio.
      */
     fun abrirPainelDoSistema(context: Context): Boolean {
-        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        val intent = if (temPainelRestrito) {
             Intent(Settings.Panel.ACTION_WIFI)
         } else {
             Intent(Settings.ACTION_WIFI_SETTINGS)
-        }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (context !is android.app.Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
         return runCatching { context.startActivity(intent); true }
             .onFailure { Log.w(TAG, "Falha ao abrir o painel de Wi-Fi.", it) }

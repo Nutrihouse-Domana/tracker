@@ -112,7 +112,7 @@ conectar a uma rede informando SSID e senha:
 | | **Device Owner** | **Device Admin** |
 |---|---|---|
 | Como conecta | Lista de redes, senha e botão Conectar **dentro** da tela de bloqueio | Botão abre o **painel de Wi-Fi do sistema** |
-| Sai da tela de bloqueio? | Não | Sim, por até **60 segundos** |
+| Sai da tela de bloqueio? | Não | Só enquanto o painel está aberto (teto de **60 segundos**) |
 
 No modo Device Owner, a lista espera o resultado de uma varredura nova
 (`SCAN_RESULTS_AVAILABLE_ACTION`, até 8 s, fora da thread principal) em vez de ler o cache logo
@@ -120,10 +120,15 @@ após o `startScan` — o cache de um aparelho ocioso costuma vir vazio ou só c
 
 No modo Device Admin, o painel usado é o `Settings.Panel.ACTION_WIFI` (Android 10+), que mostra
 **apenas** a lista de redes — não dá acesso ao resto das Configurações, então o usuário não
-consegue usá-lo para desativar o agente. Durante esses 60 segundos a sobreposição sai da frente
-(senão o painel ficaria inacessível) e o aparelho fica utilizável: é uma brecha consciente, e o
-`AgenteService` recoloca a janela assim que o tempo expira. O bloqueio em si nunca é removido —
-o sinal local continua ligado o tempo todo.
+consegue usá-lo para desativar o agente. Enquanto o painel está aberto a sobreposição sai da frente
+(senão o painel ficaria inacessível). O painel é aberto pela `PainelWifiActivity`, uma tela
+invisível que fica **pausada por baixo** dele (o painel é translúcido): quando o usuário fecha o
+painel ela volta a `onResume`, e quando ele tenta sair (Home, Recentes, "Mais configurações",
+notificação, tela apagada) ela vai a `onStop` — nos dois casos a trava volta **na hora**. Os 60
+segundos ficam só como teto. Antes a sobreposição saía por 60 s fixos e bastava apertar Home para
+usar o aparelho nesse tempo (revisão de 24/09/2026). No Android 9 ou anterior não há painel
+restrito — abre a tela cheia de Configurações de Wi-Fi e vale o prazo inteiro. O bloqueio em si
+nunca é removido: o sinal local continua ligado o tempo todo.
 
 > **Requisito absoluto:** a permissão "Sobrepor outros apps". Sem ela o Android recusa a janela e
 > o aparelho **não** fica indisponível — o agente registra erro no log e o painel mostra a falha.

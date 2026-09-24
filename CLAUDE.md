@@ -431,6 +431,13 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
     `FOREGROUND_SERVICE_SPECIAL_USE` e `PROPERTY_SPECIAL_USE_FGS_SUBTYPE`); `iniciarEmPrimeiroPlano`
     tenta location+specialUse → specialUse → sem tipo, em todo `onStartCommand`, sem deixar a
     exceção subir.
+  - **Painel de Wi-Fi do sistema durante o bloqueio: a trava volta ASSIM QUE o usuário sai dele.**
+    A sobreposição precisa sair da frente para o painel ser tocável; antes saía por 60s fixos e o
+    usuário apertava Home e usava o aparelho. Agora o painel é aberto por `PainelWifiActivity`
+    (invisível, `taskAffinity=""`), SEM `NEW_TASK`, para ficar na mesma tarefa: o `Settings.Panel`
+    é translúcido, então ela fica PAUSADA por baixo — `onResume` = painel fechado, `onStop` = saiu
+    (Home/Recentes/"Mais configurações") → `Bloqueio.retomarAposWifi()`. Conferido num moto g35
+    (Android 14). Os 60s viraram teto; no Android ≤ 9 (tela cheia de Configurações) vale o prazo.
   - **Wi-Fi: não leia `scanResults` logo depois de `startScan()`** — vem o cache (vazio ou só a rede
     atual). Espere o broadcast `SCAN_RESULTS_AVAILABLE_ACTION` (até 8s) fora da main thread. Mesma
     lição do `netsh` no Windows.

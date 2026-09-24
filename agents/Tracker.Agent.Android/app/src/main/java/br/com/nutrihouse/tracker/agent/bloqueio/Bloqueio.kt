@@ -122,7 +122,9 @@ class Bloqueio(private val context: Context) {
      * AgenteService recoloca a janela assim que a janela de tempo expira.
      *
      * E uma brecha consciente e limitada: sem rede, um aparelho bloqueado nunca receberia o
-     * comando de Desbloquear, e a TI perderia o controle dele de vez.
+     * comando de Desbloquear, e a TI perderia o controle dele de vez. A partir do Android 10 o
+     * painel e aberto por [PainelWifiActivity], que chama [retomarAposWifi] no instante em que o
+     * usuario fecha o painel ou sai dele (Home, Recentes...) — o prazo aqui vira so um teto.
      */
     fun suspenderParaWifi() {
         if (!armazenamento.bloqueado) return
@@ -132,10 +134,20 @@ class Bloqueio(private val context: Context) {
         Log.i(TAG, "Sobreposição suspensa por ${DURACAO_SUSPENSAO_MS / 1000}s para conexão Wi-Fi.")
     }
 
+    /** Encerra a pausa para Wi-Fi antes do prazo e recoloca a trava na hora. */
+    fun retomarAposWifi() {
+        suspensoAteMs = 0L
+        garantirAtivo()
+    }
+
     companion object {
         private const val TAG = "Bloqueio"
 
-        /** Curto de proposito: e o tempo em que o aparelho fica utilizavel. */
+        /**
+         * Teto da pausa para Wi-Fi. No Android 10+ ela acaba antes, assim que o usuario deixa o
+         * painel ([PainelWifiActivity]); so abaixo disso (tela cheia de Configuracoes, sem como
+         * saber quando o usuario terminou) o aparelho fica este tempo todo sem a sobreposicao.
+         */
         private const val DURACAO_SUSPENSAO_MS = 60_000L
 
         /** Espaco minimo entre tentativas de (re)abrir a tela em quiosque. */

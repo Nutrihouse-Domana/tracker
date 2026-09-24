@@ -58,6 +58,17 @@
             </intent-filter>
         </activity>
 
+        <!-- Hospeda o painel de Wi-Fi do sistema durante o bloqueio (PainelWifiActivity): invisivel,
+             fora dos Recentes e sem afinidade (tarefa propria, nao traz o app para a frente). -->
+        <activity
+            android:name=".bloqueio.PainelWifiActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:showWhenLocked="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- singleInstance + excludeFromRecents: o usuario nao consegue "deixar de lado" a tela
              de bloqueio pelo historico de apps, e nunca existem duas instancias empilhadas. -->
         <activity
