@@ -37,8 +37,20 @@ public class AuthController : ControllerBase
         var usuario = await _userManager.FindByEmailAsync(request.Email);
         if (usuario is null) return Unauthorized(new { message = "Credenciais inválidas." });
 
-        // Login desativado não entra — mesmo com a senha certa. Mensagem própria para não confundir
-        // com senha errada (a TI precisa saber que a conta foi desligada, não que errou a senha).
+        // Confere a senha SEM emitir o cookie (com lockout por tentativas). Só depois dela se revela
+        // que a conta está desativada: checar "desativado" antes permitiria a qualquer um descobrir,
+        // só pelo e-mail, quais logins existem e estão desligados.
+        var resultado = await _signInManager.CheckPasswordSignInAsync(usuario, request.Senha, lockoutOnFailure: true);
+        if (!resultado.Succeeded)
+        {
+            _auditoria.Registrar(AcaoAuditoria.LoginRecusado,
+                $"Login malsucedido ({request.Email}).", "Acesso", usuario.Id);
+            await _db.SaveChangesAsync();
+            return Unauthorized(new { message = "Credenciais inválidas." });
+        }
+
+        // Login desativado não entra — mesmo com a senha certa. Mensagem própria (já que a senha
+        // confere) para a pessoa saber que a conta foi desligada, e não que errou a senha.
         if (!usuario.Ativo)
         {
             _auditoria.Registrar(AcaoAuditoria.LoginRecusado,
@@ -47,14 +59,7 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Este login está desativado. Fale com um administrador." });
         }
 
-        var resultado = await _signInManager.PasswordSignInAsync(usuario, request.Senha, isPersistent: true, lockoutOnFailure: true);
-        if (!resultado.Succeeded)
-        {
-            _auditoria.Registrar(AcaoAuditoria.LoginRecusado,
-                $"Login malsucedido ({request.Email}).", "Acesso", usuario.Id);
-            await _db.SaveChangesAsync();
-            return Unauthorized(new { message = "Credenciais inválidas." });
-        }
+        await _signInManager.SignInAsync(usuario, isPersistent: true);
 
         usuario.UltimoLoginEm = DateTime.UtcNow;
         await _userManager.UpdateAsync(usuario);

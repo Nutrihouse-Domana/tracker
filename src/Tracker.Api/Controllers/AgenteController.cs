@@ -1,9 +1,12 @@
 using System.Security.Cryptography;
 using System.Text;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tracker.Api.Agente;
+using Tracker.Application.Common;
+using Tracker.Application.Dispositivos;
 using Tracker.Application.Dtos;
 using Tracker.Domain.Entities;
 using Tracker.Domain.Enums;
@@ -28,14 +31,23 @@ public class AgenteController : ControllerBase
     private readonly AgentAuth _agentAuth;
     private readonly AgentTokenService _tokenService;
     private readonly IConfiguration _config;
+    private readonly IValidator<AutoEnrollmentRequest> _enrollmentValidator;
+    private readonly IValidator<AlertaAgenteRequest> _alertaValidator;
 
     public AgenteController(
-        TrackerDbContext db, AgentAuth agentAuth, AgentTokenService tokenService, IConfiguration config)
+        TrackerDbContext db,
+        AgentAuth agentAuth,
+        AgentTokenService tokenService,
+        IConfiguration config,
+        IValidator<AutoEnrollmentRequest> enrollmentValidator,
+        IValidator<AlertaAgenteRequest> alertaValidator)
     {
         _db = db;
         _agentAuth = agentAuth;
         _tokenService = tokenService;
         _config = config;
+        _enrollmentValidator = enrollmentValidator;
+        _alertaValidator = alertaValidator;
     }
 
     private Task<DispositivoComAgente?> AutenticarAsync() =>
@@ -58,10 +70,26 @@ public class AgenteController : ControllerBase
             return Unauthorized(new { message = "Chave de instalação inválida." });
         }
 
+        var validation = await _enrollmentValidator.ValidateAsync(request);
+        if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+
         if (request.Tipo is not (TipoDispositivo.Notebook or TipoDispositivo.Mobile))
             return BadRequest(new { message = "Auto-cadastro só vale para notebook ou mobile." });
 
-        var existente = await ReencontrarAsync(request);
+        // Serial genérico de BIOS ("To be filled by O.E.M.", "0"...) é o MESMO em várias máquinas.
+        // Usá-lo para reencontrar faria o segundo aparelho assumir o cadastro (e o token) do
+        // primeiro. O validador só o deixa passar quando há patrimônio; nesse caso o serial
+        // recebido é descartado: não entra no reencontro nem na promoção, e o cadastro novo grava
+        // um serial derivado do patrimônio (único como ele), já que NumeroSerie é obrigatório e
+        // tem índice único.
+        var serieConfiavel = !SerialGenerico.EhGenerico(request.NumeroSerie);
+        var serieEfetiva = serieConfiavel
+            // Sem Trim de propósito: os cadastros existentes guardam o serial como veio do agente,
+            // e mudar a forma agora faria o reencontro falhar e duplicar o ativo.
+            ? request.NumeroSerie
+            : $"{PrefixoSerieDerivada}{NormalizarPatrimonio(request.AssetTag)}";
+
+        var existente = await ReencontrarAsync(request, serieConfiavel ? serieEfetiva : null);
         if (existente is not null && existente is not DispositivoComAgente)
             return Conflict(new { message = "Já existe um dispositivo (sem agente) com esta identificação." });
 
@@ -72,7 +100,7 @@ public class AgenteController : ControllerBase
             // e AssetTag: sem esta checagem o INSERT estouraria com erro cru de banco.
             var arquivado = await _db.Dispositivos.IgnoreQueryFilters().FirstOrDefaultAsync(d =>
                 d.ExcluidoEm != null &&
-                (d.NumeroSerie == request.NumeroSerie ||
+                (d.NumeroSerie == serieEfetiva ||
                     (request.AssetTag != null && d.AssetTag == request.AssetTag)));
             if (arquivado is not null)
             {
@@ -86,9 +114,9 @@ public class AgenteController : ControllerBase
             dispositivo = request.Tipo == TipoDispositivo.Mobile
                 ? new Mobile { Imei = request.Imei }
                 : new Notebook();
-            dispositivo.NumeroSerie = request.NumeroSerie;
+            dispositivo.NumeroSerie = serieEfetiva;
             // Patrimônio digitado pelo técnico quando houver; senão um provisório que a TI ajusta.
-            dispositivo.AssetTag = NormalizarPatrimonio(request.AssetTag) ?? $"AUTO-{request.NumeroSerie}";
+            dispositivo.AssetTag = NormalizarPatrimonio(request.AssetTag) ?? $"AUTO-{serieEfetiva}";
             dispositivo.DataAquisicao = DateTime.UtcNow;
             dispositivo.Status = StatusDispositivo.EmEstoque;
             _db.Dispositivos.Add(dispositivo);
@@ -98,7 +126,8 @@ public class AgenteController : ControllerBase
             // Reencontrado: o aparelho é o mesmo ativo, então o registro é reaproveitado (com o
             // histórico) em vez de duplicado. Só promovemos os identificadores para valores
             // melhores — nunca rebaixamos um dado real para um provisório.
-            await PromoverNumeroSerieAsync(dispositivo, request.NumeroSerie);
+            // Serial genérico nunca substitui o que está cadastrado (nem vira o derivado).
+            if (serieConfiavel) await PromoverNumeroSerieAsync(dispositivo, serieEfetiva);
             await PromoverPatrimonioAsync(dispositivo, request.AssetTag);
         }
 
@@ -127,6 +156,13 @@ public class AgenteController : ControllerBase
     /// </summary>
     private const string PrefixoSerieProvisoria = "ANDROID-";
 
+    /// <summary>
+    /// Prefixo do número de série gravado quando o aparelho reporta um serial genérico de BIOS e o
+    /// técnico informou o patrimônio: <c>SEM-SERIE-&lt;patrimônio&gt;</c>. Único porque o
+    /// patrimônio é único; nunca é usado para promover nem substituir outro serial.
+    /// </summary>
+    private const string PrefixoSerieDerivada = "SEM-SERIE-";
+
     private static bool EhSerieProvisoria(string? serie) =>
         serie is not null && serie.StartsWith(PrefixoSerieProvisoria, StringComparison.Ordinal);
 
@@ -141,7 +177,9 @@ public class AgenteController : ControllerBase
     /// Sem isso, um aparelho que se registra de novo entra como dispositivo novo e o inventário
     /// fica com o mesmo tablet duas vezes.
     /// </summary>
-    private async Task<Dispositivo?> ReencontrarAsync(AutoEnrollmentRequest request)
+    /// <param name="request">Pedido de auto-cadastro.</param>
+    /// <param name="serieConfiavel">Serial recebido, ou nulo quando é genérico de BIOS — aí ele não serve para reencontrar.</param>
+    private async Task<Dispositivo?> ReencontrarAsync(AutoEnrollmentRequest request, string? serieConfiavel)
     {
         // 1) Patrimônio: a identidade corporativa do ativo, digitada pelo técnico a partir da
         //    etiqueta. É o único identificador que sobrevive a reinstalar o app com outra chave
@@ -155,8 +193,12 @@ public class AgenteController : ControllerBase
 
         // 2) Número de série: o de fábrica quando o aparelho o entrega; senão o provisório, que
         //    ainda reencontra o aparelho enquanto a assinatura do APK não mudar.
-        var porSerie = await _db.Dispositivos.FirstOrDefaultAsync(d => d.NumeroSerie == request.NumeroSerie);
-        if (porSerie is not null) return porSerie;
+        //    Serial genérico de BIOS é pulado: casaria com a máquina errada.
+        if (serieConfiavel is not null)
+        {
+            var porSerie = await _db.Dispositivos.FirstOrDefaultAsync(d => d.NumeroSerie == serieConfiavel);
+            if (porSerie is not null) return porSerie;
+        }
 
         // 3) IMEI: só existe em aparelho com modem, e só é legível com Device Owner.
         if (!string.IsNullOrWhiteSpace(request.Imei))
@@ -224,7 +266,9 @@ public class AgenteController : ControllerBase
 
         // Queda de proteção (usuário desativou o admin no Android) vira alerta: sem isso a TI
         // continuaria vendo o aparelho como protegido.
-        if (request.NivelProtecao is { } nivel)
+        // Heartbeat não é recusado por enum fora do intervalo (isso cortaria também a entrega de
+        // comandos de bloqueio): o valor desconhecido é só ignorado.
+        if (request.NivelProtecao is { } nivel && Enum.IsDefined(nivel))
         {
             if (dispositivo.NivelProtecao is { } anterior && nivel < anterior)
             {
@@ -248,7 +292,9 @@ public class AgenteController : ControllerBase
                 EnderecoAproximado = request.EnderecoAproximado,
                 PrecisaoMetros = request.PrecisaoMetros,
                 // O agente Windows não informa a origem; mantém o valor histórico dele.
-                Origem = request.Origem ?? OrigemLocalizacao.IpGeolocationWindows,
+                Origem = request.Origem is { } origem && Enum.IsDefined(origem)
+                    ? origem
+                    : OrigemLocalizacao.IpGeolocationWindows,
             });
         }
 
@@ -265,10 +311,12 @@ public class AgenteController : ControllerBase
 
         await _db.SaveChangesAsync();
 
-        // Estado desejado: bloqueado, a menos que exista um desbloqueio esperando entrega — senão
-        // o agente reaplicaria a trava no mesmo ciclo em que deveria removê-la.
-        var desbloqueioPendente = pendentes.Any(c => c.TipoComando == TipoComandoRemoto.Desbloquear);
-        var deveEstarBloqueado = dispositivo.Status == StatusDispositivo.Bloqueado && !desbloqueioPendente;
+        // Estado desejado: o do ÚLTIMO comando de bloqueio/desbloqueio emitido (pendente, enviado ou
+        // confirmado); só sem comando algum vale o status. O status só vira Bloqueado quando o
+        // agente confirma — usá-lo sozinho fazia o heartbeat que entrega um Bloquear pendente
+        // responder "desbloqueado", e o agente Android destravava logo depois de aplicar.
+        var ultimoComando = await _db.UltimoComandoVigenteAsync(dispositivo.Id);
+        var deveEstarBloqueado = RegrasDispositivo.DeveEstarBloqueado(dispositivo.Status, ultimoComando);
 
         // Oferta de atualização OTA: só para agentes que informam o versionCode (Android). O
         // agente Windows não envia e nunca recebe oferta de APK.
@@ -324,6 +372,9 @@ public class AgenteController : ControllerBase
         var dispositivo = await AutenticarAsync();
         if (dispositivo is null) return Unauthorized();
 
+        var validation = await _alertaValidator.ValidateAsync(request);
+        if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+
         _db.AlertasDispositivo.Add(new AlertaDispositivo
         {
             DispositivoId = dispositivo.Id,
@@ -354,10 +405,11 @@ public class AgenteController : ControllerBase
         comando.DataConfirmacao = DateTime.UtcNow;
         dispositivo.StatusUltimoComando = StatusComandoRemoto.Confirmado;
 
-        // Reflete o efeito do comando no status do dispositivo.
+        // Reflete o efeito do comando no status do dispositivo. O desbloqueio só tira de
+        // Bloqueado (Baixado/Em manutenção ficam) e só volta a "Em uso" com responsável.
         dispositivo.Status = comando.TipoComando == TipoComandoRemoto.Bloquear
             ? StatusDispositivo.Bloqueado
-            : dispositivo.UsuarioAtualId is null ? StatusDispositivo.EmEstoque : StatusDispositivo.EmUso;
+            : RegrasDispositivo.StatusAposDesbloqueio(dispositivo);
 
         await _db.SaveChangesAsync();
         return NoContent();

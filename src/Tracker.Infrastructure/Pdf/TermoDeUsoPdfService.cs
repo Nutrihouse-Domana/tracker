@@ -1,6 +1,7 @@
 using MigraDocCore.DocumentObjectModel;
 using MigraDocCore.Rendering;
 using PdfSharpCore.Fonts;
+using Tracker.Application.Common;
 using Tracker.Application.Dtos;
 
 namespace Tracker.Infrastructure.Pdf;
@@ -169,7 +170,9 @@ public class TermoDeUsoPdfService : ITermoDeUsoPdfService
         var dataLinha = section.AddParagraph();
         dataLinha.Format.Font.Bold = true;
         dataLinha.Format.Alignment = ParagraphAlignment.Justify;
-        dataLinha.AddText($"Jaboatão dos Guararapes-PE, {dados.DataGeracao:dd/MM/yyyy}.");
+        // DataGeracao chega em UTC: impressa sem converter, o termo gerado depois das 21h de
+        // Brasília sairia datado do dia seguinte.
+        dataLinha.AddText($"Jaboatão dos Guararapes-PE, {FusoBrasil.ParaBrasilia(dados.DataGeracao):dd/MM/yyyy}.");
 
         LinhaVazia(section);
 

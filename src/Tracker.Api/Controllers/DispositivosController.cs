@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Tracker.Api.Agente;
+using Tracker.Application.Dispositivos;
 using Tracker.Application.Dtos;
 using Tracker.Application.Seguranca;
 using Tracker.Domain.Entities;
@@ -30,6 +32,8 @@ public class DispositivosController : ControllerBase
     private readonly IValidator<ExcluirDispositivoRequest> _excluirValidator;
     private readonly IValidator<DefinirPosseDispositivoRequest> _posseValidator;
     private readonly IValidator<DefinirIdentificacaoInternaRequest> _identificacaoInternaValidator;
+    private readonly IValidator<AtualizarStatusDispositivoRequest> _statusValidator;
+    private readonly IValidator<AtualizarStatusReparoRequest> _statusReparoValidator;
     private readonly ConfirmacaoSenhaAdm _confirmacaoSenha;
     private readonly IArmazenamentoArquivosService _arquivos;
     private readonly IAuditoria _auditoria;
@@ -47,6 +51,8 @@ public class DispositivosController : ControllerBase
         IValidator<ExcluirDispositivoRequest> excluirValidator,
         IValidator<DefinirPosseDispositivoRequest> posseValidator,
         IValidator<DefinirIdentificacaoInternaRequest> identificacaoInternaValidator,
+        IValidator<AtualizarStatusDispositivoRequest> statusValidator,
+        IValidator<AtualizarStatusReparoRequest> statusReparoValidator,
         ConfirmacaoSenhaAdm confirmacaoSenha,
         IArmazenamentoArquivosService arquivos,
         IAuditoria auditoria,
@@ -65,9 +71,14 @@ public class DispositivosController : ControllerBase
         _excluirValidator = excluirValidator;
         _posseValidator = posseValidator;
         _identificacaoInternaValidator = identificacaoInternaValidator;
+        _statusValidator = statusValidator;
+        _statusReparoValidator = statusReparoValidator;
         _confirmacaoSenha = confirmacaoSenha;
         _auditoria = auditoria;
     }
+
+    private const string MensagemDesbloqueieAntes =
+        "Dispositivo bloqueado. Desbloqueie o dispositivo pelo comando remoto antes de mudar o status.";
 
     /// <summary>Id do ADM logado — a autoria vem sempre daqui, nunca do corpo da requisição.</summary>
     private Guid AdmIdAtual() => User.AdmId()!.Value;
@@ -289,8 +300,21 @@ public class DispositivosController : ControllerBase
     [Authorize(Policy = Permissoes.DispositivosMovimentar)]
     public async Task<IActionResult> AtualizarStatus(Guid id, AtualizarStatusDispositivoRequest request)
     {
+        var validation = await _statusValidator.ValidateAsync(request);
+        if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+
+        // Bloqueado é efeito do comando remoto confirmado pelo agente, não rótulo manual: marcado à
+        // mão, a tela diria "bloqueado" com o aparelho destravado nas mãos do usuário.
+        if (request.Status == StatusDispositivo.Bloqueado)
+            return BadRequest(new { message = "Para bloquear o dispositivo, use o comando remoto de bloqueio." });
+
         var dispositivo = await _db.Dispositivos.FindAsync(id);
         if (dispositivo is null) return NotFound();
+
+        // E o inverso: tirar de Bloqueado à mão deixaria o aparelho travado sem comando de
+        // desbloqueio a caminho (o agente reaplica a trava sozinho).
+        if (dispositivo.Status == StatusDispositivo.Bloqueado)
+            return BadRequest(new { message = MensagemDesbloqueieAntes });
 
         // "Em uso" exige um responsável: usuário nominal, ou a unidade quando o ativo é do local.
         // Sem isso a lista mentiria, mostrando "em uso" sem dizer por quem.
@@ -350,6 +374,15 @@ public class DispositivosController : ControllerBase
 
         var usuarioDestino = await _db.Usuarios.FindAsync(request.UsuarioId);
         if (usuarioDestino is null) return NotFound(new { message = "Usuário destino não encontrado." });
+
+        // Detentor desativado saiu da empresa/da lista: entregar-lhe um ativo criaria posse que
+        // ninguém acompanha.
+        if (!usuarioDestino.Ativo)
+            return BadRequest(new { message = "Este usuário está desativado. Reative-o antes de atribuir um dispositivo." });
+
+        // Sem esta checagem, um id inexistente só estouraria no SaveChanges como erro cru de FK (500).
+        if (request.LocalDestinoId is { } localId && !await _db.Locais.AnyAsync(l => l.Id == localId))
+            return BadRequest(new { message = "Local de destino não encontrado." });
 
         // Baixado/em manutenção não pode ganhar dono: senão o dispositivo ficaria com usuário
         // atribuído e status incoerente (ex.: "Baixado" com detentor).
@@ -524,6 +557,11 @@ public class DispositivosController : ControllerBase
 
         dispositivo.PertenceAUsuario = request.PertenceAUsuario;
 
+        // "Em uso" precisa de responsável na posse NOVA: de local para usuário o aparelho ainda
+        // não tem detentor (a atribuição vem depois), e de usuário para local sem unidade não há
+        // quem responda. Nesses casos volta ao estoque; Bloqueado e os demais ficam como estão.
+        dispositivo.Status = RegrasDispositivo.StatusCoerenteComResponsavel(dispositivo);
+
         _auditoria.Registrar(AcaoAuditoria.DispositivoPosseAlterada,
             $"Alterou a posse de {dispositivo.NumeroSerie} para "
             + $"{(request.PertenceAUsuario ? "usuário nominal" : "ativo do local")}.",
@@ -565,6 +603,16 @@ public class DispositivosController : ControllerBase
             return BadRequest(new
             {
                 message = "Dispositivo bloqueado. Desbloqueie-o antes de excluir, senão ele fica travado sem tela para liberá-lo.",
+            });
+
+        // Mesmo risco antes da confirmação: o status só vira Bloqueado quando o agente confirma,
+        // mas um Bloquear já emitido (e não seguido de Desbloquear) trava o aparelho assim que
+        // chegar — e aí não haveria mais tela para liberá-lo.
+        if (RegrasDispositivo.TemBloqueioAChegar(await _db.UltimoComandoVigenteAsync(dispositivo.Id)))
+            return BadRequest(new
+            {
+                message = "Há um comando de bloqueio pendente para este dispositivo. Envie o desbloqueio "
+                          + "(ou aguarde e desbloqueie) antes de excluir, senão ele fica travado sem tela para liberá-lo.",
             });
 
         if (request.Definitiva)
@@ -672,8 +720,13 @@ public class DispositivosController : ControllerBase
         var validation = await _reparoValidator.ValidateAsync(request);
         if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
 
-        var dispositivoExiste = await _db.Dispositivos.AnyAsync(d => d.Id == id);
-        if (!dispositivoExiste) return NotFound(new { message = "Dispositivo não encontrado." });
+        var dispositivo = await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id);
+        if (dispositivo is null) return NotFound(new { message = "Dispositivo não encontrado." });
+
+        // Abrir reparo põe o aparelho "Em manutenção" — de um Bloqueado, apagaria o estado de
+        // segurança sem que nenhum comando de desbloqueio tivesse chegado ao agente.
+        if (dispositivo.Status == StatusDispositivo.Bloqueado)
+            return BadRequest(new { message = MensagemDesbloqueieAntes });
 
         var reparo = new HistoricoReparo
         {
@@ -684,8 +737,6 @@ public class DispositivosController : ControllerBase
         };
 
         _db.HistoricoReparos.Add(reparo);
-
-        var dispositivo = await _db.Dispositivos.FirstAsync(d => d.Id == id);
         dispositivo.Status = StatusDispositivo.EmManutencao;
 
         _auditoria.Registrar(AcaoAuditoria.ReparoAberto,
@@ -718,18 +769,26 @@ public class DispositivosController : ControllerBase
     [Authorize(Policy = Permissoes.DispositivosMovimentar)]
     public async Task<IActionResult> AtualizarStatusReparo(Guid id, Guid reparoId, AtualizarStatusReparoRequest request)
     {
+        var validation = await _statusReparoValidator.ValidateAsync(request);
+        if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+
         var reparo = await _db.HistoricoReparos.FirstOrDefaultAsync(r => r.Id == reparoId && r.DispositivoId == id);
         if (reparo is null) return NotFound();
-
-        reparo.Status = request.Status;
-        if (request.Status is StatusReparo.Concluido or StatusReparo.Cancelado)
-            reparo.DataConclusao = DateTime.UtcNow;
 
         if (request.Status == StatusReparo.Concluido)
         {
             var dispositivo = await _db.Dispositivos.FirstAsync(d => d.Id == id);
+            // Concluir o reparo recalcula o status do aparelho; num Bloqueado isso o destravaria
+            // na tela sem desbloqueio de verdade no agente.
+            if (dispositivo.Status == StatusDispositivo.Bloqueado)
+                return BadRequest(new { message = MensagemDesbloqueieAntes });
+
             dispositivo.Status = dispositivo.UsuarioAtualId is null ? StatusDispositivo.EmEstoque : StatusDispositivo.EmUso;
         }
+
+        reparo.Status = request.Status;
+        if (request.Status is StatusReparo.Concluido or StatusReparo.Cancelado)
+            reparo.DataConclusao = DateTime.UtcNow;
 
         _auditoria.Registrar(AcaoAuditoria.ReparoStatusAlterado,
             $"Alterou o status de um reparo para {request.Status}.", "Dispositivo", id);

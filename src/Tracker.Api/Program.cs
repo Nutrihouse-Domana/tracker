@@ -24,22 +24,15 @@ if (args.Contains("--redefinir-senha-adm"))
 
 // Add services to the container.
 
+// Conversores (enum como texto, DateTime em UTC com 'Z') centralizados em JsonConfig, que os
+// testes também usam.
 builder.Services.AddControllers()
-    .AddJsonOptions(options =>
-    {
-        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
-        // Emite todo DateTime como UTC com 'Z' (senão o front lê UTC como hora local: horário 3h adiantado).
-        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter());
-    });
-// O SignalR tem serialização própria: o JsonStringEnumConverter registrado em AddControllers NÃO
-// vale aqui. Sem esta linha o hub envia TipoComando como número (0/1) enquanto o heartbeat envia
-// como texto ("Bloquear"), e os agentes — que esperam texto — descartam o comando em silêncio.
-// O efeito era um bloqueio que só chegava no heartbeat seguinte, em vez de ser imediato.
-builder.Services.AddSignalR().AddJsonProtocol(options =>
-{
-    options.PayloadSerializerOptions.Converters.Add(
-        new System.Text.Json.Serialization.JsonStringEnumConverter());
-});
+    .AddJsonOptions(options => JsonConfig.Aplicar(options.JsonSerializerOptions));
+// O SignalR tem serialização própria: o que é registrado em AddControllers NÃO vale aqui. Sem
+// esta linha o hub envia TipoComando como número (0/1) enquanto o heartbeat envia como texto
+// ("Bloquear"), e os agentes — que esperam texto — descartam o comando em silêncio. O efeito era
+// um bloqueio que só chegava no heartbeat seguinte, em vez de ser imediato.
+builder.Services.AddSignalR().AddJsonProtocol(options => JsonConfig.Aplicar(options.PayloadSerializerOptions));
 builder.Services.AddValidatorsFromAssemblyContaining<CriarUsuarioRequestValidator>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

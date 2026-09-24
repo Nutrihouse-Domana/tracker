@@ -13,14 +13,12 @@ namespace Tracker.Api.Tests;
 /// </summary>
 public class VencimentoAluguelTests
 {
-    /// <summary>Mesmas opções do Program.cs, para o teste valer sobre a serialização real da API.</summary>
-    private static JsonSerializerOptions OpcoesDaApi()
-    {
-        var opcoes = new JsonSerializerOptions(JsonSerializerDefaults.Web);
-        opcoes.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
-        opcoes.Converters.Add(new UtcDateTimeConverter());
-        return opcoes;
-    }
+    /// <summary>
+    /// As MESMAS opções do Program.cs (via <see cref="JsonConfig.Aplicar"/>), sobre os padrões Web
+    /// que o ASP.NET Core usa nos controllers — o teste vale sobre a serialização real da API.
+    /// </summary>
+    private static JsonSerializerOptions OpcoesDaApi() =>
+        JsonConfig.Aplicar(new JsonSerializerOptions(JsonSerializerDefaults.Web));
 
     [Fact]
     public void Vencimento_SaiComoDataPura_SemHoraNemZ()

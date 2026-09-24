@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Tracker.Application.Common;
 using Tracker.Application.Dtos;
 using Tracker.Application.Seguranca;
 using Tracker.Domain.Enums;
@@ -28,8 +29,8 @@ public class AuditoriaController : ControllerBase
     public async Task<ActionResult<PaginaAuditoriaDto>> Listar(
         [FromQuery] Guid? admId,
         [FromQuery] AcaoAuditoria? acao,
-        [FromQuery] DateTime? de,
-        [FromQuery] DateTime? ate,
+        [FromQuery] DateOnly? de,
+        [FromQuery] DateOnly? ate,
         [FromQuery] string? entidadeTipo,
         [FromQuery] Guid? entidadeId,
         [FromQuery] string? q,
@@ -43,9 +44,20 @@ public class AuditoriaController : ControllerBase
 
         if (admId is not null) query = query.Where(l => l.AdmId == admId);
         if (acao is not null) query = query.Where(l => l.Acao == acao);
-        if (de is not null) query = query.Where(l => l.CriadoEm >= de);
-        // "até" é inclusivo no dia informado: soma 1 dia e usa "menor que".
-        if (ate is not null) query = query.Where(l => l.CriadoEm < ate.Value.Date.AddDays(1));
+        // De/até são DIAS CIVIS de Brasília (vêm do <input type="date">), e CriadoEm é UTC. Comparar
+        // direto cortava os registros das 21h às 24h de Brasília (já "amanhã" em UTC) e trazia os
+        // da véspera. Os limites viram instantes UTC; "até" é inclusivo no dia: início do dia
+        // seguinte com "menor que".
+        if (de is { } diaInicial)
+        {
+            var inicioUtc = FusoBrasil.InicioDoDiaEmUtc(diaInicial);
+            query = query.Where(l => l.CriadoEm >= inicioUtc);
+        }
+        if (ate is { } diaFinal)
+        {
+            var fimUtc = FusoBrasil.FimDoDiaEmUtc(diaFinal);
+            query = query.Where(l => l.CriadoEm < fimUtc);
+        }
         if (!string.IsNullOrWhiteSpace(entidadeTipo)) query = query.Where(l => l.EntidadeTipo == entidadeTipo);
         if (entidadeId is not null) query = query.Where(l => l.EntidadeId == entidadeId);
         if (!string.IsNullOrWhiteSpace(q))

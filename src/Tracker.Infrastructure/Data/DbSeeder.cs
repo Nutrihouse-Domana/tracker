@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Tracker.Application.Seguranca;
 using Tracker.Infrastructure.Identity;
 
@@ -33,8 +32,7 @@ public static class DbSeeder
 
         // Caminho de UPGRADE (idempotente): instalações anteriores têm ADMs na role Admin, mas ZERO
         // permissões — e, com as policies em vigor, ficariam trancados fora de tudo após o deploy.
-        // Aqui garantimos que todo ADM da role Admin tenha o conjunto completo. Roda a cada start,
-        // mas só concede o que falta.
+        // Roda a cada start, mas só toca quem NÃO tem permissão nenhuma (ver PrecisaDoBackfill).
         await GarantirPermissoesDosAdminsAsync(userManager, logger);
 
         if (userManager.Users.Any()) return;
@@ -88,15 +86,58 @@ public static class DbSeeder
             await userManager.AddClaimsAsync(usuario, faltando);
     }
 
-    /// <summary>Garante que todo ADM da role Admin tenha o conjunto completo de permissões.</summary>
+    /// <summary>
+    /// Backfill do upgrade: concede o conjunto completo SÓ aos ADMs da role Admin que não têm
+    /// nenhuma permissão (a instalação antiga, anterior às policies).
+    /// </summary>
+    /// <remarks>
+    /// Antes, completava as permissões de TODO Admin a cada start — o que desfazia em silêncio
+    /// qualquer revogação feita na tela de Acessos assim que o site reiniciava (deploy, reciclagem
+    /// do IIS). Quem já tem ao menos uma permissão foi configurado por alguém e não é tocado.
+    /// </remarks>
     private static async Task GarantirPermissoesDosAdminsAsync(UserManager<UsuarioADM> userManager, ILogger logger)
     {
         var admins = await userManager.GetUsersInRoleAsync(RoleAdmin);
+        var concedidos = 0;
         foreach (var admin in admins)
-            await ConcederTodasAsPermissoesAsync(userManager, admin);
+        {
+            var claims = await userManager.GetClaimsAsync(admin);
 
-        if (admins.Count > 0)
-            logger.LogInformation("Permissões conferidas para {Total} ADM(s) da role Admin.", admins.Count);
+            if (PrecisaDoBackfill(claims))
+            {
+                await ConcederTodasAsPermissoesAsync(userManager, admin);
+                concedidos++;
+            }
+
+            // Marca o ADM como "já configurado": se um dia alguém lhe tirar TODAS as permissões
+            // na tela de Acessos, o próximo start não as devolve (sem a marca, zero permissões
+            // seria indistinguível da instalação antiga).
+            if (!claims.Any(c => c.Type == TipoClaimPermissoesConfiguradas))
+                await userManager.AddClaimAsync(admin, new Claim(TipoClaimPermissoesConfiguradas, "1"));
+        }
+
+        if (concedidos > 0)
+            logger.LogInformation(
+                "Upgrade: permissões completas concedidas a {Total} ADM(s) da role Admin sem permissão alguma.",
+                concedidos);
+    }
+
+    /// <summary>
+    /// Claim que marca um ADM cujas permissões já passaram pelo backfill (ou já existiam). Não é
+    /// permissão: a <c>PermissoesClaimsTransformation</c> e as policies só olham o tipo "perm".
+    /// </summary>
+    public const string TipoClaimPermissoesConfiguradas = "tracker.permissoes-configuradas";
+
+    /// <summary>
+    /// True só para o ADM da instalação antiga: nenhuma claim de permissão E sem a marca de
+    /// "já configurado". Ter qualquer permissão — ou a marca — significa que o acesso já foi
+    /// definido por alguém e não deve ser tocado.
+    /// </summary>
+    public static bool PrecisaDoBackfill(IEnumerable<Claim> claims)
+    {
+        var lista = claims as IReadOnlyCollection<Claim> ?? claims.ToList();
+        return !lista.Any(c => c.Type == Permissoes.TipoClaim)
+            && !lista.Any(c => c.Type == TipoClaimPermissoesConfiguradas);
     }
 
     /// <summary>
@@ -117,7 +158,7 @@ public static class DbSeeder
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("DbSeeder");
         var db = services.GetRequiredService<TrackerDbContext>();
         var hasher = services.GetRequiredService<IPasswordHasher<UsuarioADM>>();
-        var opcoes = services.GetRequiredService<IOptions<IdentityOptions>>().Value;
+        var userManager = services.GetRequiredService<UserManager<UsuarioADM>>();
 
         var alvo = email ?? config["Seed:AdmEmail"];
         var novaSenha = senha ?? config["Seed:AdmSenha"];
@@ -128,18 +169,11 @@ public static class DbSeeder
             return false;
         }
 
-        var minimo = opcoes.Password.RequiredLength;
-        if (novaSenha.Length < minimo)
-        {
-            logger.LogError("A senha precisa ter ao menos {Minimo} caracteres.", minimo);
-            return false;
-        }
-
         // Projeção em vez de carregar a entidade: UsuarioADM tem Cpf criptografado em repouso, e
         // materializá-lo exigiria a chave AES correta. Recuperar o acesso não pode depender dela
         // — é exatamente o tipo de configuração que falta quando algo já deu errado.
         var contas = await db.Users
-            .Select(u => new { u.Id, u.Email })
+            .Select(u => new { u.Id, u.Email, u.Ativo })
             .ToListAsync();
 
         // Sem e-mail informado, cai para o único ADM existente: o caso comum de recuperação, em
@@ -158,9 +192,27 @@ public static class DbSeeder
             return false;
         }
 
-        // O hash é gerado sobre uma instância em memória — o hasher do Identity não depende do
-        // registro do banco, então o formato fica idêntico ao de um reset normal.
-        var hash = hasher.HashPassword(new UsuarioADM { Email = conta.Email, UserName = conta.Email }, novaSenha);
+        // Instância em memória (sem o Cpf criptografado) para os validadores e o hasher, que não
+        // dependem do registro do banco.
+        var emMemoria = new UsuarioADM { Id = conta.Id, Email = conta.Email, UserName = conta.Email };
+
+        // Mesmas regras de senha do Identity (tamanho, dígito, maiúscula, símbolo...) que a tela de
+        // Acessos aplica. Checar só o comprimento aceitava uma senha que o próprio sistema recusaria
+        // numa troca normal.
+        var errosSenha = new List<string>();
+        foreach (var validador in userManager.PasswordValidators)
+        {
+            var resultado = await validador.ValidateAsync(userManager, emMemoria, novaSenha);
+            if (!resultado.Succeeded) errosSenha.AddRange(resultado.Errors.Select(e => e.Description));
+        }
+        if (errosSenha.Count > 0)
+        {
+            logger.LogError("Senha recusada pelas regras de senha: {Erros}", string.Join("; ", errosSenha));
+            return false;
+        }
+
+        // O formato do hash fica idêntico ao de um reset normal.
+        var hash = hasher.HashPassword(emMemoria, novaSenha);
 
         // SecurityStamp novo invalida os cookies emitidos antes. LockoutEnd/AccessFailedCount
         // zerados porque uma conta travada por tentativas erradas continuaria recusando o login
@@ -180,6 +232,17 @@ public static class DbSeeder
         }
 
         logger.LogInformation("Senha redefinida para {Email}.", conta.Email);
+
+        // Não reativa sozinho: desativar foi decisão de alguém (ex.: saída do colaborador), e a
+        // recuperação de senha não deve desfazê-la em silêncio. Só avisa por que o login vai falhar.
+        if (!conta.Ativo)
+        {
+            logger.LogWarning(
+                "ATENÇÃO: o login {Email} está DESATIVADO — a senha foi trocada, mas o login continuará " +
+                "recusado. Reative-o na tela de Acessos com outro ADM, ou no banco (AspNetUsers.Ativo = 1) " +
+                "se ele for o único.", conta.Email);
+        }
+
         return true;
     }
 }

@@ -11,3 +11,12 @@ public class CriarReparoRequestValidator : AbstractValidator<CriarReparoRequest>
         RuleFor(x => x.CustoEstimado).GreaterThanOrEqualTo(0).When(x => x.CustoEstimado.HasValue);
     }
 }
+
+public class AtualizarStatusReparoRequestValidator : AbstractValidator<AtualizarStatusReparoRequest>
+{
+    public AtualizarStatusReparoRequestValidator()
+    {
+        // O conversor de enum aceita número no JSON: sem isto, "status": 99 seria gravado no banco.
+        RuleFor(x => x.Status).IsInEnum().WithMessage("Status de reparo inválido.");
+    }
+}
