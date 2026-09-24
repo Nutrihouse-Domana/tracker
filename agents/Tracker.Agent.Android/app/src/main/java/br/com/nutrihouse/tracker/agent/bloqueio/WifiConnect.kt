@@ -1,14 +1,21 @@
 package br.com.nutrihouse.tracker.agent.bloqueio
 
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.wifi.WifiConfiguration
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
+import androidx.core.content.ContextCompat
 import br.com.nutrihouse.tracker.agent.dispositivo.Politica
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Resultado de uma tentativa de conexao, para a tela mostrar o motivo ao usuario. */
 data class ResultadoWifi(val ok: Boolean, val mensagem: String)
@@ -37,24 +44,71 @@ object WifiConnect {
     /** True quando conseguimos conectar sozinhos, sem mandar o usuario para o sistema. */
     fun podeConectarDireto(context: Context): Boolean = Politica(context).ehDeviceOwner
 
+    /** Quanto esperar a varredura terminar antes de se contentar com o que o sistema tem. */
+    private const val TIMEOUT_VARREDURA_MS = 8_000L
+
     /**
      * Redes ao alcance, mais fortes primeiro. Exige permissao de localizacao (o Android trata a
      * lista de redes como dado de posicao) — ela ja e pedida no registro do aparelho.
+     *
+     * Suspende ate a varredura terminar (ou [TIMEOUT_VARREDURA_MS]). Ler `scanResults` logo
+     * depois do `startScan()` devolvia so o CACHE da ultima varredura — num aparelho ocioso e
+     * desconectado (o caso exato do bloqueio) isso e a rede antiga ou nada, e o usuario ficava
+     * sem opcao para voltar a ficar online. Mesma pegadinha do `netsh` no agente Windows.
+     *
+     * Chame FORA da main thread; quem atualiza a tela volta para ela.
      */
     @SuppressLint("MissingPermission")
-    fun listarRedes(context: Context): List<String> = runCatching {
-        val gerenciador = wifi(context)
-        if (!gerenciador.isWifiEnabled) gerenciador.isWifiEnabled = true
+    suspend fun listarRedes(context: Context): List<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val gerenciador = wifi(context)
+            if (!gerenciador.isWifiEnabled) gerenciador.isWifiEnabled = true
 
-        @Suppress("DEPRECATION")
-        gerenciador.startScan()
+            aguardarVarredura(context.applicationContext, gerenciador)
 
-        gerenciador.scanResults
-            .filter { it.SSID.isNotBlank() }
-            .sortedByDescending { it.level }
-            .map { it.SSID }
-            .distinct()
-    }.onFailure { Log.w(TAG, "Falha ao listar redes.", it) }.getOrDefault(emptyList())
+            gerenciador.scanResults
+                .filter { !it.SSID.isNullOrBlank() }
+                .sortedByDescending { it.level }
+                .map { it.SSID }
+                .distinct()
+        }.onFailure { Log.w(TAG, "Falha ao listar redes.", it) }.getOrDefault(emptyList())
+    }
+
+    /**
+     * Dispara a varredura e espera o SCAN_RESULTS_AVAILABLE_ACTION. Se o sistema recusar a
+     * varredura (limite de 4 a cada 2 minutos desde o Android 9), segue direto com o cache.
+     */
+    private suspend fun aguardarVarredura(context: Context, gerenciador: WifiManager) {
+        val concluida = CompletableDeferred<Unit>()
+        val receptor = object : BroadcastReceiver() {
+            override fun onReceive(c: Context?, intent: Intent?) {
+                concluida.complete(Unit)
+            }
+        }
+
+        ContextCompat.registerReceiver(
+            context,
+            receptor,
+            IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION),
+            // Broadcast protegido do sistema: chega mesmo com o receptor nao exportado.
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+
+        try {
+            @Suppress("DEPRECATION")
+            val iniciou = gerenciador.startScan()
+            if (!iniciou) {
+                Log.i(TAG, "Varredura recusada pelo sistema (limite de frequencia); usando o cache.")
+                return
+            }
+
+            if (withTimeoutOrNull(TIMEOUT_VARREDURA_MS) { concluida.await() } == null) {
+                Log.i(TAG, "Varredura nao terminou em ${TIMEOUT_VARREDURA_MS / 1000}s; usando o que houver.")
+            }
+        } finally {
+            runCatching { context.unregisterReceiver(receptor) }
+        }
+    }
 
     /**
      * Conecta a rede. So funciona com Device Owner; sem ele, quem chama deve usar

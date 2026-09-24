@@ -23,13 +23,16 @@ class VigilanteWorker(context: Context, params: WorkerParameters) : CoroutineWor
 
     override suspend fun doWork(): Result {
         val armazenamento = Armazenamento(applicationContext)
-        if (!armazenamento.registrado) return Result.success()
 
-        // O bloqueio vem primeiro: se o servico estava morto, o aparelho ficou usavel nesse meio.
-        if (armazenamento.bloqueado) {
+        // O bloqueio vem primeiro e depende SO do sinal persistido — nunca do token, que um 401
+        // apaga. Se o servico estava morto, o aparelho ficou usavel nesse meio.
+        val bloqueado = armazenamento.bloqueado
+        if (bloqueado) {
             runCatching { Bloqueio(applicationContext).garantirAtivo() }
                 .onFailure { Log.w(TAG, "Falha ao reaplicar o bloqueio.", it) }
         }
+
+        if (!armazenamento.registrado && !bloqueado) return Result.success()
 
         AgenteService.iniciar(applicationContext)
         return Result.success()

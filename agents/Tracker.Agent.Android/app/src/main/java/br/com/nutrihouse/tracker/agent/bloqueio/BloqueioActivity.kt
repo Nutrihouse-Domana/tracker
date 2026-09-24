@@ -15,7 +15,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import br.com.nutrihouse.tracker.agent.dados.Armazenamento
 import br.com.nutrihouse.tracker.agent.databinding.ActivityBloqueioBinding
-import br.com.nutrihouse.tracker.agent.dispositivo.InfoAparelho
 import br.com.nutrihouse.tracker.agent.dispositivo.Politica
 
 /**
@@ -34,7 +33,11 @@ class BloqueioActivity : AppCompatActivity() {
 
     /** Fecha a tela quando a TI desbloqueia o aparelho pelo painel. */
     private val receptorFechar = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) = finish()
+        override fun onReceive(context: Context?, intent: Intent?) {
+            // Sai do quiosque ANTES de fechar: so a propria Activity em lock task pode encerra-lo.
+            if (politica.ehDeviceOwner) runCatching { stopLockTask() }
+            finish()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,11 +75,14 @@ class BloqueioActivity : AppCompatActivity() {
 
         // Se a TI desbloqueou enquanto a tela estava aberta, sai sozinha.
         if (!armazenamento.bloqueado) {
+            if (politica.ehDeviceOwner) runCatching { stopLockTask() }
             finish()
             return
         }
 
-        // Modo quiosque: so o Device Owner consegue: impede troca de app, Home e Recentes.
+        // Modo quiosque: so o Device Owner consegue: impede troca de app, Home, Recentes, barra
+        // de status e configuracoes rapidas. O Bloqueio abre esta tela por baixo da sobreposicao
+        // justamente para isso (a sobreposicao sozinha nao entra em lock task).
         if (politica.ehDeviceOwner) {
             runCatching { startLockTask() }
         }
@@ -123,13 +129,6 @@ class BloqueioActivity : AppCompatActivity() {
     }
 
     private fun preencherIdentificacao() {
-        val info = InfoAparelho(this)
-        val patrimonio = armazenamento.assetTag
-
-        binding.textoIdentificacao.text = buildString {
-            if (!patrimonio.isNullOrBlank()) appendLine("Patrimônio: $patrimonio")
-            appendLine("Série: ${info.numeroSerieReal ?: info.numeroSerie}")
-            append("${info.fabricante} ${info.modelo}")
-        }
+        binding.textoIdentificacao.text = OverlayBloqueio.textoIdentificacao(this)
     }
 }

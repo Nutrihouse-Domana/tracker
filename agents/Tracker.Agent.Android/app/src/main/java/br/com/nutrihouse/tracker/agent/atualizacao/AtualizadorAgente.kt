@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import br.com.nutrihouse.tracker.agent.BuildConfig
 import br.com.nutrihouse.tracker.agent.dados.AtualizacaoAgente
@@ -45,8 +46,12 @@ class AtualizadorAgente(
         if (atualizacao.versaoCode <= BuildConfig.VERSION_CODE) return
 
         // Uma instalacao por vez: o heartbeat continua chegando enquanto o download anda.
-        if (!emAndamento.compareAndSet(false, true)) return
+        if (!tentarIniciar()) return
 
+        // So fica de pe depois que a sessao foi entregue ao sistema: qualquer outra saida
+        // (sem permissao, hash errado, erro de rede) libera o flag no finally. Antes, os
+        // "return" antecipados o deixavam preso ate o processo reiniciar.
+        var aguardandoResultado = false
         try {
             if (!podeInstalar()) {
                 Log.w(TAG, "Atualizacao ${atualizacao.versaoNome} disponivel, mas falta a permissao de instalar apps.")
@@ -68,13 +73,14 @@ class AtualizadorAgente(
 
             instalar(apk)
             // O flag em-andamento fica de pe ate o resultado: o ResultadoInstalacaoReceiver o
-            // libera em caso de falha, e o sucesso reinicia o processo inteiro de todo jeito.
-            return
+            // libera em caso de falha, o sucesso reinicia o processo inteiro de todo jeito, e o
+            // timeout de tentarIniciar() cobre o dialogo que o usuario nunca respondeu.
+            aguardandoResultado = true
         } catch (e: Exception) {
             Log.w(TAG, "Falha na atualizacao OTA; nova tentativa no proximo heartbeat.", e)
+        } finally {
+            if (!aguardandoResultado) liberar()
         }
-
-        emAndamento.set(false)
     }
 
     /**
@@ -107,6 +113,10 @@ class AtualizadorAgente(
     private fun instalar(apk: File) {
         val installer = context.packageManager.packageInstaller
 
+        // Sessoes que ficaram para tras (dialogo ignorado ate o timeout, processo morto no meio
+        // da copia) seguram espaco em disco e podem confundir o sistema: abandona antes da nova.
+        abandonarSessoesAntigas(installer)
+
         val params = PackageInstaller.SessionParams(
             PackageInstaller.SessionParams.MODE_FULL_INSTALL,
         ).apply {
@@ -119,7 +129,15 @@ class AtualizadorAgente(
         }
 
         val sessionId = installer.createSession(params)
-        installer.openSession(sessionId).use { session ->
+        val session = try {
+            installer.openSession(sessionId)
+        } catch (e: Exception) {
+            runCatching { installer.abandonSession(sessionId) }
+            throw e
+        }
+
+        var enviada = false
+        try {
             session.openWrite(ARQUIVO_APK, 0, apk.length()).use { saida ->
                 apk.inputStream().use { entrada -> entrada.copyTo(saida) }
                 session.fsync(saida)
@@ -134,9 +152,23 @@ class AtualizadorAgente(
 
             val pendente = PendingIntent.getBroadcast(context, sessionId, intent, flags)
             session.commit(pendente.intentSender)
+            enviada = true
+        } finally {
+            // Falha na copia ou no commit: sem abandonar, a sessao ficaria orfa no sistema.
+            if (!enviada) runCatching { session.abandon() }
+            runCatching { session.close() }
         }
 
-        Log.i(TAG, "Sessao de instalacao enviada ao sistema.")
+        Log.i(TAG, "Sessao de instalacao $sessionId enviada ao sistema.")
+    }
+
+    private fun abandonarSessoesAntigas(installer: PackageInstaller) {
+        runCatching {
+            installer.mySessions.forEach { antiga ->
+                runCatching { installer.abandonSession(antiga.sessionId) }
+                    .onSuccess { Log.i(TAG, "Sessao de instalacao antiga ${antiga.sessionId} abandonada.") }
+            }
+        }.onFailure { Log.w(TAG, "Nao foi possivel listar as sessoes de instalacao antigas.", it) }
     }
 
     companion object {
@@ -144,9 +176,35 @@ class AtualizadorAgente(
         private const val ARQUIVO_APK = "atualizacao.apk"
 
         /**
-         * Compartilhado com o ResultadoInstalacaoReceiver: a falha da instalacao chega por
-         * broadcast, fora do fluxo que iniciou o processo.
+         * Prazo maximo de uma atualizacao "em andamento". Sem Device Owner, depois do
+         * PENDING_USER_ACTION o resultado so chega quando o usuario responde ao dialogo — e se ele
+         * o ignorar, o flag ficaria preso e o aparelho nunca mais tentaria atualizar.
          */
-        internal val emAndamento = AtomicBoolean(false)
+        private const val TIMEOUT_EM_ANDAMENTO_MS = 10 * 60 * 1000L
+
+        /**
+         * Compartilhado com o ResultadoInstalacaoReceiver: a falha da instalacao chega por
+         * broadcast, fora do fluxo que iniciou o processo. Use [tentarIniciar]/[liberar].
+         */
+        private val emAndamento = AtomicBoolean(false)
+
+        @Volatile
+        private var iniciadoEmMs = 0L
+
+        /** Marca o inicio de uma atualizacao; libera sozinho uma tentativa travada ha mais de 10 min. */
+        @Synchronized
+        internal fun tentarIniciar(): Boolean {
+            val agora = SystemClock.elapsedRealtime()
+            if (emAndamento.get() && agora - iniciadoEmMs > TIMEOUT_EM_ANDAMENTO_MS) {
+                Log.w(TAG, "Atualizacao anterior sem resposta ha mais de 10 min; liberando nova tentativa.")
+                emAndamento.set(false)
+            }
+            if (!emAndamento.compareAndSet(false, true)) return false
+            iniciadoEmMs = agora
+            return true
+        }
+
+        /** Libera o proximo heartbeat para tentar de novo. */
+        internal fun liberar() = emAndamento.set(false)
     }
 }

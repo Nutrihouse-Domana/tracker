@@ -19,15 +19,19 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action !in ACOES_TRATADAS) return
 
         val armazenamento = Armazenamento(context)
-        if (!armazenamento.registrado) return
 
-        Log.i(TAG, "Religando o agente apos ${intent.action}.")
-
-        if (armazenamento.bloqueado) {
+        // O bloqueio depende SO do sinal persistido, nunca do token: um 401 apaga o token, e se a
+        // trava exigisse "registrado", o aparelho bloqueado voltaria livre no primeiro reboot.
+        val bloqueado = armazenamento.bloqueado
+        if (bloqueado) {
             runCatching { Bloqueio(context).garantirAtivo() }
                 .onFailure { Log.w(TAG, "Falha ao reaplicar o bloqueio no boot.", it) }
         }
 
+        // Sem token e sem bloqueio nao ha o que o servico fazer: quem o sobe e a tela de registro.
+        if (!armazenamento.registrado && !bloqueado) return
+
+        Log.i(TAG, "Religando o agente apos ${intent.action}.")
         AgenteService.iniciar(context)
     }
 

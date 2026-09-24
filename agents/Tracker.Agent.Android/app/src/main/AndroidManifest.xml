@@ -16,6 +16,9 @@
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Tipo usado quando a localizacao nao esta permitida (ou o servico sobe do boot sem direito
+         de uso em primeiro plano): sem ele o Android 14 derruba o servico e o bloqueio para. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -68,10 +71,17 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density"
             android:theme="@style/Theme.TrackerAgent.Bloqueio" />
 
+        <!-- location: so e usado em runtime quando a permissao existe (AgenteService escolhe o
+             tipo). specialUse: agente de gestao que mantem o bloqueio remoto persistente — nao
+             depende de permissao em runtime, entao o servico sobe sempre. -->
         <service
             android:name=".servico.AgenteService"
             android:exported="false"
-            android:foregroundServiceType="location" />
+            android:foregroundServiceType="location|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Agente corporativo de gestao de ativos: mantem o bloqueio remoto do aparelho aplicado pela TI e recebe comandos do servidor." />
+        </service>
 
         <receiver
             android:name=".admin.TrackerDeviceAdminReceiver"
