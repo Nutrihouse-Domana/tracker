@@ -31,8 +31,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Historico completo + tags: o passo final compara com a tag anterior para saber
-          # se o agente Windows mudou nesta release (e so entao o regera).
+          # Historico completo + tags: o passo final compara com o commit da ultima geracao
+          # do agente Windows para saber se ele mudou (e so entao o regera).
           fetch-depth: 0
           fetch-tags: true
 
@@ -146,41 +146,82 @@ jobs:
         run: .\deploy\atualizar-servidor.ps1 -Origem "$env:GITHUB_WORKSPACE\publish" -Site "Tracker"
 
       # ---------------------------------------------------------------------------
-      # Regera o instalador do agente Windows SO quando o codigo do agente mudou nesta
-      # release (diff contra a tag anterior). Roda DEPOIS do deploy: uma falha aqui nao
-      # desfaz o site ja publicado. O .exe embute a EnrollmentKey de producao, entao fica
-      # numa pasta do servidor acessivel so pela TI (NUNCA no wwwroot).
+      # Regera o instalador do agente Windows SO quando o codigo do agente mudou desde a
+      # ULTIMA GERACAO BEM-SUCEDIDA (nao desde a tag anterior: se a release anterior falhou
+      # antes de gerar o agente, o diff contra a tag pularia a regeracao e o instalador ficaria
+      # velho para sempre). O commit gerado fica em ultima-geracao.txt no destino, gravado so
+      # no fim. Sem o .exe ou sem o marcador, regera. Roda DEPOIS do deploy: uma falha aqui nao
+      # desfaz o site ja publicado. O .exe embute a EnrollmentKey de producao, entao fica numa
+      # pasta do servidor acessivel so pela TI (NUNCA no wwwroot).
       # ---------------------------------------------------------------------------
       - name: Gerar agente Windows (se o agente mudou)
         # A EnrollmentKey vem da variavel de ambiente da MAQUINA do runner (mesma da API de
-        # producao), herdada automaticamente pelo step — nao declare via contexto do Actions
+        # producao), herdada automaticamente pelo step - nao declare via contexto do Actions
         # (viria vazia e sobrescreveria a real).
         run: |
           $ErrorActionPreference = 'Stop'
 
-          $prev = git describe --tags --abbrev=0 "HEAD^" 2>$null
-          if ([string]::IsNullOrWhiteSpace($prev)) {
-            Write-Host "Sem tag anterior: gerando o agente."
-            $mudou = $true
-          } else {
-            $diff = git diff --name-only "$prev" HEAD -- agents/Tracker.Agent.Windows deploy/gerar-pendrive.ps1 deploy/Instalador
-            $mudou = -not [string]::IsNullOrWhiteSpace(($diff | Out-String))
-            Write-Host ("Comparando com " + $prev + " -> agente " + $(if ($mudou) { "MUDOU" } else { "inalterado" }))
+          # Exe nativo com preference 'Stop' no PS 5.1: o stderr (ex.: "fatal: ..." do git) vira
+          # erro TERMINANTE e mata o passo antes da checagem. Baixa o preference so em volta da
+          # chamada e devolve o codigo de saida para quem chamou decidir.
+          function Invocar-Nativo([scriptblock]$Bloco) {
+            $anterior = $ErrorActionPreference
+            $ErrorActionPreference = 'Continue'
+            try { $saida = & $Bloco 2>$null } finally { $ErrorActionPreference = $anterior }
+            return [pscustomobject]@{ Codigo = $LASTEXITCODE; Saida = $saida }
           }
-          if (-not $mudou) { Write-Host "Agente inalterado; pulando a geracao."; exit 0 }
+
+          # Defaults de producao; sobrescreva com variaveis de ambiente no runner se precisar.
+          $backend = if ($env:TRACKER_BACKEND_URL) { $env:TRACKER_BACKEND_URL } else { 'https://tracker.foodsacademy.com.br' }
+          $destino = if ($env:TRACKER_AGENTE_DIST) { $env:TRACKER_AGENTE_DIST } else { 'C:\TrackerAgentDist' }
+          $exeAtual = Join-Path $destino 'Instalar-Agente.exe'
+          $marcador = Join-Path $destino 'ultima-geracao.txt'
+          $commit = "${{ github.sha }}"
+          $tag = "${{ github.ref_name }}"
+          $caminhosAgente = @('agents/Tracker.Agent.Windows', 'deploy/gerar-pendrive.ps1', 'deploy/Instalador')
+
+          $motivo = $null
+          if (-not (Test-Path $exeAtual)) {
+            $motivo = "Instalar-Agente.exe ausente em $destino"
+          } elseif (-not (Test-Path $marcador)) {
+            $motivo = "sem marcador da ultima geracao ($marcador)"
+          } else {
+            # 1a linha do marcador = commit da ultima geracao bem-sucedida.
+            $base = ((Get-Content $marcador -TotalCount 1) | Out-String).Trim()
+            $existe = Invocar-Nativo { git cat-file -e "$base^{commit}" }
+            if ([string]::IsNullOrWhiteSpace($base) -or $existe.Codigo -ne 0) {
+              $motivo = "commit da ultima geracao ('$base') nao encontrado no historico"
+            } else {
+              $diff = Invocar-Nativo { git diff --name-only "$base" "$commit" -- $caminhosAgente }
+              if ($diff.Codigo -ne 0) {
+                $motivo = "git diff falhou (codigo $($diff.Codigo)) contra $base"
+              } elseif (-not [string]::IsNullOrWhiteSpace(($diff.Saida | Out-String))) {
+                $motivo = "agente mudou desde a ultima geracao ($base)"
+              }
+            }
+          }
+
+          if (-not $motivo) {
+            Write-Host "Agente inalterado desde a ultima geracao; pulando."
+            exit 0
+          }
+          Write-Host "Gerando o agente: $motivo."
 
           $chave = $env:Enrollment__CompanyKey
           if ([string]::IsNullOrWhiteSpace($chave)) {
             throw "Enrollment__CompanyKey ausente no runner. Configure a variavel de ambiente da maquina (mesma da API)."
           }
 
-          # Defaults de producao; sobrescreva com variaveis de ambiente no runner se precisar.
-          $backend = if ($env:TRACKER_BACKEND_URL) { $env:TRACKER_BACKEND_URL } else { 'https://tracker.foodsacademy.com.br' }
-          $destino = if ($env:TRACKER_AGENTE_DIST) { $env:TRACKER_AGENTE_DIST } else { 'C:\TrackerAgentDist' }
-
+          # O gerar-pendrive.ps1 roda no mesmo processo e lanca excecao em qualquer falha.
           .\deploy\gerar-pendrive.ps1 -Destino $destino -BackendUrl $backend -EnrollmentKey $chave -Tipo Notebook
 
           # Mantem o 'Instalar-Agente.exe' (ultimo) e uma copia versionada pela tag.
-          $tag = "${{ github.ref_name }}"
-          Copy-Item (Join-Path $destino 'Instalar-Agente.exe') (Join-Path $destino ("Instalar-Agente-" + $tag + ".exe")) -Force
-          Write-Host ("Agente gerado em " + $destino + ": Instalar-Agente.exe e Instalar-Agente-" + $tag + ".exe")
+          Copy-Item $exeAtual (Join-Path $destino ("Instalar-Agente-" + $tag + ".exe")) -Force
+
+          # Marcador gravado POR ULTIMO: so existe se tudo acima deu certo.
+          Set-Content -Path $marcador -Value @($commit, $tag, (Get-Date -Format 'dd/MM/yyyy HH:mm:ss')) -Encoding ASCII
+          Write-Host ("Agente gerado em " + $destino + ": Instalar-Agente.exe e Instalar-Agente-" + $tag + ".exe (commit " + $commit + ")")
+
+          # O wrapper do Actions encerra com o $LASTEXITCODE do ultimo exe nativo (ex.: um
+          # git cat-file que falhou acima): sem este exit, o passo falharia apos gerar certo.
+          exit 0
