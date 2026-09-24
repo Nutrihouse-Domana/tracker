@@ -11,6 +11,8 @@ import android.util.Log
  *
  * Tres finais possiveis:
  * - **PENDING_USER_ACTION** (sem Device Owner): o sistema pede confirmacao — abrimos o dialogo.
+ *   Se o usuario nunca responder, o flag e liberado pelo timeout de 10 min do AtualizadorAgente,
+ *   que tambem abandona a sessao pendurada antes da proxima tentativa.
  *   A permissao de sobreposicao (que o agente ja exige) isenta o app da restricao de abrir
  *   activity a partir do segundo plano no Android 10+.
  * - **SUCCESS**: o processo sera reiniciado pelo sistema; o BootReceiver (MY_PACKAGE_REPLACED)
@@ -28,7 +30,7 @@ class ResultadoInstalacaoReceiver : BroadcastReceiver() {
                 val confirmacao = intent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
                 if (confirmacao == null) {
                     Log.w(TAG, "Sistema pediu confirmacao mas nao enviou a intent do dialogo.")
-                    AtualizadorAgente.emAndamento.set(false)
+                    AtualizadorAgente.liberar()
                     return
                 }
 
@@ -36,7 +38,7 @@ class ResultadoInstalacaoReceiver : BroadcastReceiver() {
                 runCatching { context.startActivity(confirmacao) }
                     .onFailure {
                         Log.w(TAG, "Nao foi possivel abrir o dialogo de confirmacao.", it)
-                        AtualizadorAgente.emAndamento.set(false)
+                        AtualizadorAgente.liberar()
                     }
             }
 
@@ -46,7 +48,7 @@ class ResultadoInstalacaoReceiver : BroadcastReceiver() {
             else -> {
                 val detalhe = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                 Log.w(TAG, "Instalacao falhou (status $status): $detalhe")
-                AtualizadorAgente.emAndamento.set(false)
+                AtualizadorAgente.liberar()
             }
         }
     }

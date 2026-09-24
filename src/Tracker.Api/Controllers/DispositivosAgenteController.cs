@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -30,19 +31,22 @@ public class DispositivosAgenteController : ControllerBase
     private readonly UserManager<UsuarioADM> _userManager;
     private readonly IHubContext<ComandoRemotoHub> _hub;
     private readonly IAuditoria _auditoria;
+    private readonly IValidator<EmitirComandoRequest> _comandoValidator;
 
     public DispositivosAgenteController(
         TrackerDbContext db,
         AgentTokenService tokenService,
         UserManager<UsuarioADM> userManager,
         IHubContext<ComandoRemotoHub> hub,
-        IAuditoria auditoria)
+        IAuditoria auditoria,
+        IValidator<EmitirComandoRequest> comandoValidator)
     {
         _db = db;
         _tokenService = tokenService;
         _userManager = userManager;
         _hub = hub;
         _auditoria = auditoria;
+        _comandoValidator = comandoValidator;
     }
 
     /// <summary>Gera (ou regenera) o token do agente. Retorna o token em texto uma única vez.</summary>
@@ -67,6 +71,11 @@ public class DispositivosAgenteController : ControllerBase
     [Authorize(Policy = Permissoes.DispositivosBloquear)]
     public async Task<ActionResult<ComandoRemotoDto>> EmitirComando(Guid id, EmitirComandoRequest request)
     {
+        // Sem isto um "tipoComando": 7 seria gravado e auditado como "Desbloqueou" (o ternário
+        // abaixo trata tudo que não é Bloquear como desbloqueio).
+        var validation = await _comandoValidator.ValidateAsync(request);
+        if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+
         if (await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id) is not DispositivoComAgente dispositivo)
             return NotFound(new { message = "Dispositivo com agente não encontrado." });
 

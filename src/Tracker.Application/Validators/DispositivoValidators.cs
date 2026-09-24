@@ -46,6 +46,15 @@ public class AtribuirDispositivoRequestValidator : AbstractValidator<AtribuirDis
     }
 }
 
+public class AtualizarStatusDispositivoRequestValidator : AbstractValidator<AtualizarStatusDispositivoRequest>
+{
+    public AtualizarStatusDispositivoRequestValidator()
+    {
+        // O conversor de enum aceita número no JSON: sem isto, "status": 99 seria gravado no banco.
+        RuleFor(x => x.Status).IsInEnum().WithMessage("Status de dispositivo inválido.");
+    }
+}
+
 public class ExcluirDispositivoRequestValidator : AbstractValidator<ExcluirDispositivoRequest>
 {
     public ExcluirDispositivoRequestValidator()

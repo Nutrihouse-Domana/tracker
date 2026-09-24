@@ -18,6 +18,11 @@ import br.com.nutrihouse.tracker.agent.R
 import br.com.nutrihouse.tracker.agent.dados.Armazenamento
 import br.com.nutrihouse.tracker.agent.databinding.ActivityBloqueioBinding
 import br.com.nutrihouse.tracker.agent.dispositivo.InfoAparelho
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Tela de bloqueio como **janela de sobreposição**, não como Activity.
@@ -37,6 +42,12 @@ object OverlayBloqueio {
     private var janela: View? = null
 
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** Trabalho assíncrono da tela (varredura de Wi-Fi), sempre devolvido na main thread. */
+    private val escopoUi = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    @Volatile
+    private var varredura: Job? = null
 
     val visivel: Boolean get() = janela != null
 
@@ -111,6 +122,10 @@ object OverlayBloqueio {
         val atual = janela ?: return
         val wm = context.getSystemService(WindowManager::class.java)
 
+        // A varredura em andamento escreveria numa janela que não existe mais.
+        varredura?.cancel()
+        varredura = null
+
         runCatching { wm?.removeView(atual) }
             .onFailure { Log.w(TAG, "Falha ao remover a janela de bloqueio.", it) }
 
@@ -156,35 +171,68 @@ object OverlayBloqueio {
             binding.textoStatusWifi.setText(R.string.bloqueio_wifi_sistema_aberto)
             // A sobreposição precisa sair da frente, senão o painel do sistema fica inacessível.
             Bloqueio(context).suspenderParaWifi()
-            WifiConnect.abrirPainelDoSistema(context)
+            // Android 10+: o painel é aberto pela PainelWifiActivity, que devolve a trava assim
+            // que o usuário fecha o painel ou tenta sair dele (Home, Recentes). Abaixo disso só há
+            // a tela cheia de Configurações e vale o prazo da suspensão.
+            val abriu = if (WifiConnect.temPainelRestrito) {
+                PainelWifiActivity.abrir(context)
+            } else {
+                WifiConnect.abrirPainelDoSistema(context)
+            }
+            if (!abriu) Bloqueio(context).retomarAposWifi()
         }
     }
 
+    /**
+     * A varredura real leva alguns segundos: roda fora da main thread (senão a tela de bloqueio
+     * congela) e o resultado volta para ela para atualizar a lista.
+     */
     private fun atualizarRedes(context: Context, binding: ActivityBloqueioBinding) {
+        if (varredura?.isActive == true) return
+
         binding.textoStatusWifi.setText(R.string.bloqueio_wifi_procurando)
+        binding.botaoAtualizarRedes.isEnabled = false
 
-        val redes = WifiConnect.listarRedes(context)
-        binding.listaRedes.adapter = ArrayAdapter(
-            context,
-            android.R.layout.simple_spinner_dropdown_item,
-            redes,
-        )
+        varredura = escopoUi.launch {
+            // listarRedes troca para Dispatchers.IO sozinha; daqui em diante voltamos na main.
+            val redes = WifiConnect.listarRedes(context)
 
-        binding.textoStatusWifi.text = if (redes.isEmpty()) {
-            context.getString(R.string.bloqueio_wifi_nenhuma)
-        } else {
-            context.getString(R.string.bloqueio_wifi_encontradas, redes.size)
+            binding.listaRedes.adapter = ArrayAdapter(
+                context,
+                android.R.layout.simple_spinner_dropdown_item,
+                redes,
+            )
+            binding.botaoAtualizarRedes.isEnabled = true
+
+            binding.textoStatusWifi.text = if (redes.isEmpty()) {
+                context.getString(R.string.bloqueio_wifi_nenhuma)
+            } else {
+                context.getString(R.string.bloqueio_wifi_encontradas, redes.size)
+            }
         }
     }
 
     /** Patrimônio e série na tela: a TI identifica o aparelho sem precisar liberá-lo. */
     private fun preencherIdentificacao(context: Context, binding: ActivityBloqueioBinding) {
-        val info = InfoAparelho(context)
-        val patrimonio = Armazenamento(context).assetTag
+        binding.textoIdentificacao.text = textoIdentificacao(context)
+    }
 
-        binding.textoIdentificacao.text = buildString {
+    /**
+     * Texto de identificação usado pela sobreposição e pela BloqueioActivity. A série exibida é a
+     * DIGITADA pelo técnico no registro — a mesma da etiqueta e do inventário. Sem ela (registros
+     * antigos), cai para a de fábrica e, por fim, para o identificador provisório ANDROID-<id>.
+     */
+    fun textoIdentificacao(context: Context): String {
+        val info = InfoAparelho(context)
+        val armazenamento = Armazenamento(context)
+        val patrimonio = armazenamento.assetTag
+        val serie = armazenamento.numeroSerie?.takeIf { it.isNotBlank() }
+            ?: info.numeroSerieReal
+            ?: info.numeroSerie
+
+        return buildString {
             if (!patrimonio.isNullOrBlank()) appendLine("Patrimônio: $patrimonio")
-            appendLine("Série: ${info.numeroSerieReal ?: info.numeroSerie}")
+            appendLine("Série: $serie")
             append("${info.fabricante} ${info.modelo}")
         }
     }

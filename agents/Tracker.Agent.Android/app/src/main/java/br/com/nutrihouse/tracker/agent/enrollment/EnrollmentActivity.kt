@@ -44,7 +44,12 @@ class EnrollmentActivity : AppCompatActivity() {
 
     private val pedirLocalizacao = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { atualizarTela() }
+    ) {
+        // Com a tela em primeiro plano o servico pode passar a declarar o tipo "location":
+        // o onStartCommand reavalia o tipo do servico em primeiro plano a cada start.
+        if (armazenamento.registrado) AgenteService.iniciar(this)
+        atualizarTela()
+    }
 
     private val voltarDeTelaDoSistema = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -256,7 +261,10 @@ class EnrollmentActivity : AppCompatActivity() {
         // APK e reinstalado com outra assinatura, e e por isso que a serie precisa ser digitada —
         // sem ela o aparelho voltaria ao inventario como um ativo novo.
         val serieReal = info.numeroSerieReal
-        linhas += if (serieReal != null) {
+        val serieRegistrada = armazenamento.numeroSerie
+        linhas += if (!serieRegistrada.isNullOrBlank()) {
+            "✔ Série registrada: $serieRegistrada"
+        } else if (serieReal != null) {
             "✔ Série de fábrica: $serieReal"
         } else {
             "Série provisória: ${info.numeroSerie}\n" +

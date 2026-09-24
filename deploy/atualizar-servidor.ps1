@@ -64,11 +64,14 @@ if ([string]::IsNullOrWhiteSpace($Destino)) {
 }
 
 Write-Host "1/5 - Backup da instalacao atual..."
+$backup = $null
 if (Test-Path $Destino) {
     New-Item -ItemType Directory -Force $PastaBackups | Out-Null
     $carimbo = Get-Date -Format "yyyyMMdd-HHmmss"
     $backup = Join-Path $PastaBackups "Tracker-$carimbo"
-    Copy-Item $Destino $backup -Recurse -Force
+    # Copia o CONTEUDO (nao a pasta): assim a restauracao e um espelho simples de $backup\* em $Destino.
+    New-Item -ItemType Directory -Force $backup | Out-Null
+    Copy-Item (Join-Path $Destino "*") $backup -Recurse -Force
     Write-Host "   Backup em: $backup"
     # Mantem apenas os 5 backups mais recentes.
     Get-ChildItem $PastaBackups -Directory |
@@ -77,21 +80,93 @@ if (Test-Path $Destino) {
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-Write-Host "2/5 - Parando o site '$Site' e o app pool '$pool'..."
-if ((Get-Website -Name $Site).State -ne "Stopped") { Stop-Website -Name $Site }
-if ((Get-WebAppPoolState -Name $pool).Value -ne "Stopped") { Stop-WebAppPool -Name $pool }
-# Espera o w3wp liberar os arquivos.
-Start-Sleep -Seconds 4
+# Espera o app pool chegar a "Stopped" (Stop-WebAppPool so PEDE a parada; o w3wp pode levar
+# varios segundos para sair). Devolve $true se parou dentro do prazo.
+function Aguardar-PoolParado([string]$NomePool, [int]$TimeoutSegundos) {
+    $limite = (Get-Date).AddSeconds($TimeoutSegundos)
+    while ((Get-Date) -lt $limite) {
+        if ((Get-WebAppPoolState -Name $NomePool).Value -eq "Stopped") { return $true }
+        Start-Sleep -Milliseconds 500
+    }
+    return ((Get-WebAppPoolState -Name $NomePool).Value -eq "Stopped")
+}
 
-Write-Host "3/5 - Copiando arquivos novos para '$Destino'..."
-New-Item -ItemType Directory -Force $Destino | Out-Null
-# A pasta de dados de producao fica em C:\TrackerDados (fora de $Destino), entao limpar aqui e seguro.
-Get-ChildItem $Destino -Force | Remove-Item -Recurse -Force
-Copy-Item (Join-Path $Origem "*") $Destino -Recurse -Force
+# Espera o arquivo ser liberado: tenta abri-lo com exclusividade (FileShare.None) em laco.
+# Enquanto o w3wp (ou o dotnet do modulo ASP.NET Core) segura a DLL, a abertura falha.
+function Aguardar-ArquivoLiberado([string]$Caminho, [int]$TimeoutSegundos) {
+    if (-not (Test-Path $Caminho)) { return $true }
+    $limite = (Get-Date).AddSeconds($TimeoutSegundos)
+    while ($true) {
+        try {
+            $fs = [System.IO.File]::Open($Caminho, [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+            $fs.Close()
+            return $true
+        } catch {
+            if ((Get-Date) -ge $limite) { return $false }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+}
 
-Write-Host "4/5 - Iniciando o app pool e o site..."
-Start-WebAppPool -Name $pool
-Start-Website -Name $Site
+# Religa app pool e site. Chamado no finally: o site NUNCA pode ficar parado, nem em falha.
+function Iniciar-PoolESite {
+    try {
+        if ((Get-WebAppPoolState -Name $pool).Value -ne "Started") { Start-WebAppPool -Name $pool }
+    } catch { Write-Warning "Falha ao iniciar o app pool '$pool': $($_.Exception.Message)" }
+    try {
+        if ((Get-Website -Name $Site).State -ne "Started") { Start-Website -Name $Site }
+    } catch { Write-Warning "Falha ao iniciar o site '$Site': $($_.Exception.Message)" }
+}
+
+$falhaDeploy = $null
+try {
+    Write-Host "2/5 - Parando o site '$Site' e o app pool '$pool'..."
+    if ((Get-Website -Name $Site).State -ne "Stopped") { Stop-Website -Name $Site }
+    if ((Get-WebAppPoolState -Name $pool).Value -ne "Stopped") { Stop-WebAppPool -Name $pool }
+
+    if (-not (Aguardar-PoolParado -NomePool $pool -TimeoutSegundos 60)) {
+        throw "O app pool '$pool' nao chegou ao estado Stopped em 60s."
+    }
+    $dll = Join-Path $Destino "Tracker.Api.dll"
+    if (-not (Aguardar-ArquivoLiberado -Caminho $dll -TimeoutSegundos 60)) {
+        throw "'$dll' continua em uso 60s apos parar o app pool (processo w3wp/dotnet preso?)."
+    }
+
+    Write-Host "3/5 - Copiando arquivos novos para '$Destino'..."
+    try {
+        New-Item -ItemType Directory -Force $Destino | Out-Null
+        # A pasta de dados de producao fica em C:\TrackerDados (fora de $Destino), entao limpar aqui e seguro.
+        Get-ChildItem $Destino -Force | Remove-Item -Recurse -Force
+        Copy-Item (Join-Path $Origem "*") $Destino -Recurse -Force
+    } catch {
+        $erroCopia = $_.Exception.Message
+        Write-Warning "Falha ao trocar os arquivos: $erroCopia"
+        if ($backup -and (Test-Path $backup)) {
+            Write-Warning "Restaurando o backup '$backup' em '$Destino'..."
+            try {
+                Get-ChildItem $Destino -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+                Copy-Item (Join-Path $backup "*") $Destino -Recurse -Force
+                Write-Warning "Backup restaurado: o site volta com a versao anterior."
+            } catch {
+                Write-Warning "FALHA AO RESTAURAR o backup: $($_.Exception.Message). Restaure manualmente de '$backup'."
+            }
+        } else {
+            Write-Warning "Nao ha backup para restaurar (primeira instalacao?)."
+        }
+        throw "Falha ao copiar os arquivos novos: $erroCopia"
+    }
+} catch {
+    $falhaDeploy = $_.Exception.Message
+} finally {
+    Write-Host "4/5 - Iniciando o app pool e o site..."
+    Iniciar-PoolESite
+}
+
+if ($falhaDeploy) {
+    Write-Error "Deploy ABORTADO: $falhaDeploy" -ErrorAction Continue
+    exit 1
+}
 
 # Monta a URL de health a partir do host do binding https, se nao foi informada.
 if ([string]::IsNullOrWhiteSpace($HealthUrl)) {

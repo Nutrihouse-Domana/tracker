@@ -54,6 +54,10 @@ Abra `C:\TrackerAgent\appsettings.json` no Bloco de Notas e ajuste:
 - `Simular`: deixe **`false`** para o bloqueio funcionar de verdade. (Use `true` se quiser
   testar sem que a tela trave — nesse modo o bloqueio só é registrado, não acontece.)
 
+> Edite **antes** do passo 3. A instalação protege `C:\TrackerAgent` (usuários comuns ficam só com
+> leitura e execução); depois dela, só um Bloco de Notas aberto **como Administrador** salva o
+> arquivo.
+
 ---
 
 ## 3. Instalar (como Administrador)
@@ -65,7 +69,13 @@ cd C:\TrackerAgent
 powershell -ExecutionPolicy Bypass -File .\instalar-agente.ps1
 ```
 
-Isso instala o serviço `TrackerAgent` (inicia sozinho no boot) e cria a tarefa de bloqueio.
+Isso instala o serviço `TrackerAgent` (inicia sozinho no boot), cria a tarefa de bloqueio e
+aplica as permissões das pastas `C:\TrackerAgent` e `%ProgramData%\TrackerAgent` (detalhes em
+[instalacao-agente-pendrive.md](instalacao-agente-pendrive.md#permissões-das-pastas-acl)). Se um
+passo falhar, o script para com o código de erro do `sc.exe`/`icacls` em vez de seguir adiante.
+
+> Já tinha o agente instalado numa versão anterior? **Reinstale** do mesmo jeito para receber as
+> permissões novas. O `token.dat` é preservado.
 
 ---
 
@@ -127,6 +137,8 @@ pela plataforma primeiro.
 | Não aparece na plataforma | Endereço errado ou servidor inacessível | Teste `http://<servidor>:5171/health` no navegador; confira o `BackendBaseUrl` |
 | Serviço não inicia (erro 1053) | Config não lida / pasta errada | Rode `C:\TrackerAgent\Tracker.Agent.Windows.exe` no console para ver o erro |
 | Bloqueou mas não travou a tela | `Simular: true` | Troque para `false` e reinstale |
+| Não consegue salvar o `appsettings.json` | Pasta protegida pela instalação | Abra o Bloco de Notas como Administrador |
+| Gerenciador de Tarefas continua desabilitado depois do desbloqueio | A tela de bloqueio não rodou a limpeza nesta sessão | Faça logoff/logon: a tarefa de bloqueio remove o `DisableTaskMgr` a cada logon |
 | Quero ver o que o agente faz | — | Abra `C:\TrackerAgent\agent.log` |
 
 Para ver o status do serviço: `Get-Service TrackerAgent`

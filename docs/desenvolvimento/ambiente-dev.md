@@ -74,6 +74,10 @@ novo. Se perder, redefina sem perder o histórico ligado à conta:
 dotnet run --project src/Tracker.Api -- --redefinir-senha-adm --senha "NOVA_SENHA"
 ```
 
+A senha precisa cumprir as regras do Identity (mínimo de 10 caracteres, com maiúscula, minúscula,
+dígito e símbolo): senão o comando lista os erros e não troca nada. Login desativado tem a senha
+trocada, mas **continua desativado** — o comando só avisa.
+
 As migrações **não** são aplicadas pelo script — a API as aplica sozinha ao subir.
 
 **O banco nasce vazio.** O seed cria apenas o login ADM e suas permissões; não há dispositivos,
@@ -196,6 +200,10 @@ na aba **Actions**, rode o workflow **APK Agente Android** e baixe o APK pronto 
 `versionCode` e o SHA-256 no resumo do run. O script local não gera keystore de propósito — um APK
 assinado com outra chave é recusado pelo Android nos aparelhos já instalados e duplica os registros
 do inventário. Ver [agente-android.md](../agentes/agente-android.md).
+
+Quem tiver a keystore e usar o `deploy/gerar-apk-agente.ps1` localmente pode rodá-lo sem medo de
+perder a configuração de dev: ele atualiza no `local.properties` **só** as quatro chaves de
+assinatura (e o `sdk.dir`, se faltar), preservando o `tracker.backendBaseUrl` gravado pelo passo 6.
 
 ---
 

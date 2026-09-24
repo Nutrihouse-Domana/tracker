@@ -1,7 +1,9 @@
 package br.com.nutrihouse.tracker.agent.bloqueio
 
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
+import android.os.SystemClock
 import android.util.Log
 import br.com.nutrihouse.tracker.agent.dados.Armazenamento
 import br.com.nutrihouse.tracker.agent.dispositivo.Politica
@@ -32,6 +34,7 @@ class Bloqueio(private val context: Context) {
     /** Marca o bloqueio como desejado e o aplica imediatamente. */
     fun aplicar() {
         armazenamento.bloqueado = true
+        ultimaTentativaQuiosqueMs = 0L // entra em quiosque ja, sem esperar o intervalo
         garantirAtivo()
 
         // Uma vez so: apaga a tela agora, para o aparelho sair da mao do usuario imediatamente.
@@ -42,10 +45,14 @@ class Bloqueio(private val context: Context) {
     /** Remove o bloqueio, devolvendo o aparelho ao uso. */
     fun remover() {
         armazenamento.bloqueado = false
-        politica.definirQuiosque(ativo = false)
+        ultimaTentativaQuiosqueMs = 0L
         OverlayBloqueio.esconder(context)
-        // Fecha tambem a Activity, usada como reforco quando a sobreposicao nao esta disponivel.
+        // Fecha tambem a Activity (quiosque do Device Owner, ou reforco sem sobreposicao): ela
+        // chama stopLockTask() antes de sair.
         context.sendBroadcast(Intent(ACAO_FECHAR_TELA).setPackage(context.packageName))
+        // Tirar o pacote da lista de lock task tambem encerra o quiosque se a Activity ja tiver
+        // morrido e nao puder chamar stopLockTask() ela mesma.
+        politica.definirQuiosque(ativo = false)
         Log.i(TAG, "Bloqueio removido.")
     }
 
@@ -60,6 +67,11 @@ class Bloqueio(private val context: Context) {
         // senao o usuario nao consegue tocar na lista de redes.
         if (suspensoParaWifi) return
 
+        // Com Device Owner, o modo quiosque fecha o que a sobreposicao nao alcanca: barra de
+        // status, configuracoes rapidas, Home e Recentes. So uma Activity entra em lock task,
+        // entao a BloqueioActivity sobe POR BAIXO da sobreposicao — as duas juntas.
+        if (politica.ehDeviceOwner) garantirQuiosque()
+
         if (politica.podeSobreporJanelas) {
             OverlayBloqueio.mostrar(context)
             return
@@ -68,6 +80,24 @@ class Bloqueio(private val context: Context) {
         // Sem permissao de sobreposicao nao ha como cobrir outros apps. Cai para a Activity, que
         // ao menos avisa o usuario, e registra o motivo: e uma falha de instalacao a corrigir.
         Log.e(TAG, "Sem permissao de sobreposicao — aparelho NAO fica indisponivel. Conceda a permissao no app.")
+        abrirTela()
+    }
+
+    /**
+     * Garante a BloqueioActivity em lock task. Chamado a cada 2s pelo enforcement, entao so abre
+     * a tela quando o aparelho NAO esta em quiosque, e no maximo a cada [INTERVALO_QUIOSQUE_MS]
+     * — se o sistema recusar o lock task, nao ficamos relancando a Activity sem parar.
+     */
+    private fun garantirQuiosque() {
+        val am = context.getSystemService(ActivityManager::class.java) ?: return
+        if (am.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE) return
+
+        val agora = SystemClock.elapsedRealtime()
+        if (agora - ultimaTentativaQuiosqueMs < INTERVALO_QUIOSQUE_MS) return
+        ultimaTentativaQuiosqueMs = agora
+
+        // O pacote precisa estar autorizado a entrar em lock task (o Desbloquear o remove).
+        politica.definirQuiosque(ativo = true)
         abrirTela()
     }
 
@@ -92,7 +122,9 @@ class Bloqueio(private val context: Context) {
      * AgenteService recoloca a janela assim que a janela de tempo expira.
      *
      * E uma brecha consciente e limitada: sem rede, um aparelho bloqueado nunca receberia o
-     * comando de Desbloquear, e a TI perderia o controle dele de vez.
+     * comando de Desbloquear, e a TI perderia o controle dele de vez. A partir do Android 10 o
+     * painel e aberto por [PainelWifiActivity], que chama [retomarAposWifi] no instante em que o
+     * usuario fecha o painel ou sai dele (Home, Recentes...) — o prazo aqui vira so um teto.
      */
     fun suspenderParaWifi() {
         if (!armazenamento.bloqueado) return
@@ -102,14 +134,30 @@ class Bloqueio(private val context: Context) {
         Log.i(TAG, "Sobreposição suspensa por ${DURACAO_SUSPENSAO_MS / 1000}s para conexão Wi-Fi.")
     }
 
+    /** Encerra a pausa para Wi-Fi antes do prazo e recoloca a trava na hora. */
+    fun retomarAposWifi() {
+        suspensoAteMs = 0L
+        garantirAtivo()
+    }
+
     companion object {
         private const val TAG = "Bloqueio"
 
-        /** Curto de proposito: e o tempo em que o aparelho fica utilizavel. */
+        /**
+         * Teto da pausa para Wi-Fi. No Android 10+ ela acaba antes, assim que o usuario deixa o
+         * painel ([PainelWifiActivity]); so abaixo disso (tela cheia de Configuracoes, sem como
+         * saber quando o usuario terminou) o aparelho fica este tempo todo sem a sobreposicao.
+         */
         private const val DURACAO_SUSPENSAO_MS = 60_000L
+
+        /** Espaco minimo entre tentativas de (re)abrir a tela em quiosque. */
+        private const val INTERVALO_QUIOSQUE_MS = 10_000L
 
         @Volatile
         private var suspensoAteMs = 0L
+
+        @Volatile
+        private var ultimaTentativaQuiosqueMs = 0L
 
         /** Estado compartilhado: Bloqueio e instanciado sob demanda em varios pontos. */
         val suspensoParaWifi: Boolean

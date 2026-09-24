@@ -11,11 +11,15 @@ import {
   DialogContentText,
   DialogActions,
   Button,
+  Typography,
+  Snackbar,
+  Alert,
 } from '@mui/material'
 import EditIcon from '@mui/icons-material/EditOutlined'
 import type { StatusDispositivo } from '../../api/types'
 import { useAtualizarStatusDispositivo } from './hooks'
 import { corStatus, rotuloStatus } from './status'
+import { mensagemErroApi } from '../../utils/erroApi'
 
 /** Transições de status que a TI pode aplicar manualmente (rótulo pt-BR por destino). */
 const acoesStatus: { destino: StatusDispositivo; label: string; confirmar?: boolean }[] = [
@@ -44,16 +48,24 @@ export function StatusDispositivoAcoes({ dispositivoId, status, pertenceAUsuario
     atualizar.mutate({ id: dispositivoId, status: destino })
   }
 
+  // Bloqueado só sai pelo comando remoto "Desbloquear" (o agente precisa receber o comando e tirar a
+  // trava). Trocar o status à mão deixaria o aparelho travado com o painel dizendo outra coisa —
+  // o backend também recusa. A única transição manual é a BAIXA (aparelho roubado/perdido que nunca
+  // confirma o desbloqueio): ela não destrava, porque a trava vem do último comando, não do status.
+  const bloqueado = status === 'Bloqueado'
+
   // Ativo do local vira "Em uso" pela atribuição a uma unidade (não passa por detentor); a opção
   // só aparece quando ele é de local, tem unidade definida e ainda não está em uso. O backend
   // (AtualizarStatus) reforça a mesma regra.
   const podeColocarEmUso = !pertenceAUsuario && unidadeId != null && status !== 'EmUso'
-  const opcoes = [
+  const opcoes = bloqueado
+    ? acoesStatus.filter((a) => a.destino === 'Baixado')
+    : [
     ...(podeColocarEmUso
       ? [{ destino: 'EmUso' as StatusDispositivo, label: 'Colocar em uso' }]
       : []),
     ...acoesStatus.filter((a) => a.destino !== status),
-  ]
+      ]
 
   return (
     <>
@@ -67,7 +79,24 @@ export function StatusDispositivoAcoes({ dispositivoId, status, pertenceAUsuario
         >
           <EditIcon fontSize="small" />
         </IconButton>
+        {bloqueado && (
+          <Typography variant="caption" color="text.secondary">
+            Desbloqueie pelo comando remoto (só a baixa é manual).
+          </Typography>
+        )}
       </Stack>
+
+      {/* Antes a falha era silenciosa: o menu fechava e o status simplesmente não mudava. */}
+      <Snackbar
+        open={atualizar.isError}
+        autoHideDuration={8000}
+        onClose={() => atualizar.reset()}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" variant="filled" onClose={() => atualizar.reset()}>
+          {mensagemErroApi(atualizar.error, 'Não foi possível alterar o status.')}
+        </Alert>
+      </Snackbar>
 
       <Menu anchorEl={menuAncora} open={!!menuAncora} onClose={() => setMenuAncora(null)}>
         {opcoes.map((a) => (

@@ -20,6 +20,7 @@ import br.com.nutrihouse.tracker.agent.bloqueio.Bloqueio
 import br.com.nutrihouse.tracker.agent.dados.Armazenamento
 import br.com.nutrihouse.tracker.agent.dados.BackendClient
 import br.com.nutrihouse.tracker.agent.dados.ComandoPendente
+import br.com.nutrihouse.tracker.agent.dados.Localizacao
 import br.com.nutrihouse.tracker.agent.dados.TipoAlerta
 import br.com.nutrihouse.tracker.agent.dispositivo.Politica
 import br.com.nutrihouse.tracker.agent.enrollment.EnrollmentActivity
@@ -35,16 +36,19 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Servico principal do agente — equivale ao Worker do agente Windows.
  *
  * Tres laços independentes de proposito:
- * 1. **Enforcement do bloqueio** (2s): reaplica a trava sem depender de rede. E o que faz o
- *    bloqueio sobreviver a reinicio, modo aviao e destravamento pelo usuario.
- * 2. **Heartbeat** (2min): telemetria, comandos pendentes e o estado de bloqueio desejado pelo
+ * 1. **Enforcement do bloqueio** (2s): reaplica a trava sem depender de rede nem de token. E o
+ *    que faz o bloqueio sobreviver a reinicio, modo aviao, token revogado e destravamento pelo
+ *    usuario.
+ * 2. **Heartbeat**: telemetria, comandos pendentes e o estado de bloqueio desejado pelo
  *    servidor — a rede de seguranca caso o push nao tenha chegado.
- * 3. **SignalR**: comandos em tempo real, com reconexao automatica.
+ * 3. **SignalR**: comandos em tempo real, com reconexao feita por nos.
  */
 class AgenteService : Service() {
 
@@ -61,21 +65,54 @@ class AgenteService : Service() {
     private val politica by lazy { Politica(this) }
     private val atualizador by lazy { AtualizadorAgente(this, backend) }
 
+    /**
+     * Serializa TODA mudanca do estado de bloqueio (comando e sincronizacao pelo heartbeat). Sem
+     * isso, um heartbeat que ja conferiu "nada mudou" podia desfazer um Bloquear que o hub aplicou
+     * no instante seguinte.
+     */
+    private val mutexBloqueio = Mutex()
+
+    /**
+     * Contador monotonico de comandos Bloquear/Desbloquear aplicados neste processo. O heartbeat
+     * anota o valor ANTES de sair para a rede; se ele mudou ate a resposta chegar, a resposta e
+     * velha em relacao ao ultimo comando e o `deveEstarBloqueado` dela e ignorado.
+     *
+     * Protegido por [mutexBloqueio].
+     */
+    private var geracaoComandos = 0L
+
+    /**
+     * Ids ja aplicados. O mesmo comando pode chegar pelo hub E pelo heartbeat (antes de a
+     * confirmacao ser registrada): reaplicar um Bloquear antigo depois de um Desbloquear mais
+     * novo religaria a trava. Aqui ele so e reconfirmado. Protegido por [mutexBloqueio].
+     */
+    private val comandosAplicados = object : LinkedHashSet<String>() {
+        fun registrar(id: String) {
+            add(id)
+            while (size > LIMITE_COMANDOS_LEMBRADOS) remove(first())
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         criarCanalDeNotificacao()
-        iniciarEmPrimeiroPlano()
 
         // Uma atualizacao do sistema pode limpar restricoes: reaplica a cada inicializacao.
-        politica.aplicarEndurecimentoDeviceOwner()
+        runCatching { politica.aplicarEndurecimentoDeviceOwner() }
 
+        // O enforcement sobe primeiro e nao depende de nada — nem de localizacao, nem de token.
         jobEnforcement = escopo.launch { lacoDeEnforcement() }
         jobHeartbeat = escopo.launch { lacoDeHeartbeat() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Cada startForegroundService() exige um startForeground(). Refazer aqui tambem
+        // reavalia o tipo: se a permissao de localizacao chegou depois (tela de registro), o
+        // servico passa a declara-la.
+        iniciarEmPrimeiroPlano()
+
         // START_STICKY: se o sistema matar o servico por memoria, ele volta sozinho.
         return START_STICKY
     }
@@ -116,7 +153,8 @@ class AgenteService : Service() {
 
         while (escopo.isActive) {
             // O token pode ser revogado no painel: nesse caso o BackendClient o apaga e o
-            // aparelho volta a depender do código de instalação, digitado pelo técnico.
+            // aparelho volta a depender do código de instalação, digitado pelo técnico. O
+            // bloqueio, se houver, continua de pé pelo laço de enforcement.
             if (!armazenamento.registrado) {
                 Log.w(TAG, "Sem token: aparelho precisa ser registrado de novo no app.")
                 delay(AgenteConfig.INTERVALO_RETENTATIVA_SEGUNDOS * 1000)
@@ -129,26 +167,39 @@ class AgenteService : Service() {
                     reportarLocalizacaoNegada()
                 }
 
-                val resposta = backend.enviarHeartbeat(localizacao)
-
-                resposta.comandosPendentes.forEach { processarComando(it) }
-
-                // Estado desejado do servidor: recupera o bloqueio se o sinal local se perdeu
-                // (app reinstalado, dados limpos) mesmo sem um comando novo.
-                sincronizarBloqueio(resposta.deveEstarBloqueado)
-
-                // Auto-atualizacao OTA: se o servidor anunciou um APK mais novo, baixa, confere
-                // o hash e se instala. Roda por ultimo — bloqueio antes de tudo.
-                resposta.atualizacaoAgente?.let { atualizador.processar(it) }
+                heartbeatESincronizar(localizacao)
             }.onFailure { Log.w(TAG, "Heartbeat falhou; nova tentativa no proximo ciclo.", it) }
 
             delay(AgenteConfig.INTERVALO_HEARTBEAT_SEGUNDOS * 1000)
         }
     }
 
+    /**
+     * Um ciclo completo: envia o heartbeat, executa os comandos pendentes e alinha o estado de
+     * bloqueio ao do servidor — nessa ordem, e com a protecao contra resposta velha.
+     */
+    private suspend fun heartbeatESincronizar(localizacao: Localizacao?) {
+        // Carimbo tirado ANTES da ida a rede: e o que permite descobrir, na volta, se algum
+        // comando (deste ciclo ou do hub, em paralelo) foi aplicado depois de o servidor calcular
+        // o deveEstarBloqueado desta resposta.
+        val geracaoNoInicio = mutexBloqueio.withLock { geracaoComandos }
+
+        val resposta = backend.enviarHeartbeat(localizacao)
+
+        resposta.comandosPendentes.forEach { processarComando(it) }
+
+        // Estado desejado do servidor: recupera o bloqueio se o sinal local se perdeu
+        // (app reinstalado, dados limpos) mesmo sem um comando novo.
+        sincronizarBloqueio(resposta.deveEstarBloqueado, geracaoNoInicio)
+
+        // Auto-atualizacao OTA: se o servidor anunciou um APK mais novo, baixa, confere
+        // o hash e se instala. Roda por ultimo — bloqueio antes de tudo.
+        resposta.atualizacaoAgente?.let { atualizador.processar(it) }
+    }
+
     private var localizacaoNegadaReportada = false
 
-    /** Reporta uma unica vez por execucao: nao faz sentido inundar o painel a cada 2 minutos. */
+    /** Reporta uma unica vez por execucao: nao faz sentido inundar o painel a cada ciclo. */
     private suspend fun reportarLocalizacaoNegada() {
         if (localizacaoNegadaReportada) return
         localizacaoNegadaReportada = true
@@ -196,6 +247,9 @@ class AgenteService : Service() {
         return runCatching {
             hub?.let { runCatching { it.stop().blockingAwait() } }
 
+            // PENDENTE (depende do backend): o token vai na query string porque o hub so o le
+            // dali. Query string aparece em log de proxy/IIS; o ideal e enviar por header
+            // (withHeader) ou accessTokenProvider assim que o backend aceitar.
             val url = BuildConfig.BACKEND_BASE_URL.trimEnd('/') +
                 AgenteConfig.ROTA_HUB_COMANDOS + "?token=" + token
 
@@ -226,11 +280,8 @@ class AgenteService : Service() {
 
     /** Consulta o backend por comandos pendentes fora do ciclo normal de telemetria. */
     private suspend fun buscarPendencias() {
-        runCatching {
-            val resposta = backend.enviarHeartbeat(localizacao = null)
-            resposta.comandosPendentes.forEach { processarComando(it) }
-            sincronizarBloqueio(resposta.deveEstarBloqueado)
-        }.onFailure { Log.w(TAG, "Falha ao buscar pendências após reconectar.", it) }
+        runCatching { heartbeatESincronizar(localizacao = null) }
+            .onFailure { Log.w(TAG, "Falha ao buscar pendências após reconectar.", it) }
     }
 
     // --- Execucao de comandos ---
@@ -242,15 +293,28 @@ class AgenteService : Service() {
             // Aceita texto ("Bloquear") e número ("0"): o heartbeat e o SignalR usam
             // serializadores diferentes no backend, e um agente que só entendesse um dos formatos
             // descartaria o comando em silêncio se as duas pontas saíssem de sincronia.
-            when (comando.tipoComando) {
-                COMANDO_BLOQUEAR, COMANDO_BLOQUEAR_NUMERICO -> {
-                    bloqueio.aplicar()
-                    politica.definirQuiosque(ativo = true)
-                }
-                COMANDO_DESBLOQUEAR, COMANDO_DESBLOQUEAR_NUMERICO -> bloqueio.remover()
+            val bloquear = when (comando.tipoComando) {
+                COMANDO_BLOQUEAR, COMANDO_BLOQUEAR_NUMERICO -> true
+                COMANDO_DESBLOQUEAR, COMANDO_DESBLOQUEAR_NUMERICO -> false
                 else -> {
                     Log.w(TAG, "Comando desconhecido: ${comando.tipoComando}")
                     return
+                }
+            }
+
+            mutexBloqueio.withLock {
+                if (comando.id in comandosAplicados) {
+                    // Reentrega (hub + heartbeat) de algo ja aplicado: so falta confirmar.
+                    Log.i(TAG, "Comando ${comando.id} ja aplicado; apenas reconfirmando.")
+                } else {
+                    if (bloquear) {
+                        bloqueio.aplicar()
+                        politica.definirQuiosque(ativo = true)
+                    } else {
+                        bloqueio.remover()
+                    }
+                    comandosAplicados.registrar(comando.id)
+                    geracaoComandos++
                 }
             }
 
@@ -265,24 +329,38 @@ class AgenteService : Service() {
     /**
      * Alinha o estado local ao que o servidor considera correto. Só age quando eles divergem:
      * reaplicar a trava a cada heartbeat geraria alertas repetidos sem motivo.
+     *
+     * [geracaoNoInicio] e o valor de [geracaoComandos] quando o heartbeat saiu. Se mudou, algum
+     * comando foi aplicado depois de o servidor montar esta resposta (no proprio ciclo ou pelo
+     * hub em paralelo) — o comando e mais novo e prevalece; a resposta e descartada.
      */
-    private suspend fun sincronizarBloqueio(deveEstarBloqueado: Boolean) {
-        if (deveEstarBloqueado == bloqueio.ativo) return
+    private suspend fun sincronizarBloqueio(deveEstarBloqueado: Boolean, geracaoNoInicio: Long) {
+        val reaplicado = mutexBloqueio.withLock {
+            if (geracaoComandos != geracaoNoInicio) {
+                Log.i(TAG, "Heartbeat anterior ao ultimo comando aplicado; estado do servidor ignorado.")
+                return
+            }
+            if (deveEstarBloqueado == bloqueio.ativo) return
 
-        if (deveEstarBloqueado) {
-            Log.w(TAG, "Servidor indica bloqueio ativo mas o sinal local se perdeu; reaplicando.")
-            bloqueio.aplicar()
-            politica.definirQuiosque(ativo = true)
+            if (deveEstarBloqueado) {
+                Log.w(TAG, "Servidor indica bloqueio ativo mas o sinal local se perdeu; reaplicando.")
+                bloqueio.aplicar()
+                politica.definirQuiosque(ativo = true)
+                true
+            } else {
+                // O servidor nao considera o aparelho bloqueado: a TI ja liberou.
+                bloqueio.remover()
+                false
+            }
+        }
 
+        if (reaplicado) {
             runCatching {
                 backend.reportarAlerta(
                     TipoAlerta.BloqueioReaplicado,
                     "Bloqueio reaplicado a partir do estado do servidor (sinal local ausente).",
                 )
             }
-        } else {
-            // O servidor nao considera o aparelho bloqueado: a TI ja liberou.
-            bloqueio.remover()
         }
     }
 
@@ -305,7 +383,58 @@ class AgenteService : Service() {
             .createNotificationChannel(canal)
     }
 
+    /**
+     * Promove o servico a primeiro plano SEM nunca derrubar o processo.
+     *
+     * O tipo e escolhido em tempo de execucao. No Android 14+ declarar `location` sem permissao
+     * de localizacao concedida — ou sem direito de uso "em primeiro plano", caso de quem sobe a
+     * partir do BOOT_COMPLETED ou do WorkManager sem ACCESS_BACKGROUND_LOCATION — lanca
+     * SecurityException. Antes, isso virava um loop de crash e o enforcement do bloqueio parava.
+     *
+     * Ordem de tentativa: (location se permitida) + specialUse → so specialUse → sem tipo. O
+     * specialUse (Android 14+) e o tipo que descreve um agente de gestao do aparelho e nao exige
+     * permissao em tempo de execucao; abaixo do 14 a checagem de permissao por tipo nao existe.
+     */
     private fun iniciarEmPrimeiroPlano() {
+        val notificacao = montarNotificacao()
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            runCatching { startForeground(AgenteConfig.ID_NOTIFICACAO_SERVICO, notificacao) }
+                .onFailure { Log.e(TAG, "Falha ao subir o servico em primeiro plano.", it) }
+            return
+        }
+
+        val tipoBase = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+        } else {
+            0
+        }
+
+        val tentativas = buildList {
+            if (geo.temPermissao) add(tipoBase or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+            if (tipoBase != 0) add(tipoBase)
+        }
+
+        for (tipo in tentativas) {
+            try {
+                startForeground(AgenteConfig.ID_NOTIFICACAO_SERVICO, notificacao, tipo)
+                return
+            } catch (e: Exception) {
+                // SecurityException (permissao/while-in-use) ou tipo nao aceito: tenta o proximo.
+                Log.w(TAG, "startForeground recusado com tipo $tipo; tentando alternativa.", e)
+            }
+        }
+
+        // Ultimo recurso: usa os tipos do manifest. Abaixo do Android 14 isso nao checa permissao.
+        runCatching { startForeground(AgenteConfig.ID_NOTIFICACAO_SERVICO, notificacao) }
+            .onFailure {
+                // Sem primeiro plano o sistema pode encerrar o servico, mas o VigilanteWorker e o
+                // BootReceiver reaplicam a trava e o religam. Nunca deixamos a excecao subir.
+                Log.e(TAG, "Nao foi possivel subir o servico em primeiro plano.", it)
+            }
+    }
+
+    private fun montarNotificacao(): Notification {
         val abrirApp = PendingIntent.getActivity(
             this,
             0,
@@ -313,7 +442,7 @@ class AgenteService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
-        val notificacao: Notification = NotificationCompat.Builder(this, AgenteConfig.CANAL_NOTIFICACAO)
+        return NotificationCompat.Builder(this, AgenteConfig.CANAL_NOTIFICACAO)
             .setContentTitle(getString(R.string.notificacao_titulo))
             .setContentText(getString(R.string.notificacao_texto))
             .setSmallIcon(R.drawable.ic_tracker)
@@ -321,16 +450,6 @@ class AgenteService : Service() {
             .setContentIntent(abrirApp)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                AgenteConfig.ID_NOTIFICACAO_SERVICO,
-                notificacao,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
-            )
-        } else {
-            startForeground(AgenteConfig.ID_NOTIFICACAO_SERVICO, notificacao)
-        }
     }
 
     companion object {
@@ -342,6 +461,9 @@ class AgenteService : Service() {
         // Valores do enum TipoComandoRemoto quando serializado como número.
         private const val COMANDO_BLOQUEAR_NUMERICO = "0"
         private const val COMANDO_DESBLOQUEAR_NUMERICO = "1"
+
+        /** Quantos ids de comando lembrar para descartar reentregas. */
+        private const val LIMITE_COMANDOS_LEMBRADOS = 50
 
         /** Sobe o servico em primeiro plano. Seguro chamar mais de uma vez. */
         fun iniciar(context: Context) {

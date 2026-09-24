@@ -177,6 +177,23 @@ Registre a data e o resultado de cada teste.
 
 ### `Enrollment__CompanyKey`: o código de instalação dos agentes
 
+> 🚨 **AÇÃO PENDENTE — prioridade ALTA (revisão de 24/09/2026).** O valor **real** de produção
+> desta chave foi escrito no `docs/agentes/agente-android.md` e está no **histórico do Git**
+> (commit `e36d642`, 13/08/2026). O arquivo atual já usa o marcador, mas qualquer clone ou cópia
+> antiga do repositório recupera o valor. **Considere a chave vazada e troque-a** pelo
+> procedimento "Trocar" abaixo. Backlog:
+> [item 26](../desenvolvimento/melhorias-pendentes.md#26-trocar-o-código-de-instalação-vazado-no-histórico-do-git).
+>
+> - [ ] Valor novo gerado (20+ caracteres) e guardado **só** no cofre.
+> - [ ] Variável trocada no servidor; app pool **e** serviço do runner reiniciados.
+> - [ ] `C:\TrackerAgentDist\ultima-geracao.txt` apagado antes da próxima tag (senão o CI não
+>       regera o instalador), ou `gerar-pendrive.ps1` rodado à mão; `.exe` antigos descartados.
+> - [ ] Código novo passado aos técnicos que registram aparelhos Android.
+> - [ ] Conferido: auto-cadastro com o código antigo recebe 401; aparelhos já cadastrados seguem
+>       com heartbeat.
+>
+> **Não escreva o valor antigo nem o novo** em nenhum lugar fora do cofre ao executar a troca.
+
 - É o "código da empresa" que autoriza um agente novo a se cadastrar sozinho. Os agentes já
   cadastrados usam token próprio e **não dependem dela** depois do cadastro.
 - **Está em dois lugares:** na variável de ambiente do servidor (a API e o runner do CI) e
@@ -187,9 +204,11 @@ Registre a data e o resultado de cada teste.
      `[Environment]::SetEnvironmentVariable("Enrollment__CompanyKey", "<NOVO>", "Machine")`.
   2. Reinicie o app pool do Tracker **e** o serviço do runner do GitHub Actions (ambos só leem a
      variável ao iniciar).
-  3. Regere o instalador Windows: `.\deploy\gerar-pendrive.ps1` com `-EnrollmentKey`, ou crie uma
-     release que mexa no agente. **Descarte os `.exe` antigos** de pendrives e de
-     `C:\TrackerAgentDist`: eles contêm a chave velha e vão falhar no cadastro.
+  3. Regere o instalador Windows: `.\deploy\gerar-pendrive.ps1` com `-EnrollmentKey`, ou apague
+     `C:\TrackerAgentDist\ultima-geracao.txt` e crie a próxima tag (o CI só regera quando o agente
+     mudou desde a última geração, ou quando o marcador falta — trocar a chave não muda código).
+     **Descarte os `.exe` antigos** de pendrives e de `C:\TrackerAgentDist`: eles contêm a chave
+     velha e vão falhar no cadastro.
   4. Passe o código novo aos técnicos que registram aparelhos Android.
 - Use um valor longo (20+ caracteres). Não há motivo para ser curto: ninguém digita isso de
   memória, e no Android o técnico copia do cofre.
@@ -223,6 +242,11 @@ servidor, com o pacote publicado em `C:\Tracker`:
 cd C:\Tracker
 dotnet .\Tracker.Api.dll --redefinir-senha-adm --senha "NOVA_SENHA_FORTE"
 ```
+
+A senha nova passa pelas **mesmas regras** da tela de Acessos (mínimo de 10 caracteres, com
+maiúscula, minúscula, dígito e símbolo): se não cumprir, o comando lista os erros e não troca nada. Se a conta estiver
+**desativada**, a senha é trocada, mas o comando **avisa** e **não reativa** o login — reative-o em
+**Acessos** com outro ADM ou, se ele for o único, no banco (`AspNetUsers.Ativo = 1`).
 
 Com mais de um ADM, acrescente `--email <email-do-adm>`. Em dev, o comando equivalente está no
 [ambiente-dev.md](../desenvolvimento/ambiente-dev.md). Se houver outro login com a permissão **Acessos**, é mais
@@ -258,6 +282,8 @@ Com a pasta dentro de `C:\TrackerDados`, os APKs entram no mesmo backup dos term
 
 - [ ] `Encryption__CpfKeyBase64` no cofre, com o hash conferido contra o servidor.
 - [ ] `Enrollment__CompanyKey` no cofre, com 20+ caracteres.
+- [ ] `Enrollment__CompanyKey` **trocado** depois do vazamento no histórico do Git (commit
+      `e36d642`) — ver o [alerta](#enrollment__companykey-o-código-de-instalação-dos-agentes). Feito em: ____/____/______.
 - [ ] Keystore do APK + senhas em duas cópias fora do repositório; local anotado no cofre.
 - [ ] `Storage__PacotesAgentePath` definido fora de `C:\Tracker`.
 - [ ] Backup diário do `TrackerDb` + `C:\TrackerDados` agendado e conferido no dia seguinte.

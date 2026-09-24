@@ -48,7 +48,9 @@ Banco / Agente Windows / Agente Android). **Mudou endpoint, DTO ou evento do age
 Windows x Android. **Coleta nova de dado pessoal, terceiro novo ou mudança de retenção?**
 Atualize `docs/privacidade/privacidade-lgpd.md` (e avise que o jurídico precisa ver).
 **Nunca escreva o VALOR de chave ou código de instalação em doc versionado** (o `docs/agentes/agente-android.md`
-já trouxe o `Enrollment:CompanyKey` real): use marcador `<CODIGO-DO-COFRE>`.
+já trouxe o `Enrollment:CompanyKey` real): use marcador `<CODIGO-DO-COFRE>`. Tirar do arquivo não
+apaga do **histórico do Git** (commit `e36d642`): valor que vazou assim tem de ser **trocado** —
+a troca desse está pendente (item 26 de `melhorias-pendentes.md`, alerta em `backup-e-chaves.md`).
 
 Frontend organizado por feature em `src/Tracker.Web/src/features/<feature>/` (api.ts + hooks.ts + componentes).
 
@@ -83,7 +85,10 @@ ao de "Docker fechado" (`wsl --install` como Administrador + reiniciar). O scrip
   e o `dotnet run` executa um binário velho — o erro que aparece então não tem relação com a causa.
   O utilitário não depende de `Encryption:CpfKeyBase64` nem do ambiente ser `Development`: ele
   busca a conta por projeção (sem materializar o CPF criptografado) e carrega os user-secrets
-  sozinho. `--email` só é necessário quando há mais de um ADM.
+  sozinho. `--email` só é necessário quando há mais de um ADM. A senha passa pelos
+  `PasswordValidators` do Identity (as mesmas regras da tela de Acessos, não só o tamanho) e, se a
+  conta estiver **inativa**, o utilitário troca a senha mas só **avisa** — não reativa (desativar
+  foi decisão de alguém).
 
 ## Comandos
 
@@ -137,7 +142,8 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   começando com `MAQ` (sem diferenciar maiúsculas) marca equipamento alugado — regra centralizada em
   `src/Tracker.Web/src/features/dispositivos/aluguel.ts` (`ehAlugado`, `rotuloAluguel`,
   `identificacaoExibida`), usada na coluna "Aluguel" de `DispositivosPage`. Use `identificacaoExibida`
-  em vez de repetir `identificacaoInterna ?? hostname ?? numeroSerie`. **A regra tem um espelho no
+  em vez de repetir `identificacaoInterna ?? hostname ?? numeroSerie` — ela trata vazio/só espaços
+  como ausente (o `??` puro não trata e divergia do C#). **A regra tem um espelho no
   backend** — `src/Tracker.Application/Relatorios/ClassificacaoAluguel.cs`, usado pelos
   relatórios (que leem o banco, não a lista carregada na tela): mudar o critério exige mexer nos
   DOIS lados, senão a coluna e o relatório discordam sobre o mesmo aparelho. Consequência a lembrar: como o
@@ -161,6 +167,15 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   `"2026-10-05"`. **No front, `new Date("2026-10-05")` erra igual** — o JS lê string só-data como
   UTC e volta um dia; faça parse manual (`vencimento.ts` tem o helper). Coberto por
   `VencimentoAluguelTests`, que serializa com as MESMAS opções do `Program.cs`.
+- **Configuração JSON num lugar só: `JsonConfig.Aplicar`** (`src/Tracker.Api/Json/JsonConfig.cs`),
+  usada nos controllers, no `AddSignalR().AddJsonProtocol(...)` e nos testes. Conversor novo entra
+  ALI — o SignalR não herda a configuração dos controllers (ver a pegadinha dos enums), e o hub
+  ficou sem o `UtcDateTimeConverter` até a revisão de 24/09/2026.
+- **Fuso de Brasília só via `FusoBrasil`** (`src/Tracker.Application/Common/FusoBrasil.cs`). O banco
+  segue em UTC; converta só no que é IMPRESSO para pessoas (`ParaBrasilia`, usado no termo de uso)
+  e em filtro por DIA CIVIL vindo da tela (`InicioDoDiaEmUtc`/`FimDoDiaEmUtc`, este exclusivo —
+  use `<`). Os filtros `de`/`ate` da auditoria são `DateOnly` interpretados assim. Não use
+  `ToLocalTime()` (depende do fuso da máquina) nem `DateTime.Date` sobre UTC.
 - **Relatórios do inventário** (`RelatoriosController`, `GET /api/relatorios/{tipo}/{pdf|xlsx}` com
   tipo = `inventario`/`aluguel`/`unidades`): dados em `Tracker.Infrastructure/Relatorios`
   (`RelatorioInventarioService` monta as linhas; `RelatorioPdfService` e `RelatorioExcelService`
@@ -171,7 +186,7 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   `DataAquisicao`: o formulário de cadastro grava `DataAquisicao = agora` e não há campo na tela
   para outra data, então ela nunca foi data de compra de verdade. `CriadoEm` é UTC e o SQL Server
   o devolve com `Kind=Unspecified` — marque como UTC antes de `ToLocalTime()`, senão cadastro da
-  noite sai com a data do dia seguinte.
+  noite sai com a data do dia seguinte. (Pendente: trocar por `FusoBrasil.ParaBrasilia` — item 29.)
 - **XLSX é gerado com ClosedXML** (0.102.3, em `Tracker.Infrastructure`). `AdjustToContents` NÃO
   aceita `maxWidth:` nesta versão (erro de compilação) — ajuste e depois limite `coluna.Width` à
   mão. Escreva data/número com o TIPO nativo da célula: como texto, o filtro e a ordenação do
@@ -238,6 +253,13 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
 - **Senha errada em confirmação devolve 400, nunca 401.** O interceptor do axios
   (`src/Tracker.Web/src/api/client.ts`) trata 401 como sessão expirada e limpa o `me` — o ADM
   seria deslogado só por errar a senha no diálogo de exclusão.
+- **Diálogo com formulário reseta pelo `id` do dispositivo, não pelo objeto.** O `useEffect` de
+  reset dependia de `dispositivo`, e todo refetch do TanStack Query entrega um objeto novo: o que
+  estava digitado (senha, motivo) sumia no meio (vencimento, identificação interna, exclusão).
+  Dependa de `dispositivo?.id` (e de `open`, quando o diálogo fica montado fechado).
+- **Download `responseType: 'blob'` precisa converter o corpo de erro.** Com blob, o 400/500 chega
+  como `Blob`, não JSON, e `mensagemErroApi` cai no genérico. `features/relatorios/api.ts` lê o
+  blob como texto/JSON antes de repassar o erro. Faça o mesmo em download novo.
 - **`Unidade` ≠ `Local`.** Unidade é a lotação organizacional do ativo (matriz/filial) e alimenta a
   coluna "Responsável" quando `PertenceAUsuario = false`; `Local` é ponto geográfico de geofence.
 - **`StatusDispositivo.EmUso` NÃO é transição manual livre.** Ele entra automaticamente ao atribuir
@@ -246,6 +268,38 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   (`PertenceAUsuario = false`) **com unidade definida** (o de detentor já vira "Em uso" na
   atribuição). O backend (`AtualizarStatus`, `DispositivosController.cs`) reforça a mesma regra:
   recusa `EmUso` se for de usuário sem detentor OU de local sem unidade. Gate os DOIS lados.
+  `DefinirPosse` também corrige: `EmUso` que fica sem responsável na posse nova volta a `EmEstoque`
+  (`RegrasDispositivo.StatusCoerenteComResponsavel`).
+- **`Bloqueado` só entra e sai pelo COMANDO REMOTO.** `AtualizarStatus` recusa `Bloqueado` manual
+  e qualquer mudança num aparelho `Bloqueado` (400) — **exceto a baixa** (aparelho roubado que nunca
+  confirma o Desbloquear), segura porque a trava vem do último comando, não do status; um Bloquear
+  confirmado depois da baixa mantém `Baixado`. Abrir e concluir reparo idem; arquivar/excluir
+  recusa `Bloqueado` **e** Bloquear a caminho (`RegrasDispositivo.TemBloqueioAChegar`). No site, o
+  menu de status de um `Bloqueado` só oferece "Dar baixa". Confirmar `Desbloquear` só mexe
+  se o status era `Bloqueado` (`StatusAposDesbloqueio`: `EmUso` com responsável, senão
+  `EmEstoque`; `Baixado`/`EmManutencao` ficam).
+- **O estado DESEJADO de bloqueio vem do ÚLTIMO COMANDO, não do status.** `deveEstarBloqueado` do
+  heartbeat = `RegrasDispositivo.DeveEstarBloqueado(status, ultimoComando)`, com o comando de
+  `ConsultasComandoRemoto.UltimoComandoVigenteAsync` (mais recente por `DataEmissao`, exceto
+  `Falhou`); sem comando algum, vale o status. Pelo status sozinho, o heartbeat que ENTREGAVA um
+  Bloquear pendente respondia "desbloqueado" (o status só muda na confirmação) e o Android
+  destravava logo depois de aplicar. Regras puras em `Tracker.Application/Dispositivos/
+  RegrasDispositivo.cs`, cobertas por `RegrasDispositivoTests`/`BloqueioRemotoTests`.
+- **Atribuir tem espelho no front:** `statusPermiteAtribuir`/`motivoSemAtribuicao`
+  (`features/dispositivos/status.ts`) escondem o botão para `Baixado`/`EmManutencao`/`Bloqueado`,
+  espelhando `DispositivosController.Atribuir` — que hoje só recusa os dois primeiros (item 32:
+  falta o `Bloqueado` no backend). O backend também recusa detentor inativo e `LocalDestinoId`
+  inexistente (400, não 500 de FK). Mudou a regra? Mexa nos DOIS.
+- **Validadores com `IsInEnum` em todo enum de request** (status do dispositivo/reparo, tipo de
+  comando, tipo de alerta): sem isso `tipoComando: 7` era gravado e auditado como "Desbloqueou".
+  **Exceção deliberada: o heartbeat IGNORA** `NivelProtecao`/`Origem` desconhecidos em vez de
+  recusar — um 400 no heartbeat cortaria também a entrega de comandos de bloqueio.
+- **Serial genérico de BIOS tem lista CENTRAL com espelho.** `SerialGenerico.EhGenerico`
+  (`src/Tracker.Application/Common/`) e `InfoMaquina` no agente Windows — mude os DOIS. No
+  auto-cadastro, genérico sem patrimônio → 400 (validador); com patrimônio → o serial é ignorado no
+  reencontro/promoção e o cadastro novo grava `SEM-SERIE-<patrimônio>`. O agente Windows troca o
+  genérico por `WIN-<UUID SMBIOS>` → `WIN-<MachineGuid>` → `HOST-<nome>`; máquina já cadastrada com
+  serial genérico/`HOST-` pode DUPLICAR ao se recadastrar (item 28).
 - **Novos valores de enum vão no FIM, e valores existentes NUNCA mudam de número.** O número é
   gravado como discriminador na tabela: `Mobile` = 1 (era `Telefone`) e mexer nisso reclassificaria
   todos os dispositivos já cadastrados. Coberto por `MobileTphTests`.
@@ -260,7 +314,25 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
     principal INTERACTIVE S-1-5-4, `MultipleInstances=Parallel`). Ver `deploy/instalar-agente.ps1`.
   - Bloqueio é **persistente**: arquivo-sinal `%ProgramData%\TrackerAgent\locked.flag`. O agente
     re-trava sozinho (timer de 2s) mesmo offline/após reiniciar; só a TI remove o sinal (Desbloquear).
-  - A tela de bloqueio é **uma janela por monitor** e se reconstrói ao trocar de monitor (hotplug).
+  - A tela de bloqueio é **uma janela por monitor** e se reconstrói ao trocar de monitor (hotplug),
+    inclusive com o painel Wi-Fi aberto (reconstrói só as secundárias, topo sem ativar).
+  - **Tela viva é detectada pelo PROCESSO, não por arquivo.** O serviço procura o processo
+    `--overlay` em cada sessão ativa (`WTSEnumerateSessions` + `Win32_Process` via WMI) e o overlay
+    segura o mutex `Local\TrackerAgentOverlay` (uma tela por sessão). O antigo `overlay-alive.flag`
+    foi abolido: criado pelo usuário A, o usuário B não conseguia sobrescrevê-lo. Relançamento com
+    recuo 10s → 120s por sessão. O instalador apaga o arquivo velho.
+  - **ACL das pastas por SID** (instalador C# e `instalar-agente.ps1`, via `icacls`, sem herança):
+    `C:\TrackerAgent` SYSTEM/Admins total + Usuários `RX`; `%ProgramData%\TrackerAgent` SYSTEM/Admins
+    total + Usuários só `R`. SID, não nome: em Windows pt-BR "Administrators" não existe. Sem OTA
+    Windows, a frota só recebe a ACL **reinstalando**.
+  - **`DisableTaskMgr` é limpo pela própria tarefa.** Overlay iniciado SEM `locked.flag` só remove o
+    valor do HKCU e sai — cobre o logon e o pós-desbloqueio (o serviço dispara a tarefa ao
+    desbloquear); há limpeza também em `finally`/`ProcessExit`/`UnhandledException`. A remoção é
+    incondicional e brigaria com GPO que defina o mesmo valor (item 31).
+  - **Hub com reconexão PERPÉTUA.** `WithAutomaticReconnect` padrão desiste após 4 tentativas;
+    o `Worker` usa `RecuoHub` (0/2/5/10/30/60s, para sempre) + laço que refaz `StartAsync` quando
+    `Disconnected` (1º start falho, `Closed`). Um laço só é dono da `HubConnection` (sem conexões
+    duplicadas) e a recria com o token novo no re-cadastro.
 - **Token inválido re-cadastra sozinho (401).** Antes, o agente usava o `token.dat` cegamente e,
   se o backend rejeitasse (agente atualizado ou apontado para outro servidor), repetia **401** para
   sempre e o aparelho nunca aparecia no inventário. Agora `BackendClient` lança `TokenInvalidoException`
@@ -278,15 +350,18 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   só como fallback e para **conectar** (que funciona uma vez que se tem o SSID). O scan bloqueia
   ~5s, então `AtualizarRedes` (em `LockOverlay`) roda em `Task.Run` e devolve por `BeginInvoke` —
   senão a tela de bloqueio congela durante a varredura. O delegate de notificação precisa ficar
-  vivo (`GC.KeepAlive`) durante a espera.
+  vivo (`GC.KeepAlive`) durante a espera. Ao **conectar**, o sucesso vem do código de saída do
+  `netsh` (não do texto, que é traduzido) e a saída é lida na codepage OEM (senão os acentos saem
+  quebrados); a conexão também roda fora da thread de UI.
 - **SignalR serializa enums de forma DIFERENTE dos controllers.** O `JsonStringEnumConverter`
   registrado em `AddControllers().AddJsonOptions(...)` **não vale para o hub**: é preciso
   `AddSignalR().AddJsonProtocol(...)` separado. Sem isso o heartbeat entrega
   `tipoComando: "Bloquear"` e o hub entrega `tipoComando: 0` — os agentes esperam texto e
   **descartam o comando do hub em silêncio**, sem erro nenhum no log do servidor. O sintoma é
   bloqueio que demora ~1 heartbeat em vez de ser imediato, com a conexão SignalR aparentemente
-  saudável. Afeta os agentes Windows e Android igualmente. Os agentes hoje aceitam os dois
-  formatos como defesa, mas a configuração do servidor é o conserto de verdade.
+  saudável. Afeta os agentes Windows e Android igualmente. Os DOIS agentes aceitam hoje
+  `tipoComando` como texto ou número (heartbeat e hub), como defesa, mas a configuração do servidor
+  (`JsonConfig.Aplicar` no `AddJsonProtocol`) é o conserto de verdade.
 - **OTA Android:**
   - **Todo release do agente PRECISA incrementar `versionCode`** em `app/build.gradle.kts` — o
     Android recusa instalar versão igual/menor, e o painel barra a publicação com mensagem.
@@ -297,6 +372,8 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
     passo 5 do enrollment). Da 2ª em diante (Android 12+) é silencioso: o agente vira o
     instalador de si mesmo (`USER_ACTION_NOT_REQUIRED`).
   - Agentes 1.0.0 (sem OTA) não se atualizam sozinhos: a primeira troca é manual via adb.
+  - `PENDING_USER_ACTION` sem resposta prendia o flag de "instalando" para sempre: há timeout de
+    10 min, e sessão do `PackageInstaller` que falha (ou sobra de antes) é `abandon()`-ada.
   - **A keystore de release amarra a frota inteira**: assinatura diferente é recusada pelo Android
     e a saída seria reinstalar aparelho por aparelho. Ela mora **fora do repositório**
     (`Documents\TrackerKeystore\`) porque worktree/clone novo não leva a chave junto.
@@ -335,6 +412,37 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   - **O cliente Java do SignalR não tem `withAutomaticReconnect`** (o .NET tem). Se a conexão cai,
     ela fica morta até alguém reconectar: `AgenteService.lacoDeConexaoHub` faz esse papel, com
     recuo progressivo até 60s.
+  - **Hub x heartbeat: o heartbeat em voo NÃO pode desfazer o comando do hub.** Contador
+    `geracaoComandos` (incrementado sob mutex a cada comando aplicado): resposta de heartbeat que
+    saiu antes do último comando tem o `deveEstarBloqueado` ignorado. Dedup por `id` (últimos 50):
+    reentrega do mesmo comando só é reconfirmada.
+  - **O bloqueio NUNCA depende de token/`registrado`.** Boot, `VigilanteWorker` e abertura do app
+    reaplicam pelo sinal `bloqueado` persistido; o 401 apaga o token mas não toca no bloqueio.
+    Amarrar a `registrado` devolvia o aparelho livre no primeiro reboot após o 401. Custo aceito:
+    bloqueado + token revogado fica preso até alguém entrar por `adb` (item 27).
+  - **`bloqueado` fica FORA do `EncryptedSharedPreferences`**, no arquivo simples
+    `tracker-agente-estado`, gravado com `commit()` síncrono: Keystore corrompido (acontece após
+    update do sistema) apagaria a trava. A escolha criptografado x simples dos segredos é feita UMA
+    vez por processo, com retry, e o fallback é persistido (`usarArquivoSimples`) — alternar entre
+    instâncias criava dois estados (token num arquivo, lido no outro).
+  - **Tipo do serviço em primeiro plano é escolhido em RUNTIME.** No Android 14, `startForeground`
+    com `location` sem permissão (ou vindo do `BOOT_COMPLETED`) lança `SecurityException` → loop de
+    crash e o enforcement parava. Manifest declara `location|specialUse` (+
+    `FOREGROUND_SERVICE_SPECIAL_USE` e `PROPERTY_SPECIAL_USE_FGS_SUBTYPE`); `iniciarEmPrimeiroPlano`
+    tenta location+specialUse → specialUse → sem tipo, em todo `onStartCommand`, sem deixar a
+    exceção subir.
+  - **Painel de Wi-Fi do sistema durante o bloqueio: a trava volta ASSIM QUE o usuário sai dele.**
+    A sobreposição precisa sair da frente para o painel ser tocável; antes saía por 60s fixos e o
+    usuário apertava Home e usava o aparelho. Agora o painel é aberto por `PainelWifiActivity`
+    (invisível, `taskAffinity=""`), SEM `NEW_TASK`, para ficar na mesma tarefa: o `Settings.Panel`
+    é translúcido, então ela fica PAUSADA por baixo — `onResume` = painel fechado, `onStop` = saiu
+    (Home/Recentes/"Mais configurações") → `Bloqueio.retomarAposWifi()`. Conferido num moto g35
+    (Android 14). Os 60s viraram teto; no Android ≤ 9 (tela cheia de Configurações) vale o prazo.
+  - **Wi-Fi: não leia `scanResults` logo depois de `startScan()`** — vem o cache (vazio ou só a rede
+    atual). Espere o broadcast `SCAN_RESULTS_AVAILABLE_ACTION` (até 8s) fora da main thread. Mesma
+    lição do `netsh` no Windows.
+  - **Quiosque de verdade com Device Owner:** `BloqueioActivity` em lock task POR BAIXO do overlay
+    (fecha barra de status/configurações rápidas); `stopLockTask` ao desbloquear.
   - **Bloqueio ≠ travar a tela.** `lockNow()` só aciona a trava do sistema e o usuário entra com a
     senha dele. O que deixa o aparelho indisponível é a janela `TYPE_APPLICATION_OVERLAY`
     (permissão "Sobrepor outros apps", obrigatória) reaplicada a cada 2s. Sem Device Owner o Home
@@ -477,9 +585,19 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   - **`AddColumn<bool>` do `Ativo` veio `defaultValue:false`** e foi corrigido À MÃO para `true` na
     migração `AcessosEAuditoria` — senão todo login existente nasceria desativado (trancaria a TI).
     Mesma pegadinha do `PertenceAUsuario`.
-  - **Upgrade de instalação antiga:** `DbSeeder.SeedAsync` faz backfill idempotente concedendo
-    TODAS as permissões a quem está na role `Admin` a cada start. Sem isso, a produção (1 ADM, zero
-    claims) ficaria trancada fora de tudo assim que as policies entrassem em vigor.
+  - **Upgrade de instalação antiga:** `DbSeeder.SeedAsync` faz backfill a cada start, mas concede
+    TODAS as permissões **só** ao ADM da role `Admin` que não tem nenhuma claim `perm` **e** não
+    tem a claim-marca `tracker.permissoes-configuradas` (`DbSeeder.PrecisaDoBackfill`). O próprio
+    seeder grava a marca em todo Admin. Sem o backfill, a produção (1 ADM, zero claims) ficaria
+    trancada fora de tudo quando as policies entraram em vigor. **Antes** ele completava as
+    permissões de TODO Admin a cada start — e desfazia em silêncio as revogações feitas em Acessos
+    a cada deploy/reciclagem do IIS. **Não remova a marca**: sem ela, um Admin com todas as
+    permissões tiradas de propósito seria indistinguível da instalação antiga e ganharia tudo de volta.
+    A marca não é permissão: a `PermissoesClaimsTransformation` e as policies só olham o tipo `perm`.
+  - **Login confere a senha ANTES de revelar "desativado"** (`CheckPasswordSignInAsync` com
+    lockout, depois `SignInAsync`). Checar `Ativo` primeiro deixava qualquer um descobrir, só pelo
+    e-mail, quais logins existem e estão desligados. A mensagem própria de lockout ainda não existe
+    (item 6).
   - **Autoria vem do token, nunca do corpo.** Movimentação/reparo/comentário/termo antes gravavam
     `RegistradoPorAdmId`/`CriadoPorAdmId` vindos do request (forjável com vários logins) — agora
     usam `User.AdmId()`. Os DTOs de request perderam esses campos; não os traga de volta.
@@ -501,6 +619,11 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
     (`features/auth`) escondem menu, rotas e botões sem permissão; o que o usuário não pode usar não
     aparece, e o acesso direto por URL redireciona. Mas isso é só UX — **a autorização real é a
     policy no backend** (403). Ao criar uma capacidade nova, gate os DOIS lados.
+    **Rota/menu pode exigir uma LISTA de permissões** (`ExigenciaPermissao` + `atendeExigencia` em
+    `features/auth/permissoes.ts`): a tela precisa de TODAS as permissões dos endpoints que ela
+    chama. Usuários/Unidades usam `EXIGENCIA_USUARIOS`/`EXIGENCIA_UNIDADES` (gestão **+**
+    `dispositivos.ver`, porque os GETs pedem esta) — só com a gestão a página abria com 403 e
+    tabela vazia. Vale também para `primeiraRotaPermitida`.
 
 ## Produção / deploy
 
@@ -512,13 +635,19 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
 - Gerar pacote: `deploy/publicar-servidor.ps1`. Guia completo: `docs/operacao/deploy-servidor-onpremises.md`.
 - **CI (`.github/workflows/deploy-producao.yml`)** roda num **runner self-hosted no próprio servidor**,
   dispara em tag `v*` (build → testes → publica site+API no IIS). O último passo **regera o
-  instalador do agente Windows SÓ quando o agente mudou nesta release** (diff contra a tag anterior
-  em `agents/Tracker.Agent.Windows`, `deploy/gerar-pendrive.ps1`, `deploy/Instalador`). Roda
+  instalador do agente Windows SÓ quando o agente mudou desde a ÚLTIMA GERAÇÃO BEM-SUCEDIDA**:
+  diff contra o commit gravado em `C:\TrackerAgentDist\ultima-geracao.txt` (commit, tag, data —
+  escrito POR ÚLTIMO) em `agents/Tracker.Agent.Windows`, `deploy/gerar-pendrive.ps1`,
+  `deploy/Instalador`; regera também se faltar o `.exe` ou o marcador (ou ele for inválido). O diff
+  antigo contra a tag anterior pulava para sempre a regeração de uma release que tinha falhado
+  antes de gerar. Para forçar (ex.: troca da `Enrollment__CompanyKey`), apague o marcador. Roda
   **depois** do deploy (falha aqui não desfaz o site). Saída em `C:\TrackerAgentDist`
   (`Instalar-Agente.exe` + cópia versionada pela tag) — **fora do `wwwroot`, pois o `.exe` embute a
   EnrollmentKey**. Depende de `Enrollment__CompanyKey` estar na env da máquina do runner (mesma da
   API); `TRACKER_BACKEND_URL` e `TRACKER_AGENTE_DIST` são env opcionais (default: URL de produção e
-  `C:\TrackerAgentDist`). O checkout usa `fetch-depth: 0` para o diff enxergar a tag anterior.
+  `C:\TrackerAgentDist`). O checkout usa `fetch-depth: 0` para o diff enxergar o commit do marcador.
+  As chamadas ao `git` no step baixam o `$ErrorActionPreference` em volta (stderr com `Stop` mata o
+  passo no PS 5.1) e o step termina com `exit 0` explícito.
   (Auto-update OTA da frota Windows ainda NÃO existe — a TI baixa o `.exe` e reinstala.)
 - **`node_modules` vem de um cache LOCAL do servidor, não do `npm install`.** O `actions/checkout`
   roda `git clean -ffdx` e apaga `node_modules` a cada run, então o guard
@@ -545,6 +674,14 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   isso é opcional). Seguro para o site: o `wwwroot` é lido do disco **no momento do publish** (passo
   2 do script já copiou o `dist` lá), e o publish ainda remove da pasta de saída os arquivos do site
   antigo que sumiram.
+- **`atualizar-servidor.ps1` espera DE VERDADE e faz rollback.** `Stop-WebAppPool` só pede a
+  parada: o script espera o pool `Stopped` e o `Tracker.Api.dll` abrir com `FileShare.None` (até 60s
+  cada) antes de copiar; falha na troca restaura o backup (que guarda o CONTEÚDO da pasta, não a
+  pasta); pool e site são religados num `finally` e a falha sai com `exit 1`. Health check que não
+  responde continua só aviso (SNI/loopback).
+- **`gerar-apk-agente.ps1` NÃO reescreve o `local.properties`:** atualiza só as 4 chaves de
+  assinatura (e `sdk.dir` se faltar), com escape do formato `.properties` e sem BOM. Reescrever o
+  arquivo apagava `tracker.backendBaseUrl` — e o debug caía para produção.
 - **`$ErrorActionPreference = "Stop"` NÃO captura falha de executável nativo** (`npm`, `dotnet`).
   Sem checar `$LASTEXITCODE` depois de cada um, um build/publish quebrado passava batido e o deploy
   seguia publicando o pacote da release anterior — falha silenciosa. `publicar-servidor.ps1` checa.

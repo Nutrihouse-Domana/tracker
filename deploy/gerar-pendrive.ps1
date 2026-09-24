@@ -26,7 +26,8 @@
   projeto Tracker.Api (chave Enrollment:CompanyKey) sem aparecer na tela.
 
 .PARAMETER Tipo
-  Tipo do dispositivo criado no auto-cadastro: Notebook ou Telefone. Padrao: Notebook.
+  Tipo do dispositivo criado no auto-cadastro: Notebook ou Mobile (valores de
+  TipoDispositivo que o auto-cadastro aceita; Periferico nao tem agente). Padrao: Notebook.
 
 .PARAMETER Simular
   Se informado, o agente NAO trava a tela de verdade (modo de teste).
@@ -38,7 +39,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Destino,
     [Parameter(Mandatory = $true)][string]$BackendUrl,
     [string]$EnrollmentKey,
-    [ValidateSet("Notebook", "Telefone")][string]$Tipo = "Notebook",
+    [ValidateSet("Notebook", "Mobile")][string]$Tipo = "Notebook",
     [switch]$Simular
 )
 

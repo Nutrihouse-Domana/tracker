@@ -1,6 +1,7 @@
 # Melhorias pendentes
 
-Backlog de limitações conhecidas do Tracker, levantado em 23/09/2026 na revisão da documentação.
+Backlog de limitações conhecidas do Tracker, levantado em 23/09/2026 na revisão da documentação
+e atualizado em 24/09/2026 na revisão completa do código (itens 26 a 32).
 Cada item diz o problema, onde está no código, a correção sugerida e como conferir.
 
 **Ao corrigir um item:**
@@ -22,11 +23,11 @@ As regras do projeto continuam valendo em toda correção:
 | # | Item | Prioridade | Esforço |
 |---|---|---|---|
 | 1 | [Bloquear/Desbloquear sem confirmação](#1-bloquear-e-desbloquear-sem-confirmação) | **Alta** | Pequeno |
-| 2 | [Restaurar e desativar detentor sem confirmação](#2-restaurar-e-desativar-detentor-sem-confirmação) | Média | Pequeno |
-| 3 | [Detentor desativado não pode ser reativado](#3-detentor-desativado-não-pode-ser-reativado) | **Alta** | Pequeno |
-| 4 | ["Excluir definitivamente" visível sem a permissão](#4-excluir-definitivamente-visível-sem-a-permissão) | Média | Pequeno |
-| 5 | [Atribuir e Alterar status escondem o motivo do erro](#5-atribuir-e-alterar-status-escondem-o-motivo-do-erro) | Média | Pequeno |
-| 6 | [Login não distingue desativado/bloqueado](#6-login-não-distingue-desativado-ou-bloqueado) | Baixa | Pequeno |
+| 2 | [Restaurar e desativar detentor sem confirmação](#2-restaurar-e-desativar-detentor-sem-confirmação) — **Parcial** (desativar ok; falta Restaurar) | Média | Pequeno |
+| 3 | [Detentor desativado não pode ser reativado](#3-detentor-desativado-não-pode-ser-reativado) — ✅ Resolvido em 24/09/2026 | **Alta** | Pequeno |
+| 4 | ["Excluir definitivamente" visível sem a permissão](#4-excluir-definitivamente-visível-sem-a-permissão) — ✅ Resolvido em 24/09/2026 | Média | Pequeno |
+| 5 | [Atribuir e Alterar status escondem o motivo do erro](#5-atribuir-e-alterar-status-escondem-o-motivo-do-erro) — ✅ Resolvido em 24/09/2026 | Média | Pequeno |
+| 6 | [Login não distingue desativado/bloqueado](#6-login-não-distingue-desativado-ou-bloqueado) — **Parcial** (desativado ok; falta lockout) | Baixa | Pequeno |
 | 7 | [Rótulos técnicos sem tradução](#7-rótulos-técnicos-sem-tradução) | Baixa | Pequeno |
 | 8 | [Busca global ignora a identificação interna](#8-busca-global-ignora-a-identificação-interna) | Média | Pequeno |
 | 9 | [Relatórios ausentes no menu do celular](#9-relatórios-ausentes-no-menu-do-celular) | Baixa | Pequeno |
@@ -45,12 +46,21 @@ As regras do projeto continuam valendo em toda correção:
 | 22 | [Agente Windows ignora "deve estar bloqueado"](#22-agente-windows-ignora-deve-estar-bloqueado) | Média | Pequeno |
 | 23 | [Agente Android não se recadastra sozinho](#23-agente-android-não-se-recadastra-sozinho) | Média | Médio |
 | 24 | [Agente Windows informa sempre a versão 1.0.0](#24-agente-windows-informa-sempre-a-versão-100) | Média | Trivial |
-| 25 | [Inconsistências menores nos agentes](#25-inconsistências-menores-nos-agentes) | Baixa | Trivial |
+| 25 | [Inconsistências menores nos agentes](#25-inconsistências-menores-nos-agentes) — **Parcial** (comentário "Telefone" ok) | Baixa | Trivial |
+| 26 | [Trocar o código de instalação vazado no histórico do Git](#26-trocar-o-código-de-instalação-vazado-no-histórico-do-git) | **Alta** | Pequeno |
+| 27 | [Android bloqueado com token revogado fica preso](#27-android-bloqueado-com-token-revogado-fica-preso) | Média | Médio |
+| 28 | [Máquinas Windows com serial genérico duplicam ao recadastrar](#28-máquinas-windows-com-serial-genérico-duplicam-ao-recadastrar) | Baixa | Pequeno |
+| 29 | [Relatórios convertem a data pelo fuso do servidor](#29-relatórios-convertem-a-data-pelo-fuso-do-servidor) | Baixa | Trivial |
+| 30 | [Heartbeat sem a data da leitura da localização](#30-heartbeat-sem-a-data-da-leitura-da-localização) | Baixa | Médio |
+| 31 | [DisableTaskMgr removido em todo logon](#31-disabletaskmgr-removido-em-todo-logon) | Baixa | Pequeno |
+| 32 | [Atribuir aparelho Bloqueado: só o site recusa](#32-atribuir-aparelho-bloqueado-só-o-site-recusa) | Baixa | Trivial |
+| 33 | [Aparelho perdido fica Bloqueado para sempre](#33-aparelho-perdido-fica-bloqueado-para-sempre) — ✅ Resolvido em 24/09/2026 | Média | Pequeno |
 
 **Sugestão de ordem:**
 
-1. Itens **1 e 3**: são os que mais afetam o dia a dia.
-2. Itens **2, 4 e 5**: mesmo tipo de mudança, cabem num PR só.
+0. Item **26** antes de tudo: é segurança e não depende de código (só da troca da chave).
+1. Item **1**: é o que mais afeta o dia a dia (o 3 já foi resolvido).
+2. O que sobrou do item **2** (confirmação no Restaurar) e o **6** (mensagem de lockout).
 3. Itens **8, 11, 22 e 24** (os dois últimos são pequenos e melhoram o diagnóstico da frota).
 4. Itens **15 a 19** (privacidade): vários dependem de decisão do jurídico/DPO — ver
    [privacidade-lgpd.md](../privacidade/privacidade-lgpd.md#para-o-jurídico-decidir). O **16** não depende e pode
@@ -91,6 +101,10 @@ comando criado) e com senha certa (comando `Pendente` + registro na auditoria).
 
 ## 2. Restaurar e desativar detentor sem confirmação
 
+> **Parcial — 24/09/2026 (revisão completa do código).** **Resolvido:** *Desativar* detentor
+> abre o diálogo "Desativar usuário" antes de agir (`UsuariosPage.tsx`), e o detentor pode ser
+> reativado (item 3). **Pendente:** *Restaurar* na aba *Arquivados* continua agindo no clique.
+
 **Problema:** **Restaurar** (aba *Arquivados*) e **Desativar** detentor (tela *Usuários*) agem no
 clique.
 
@@ -111,6 +125,13 @@ duas muda responsabilidade sobre ativo.
 ---
 
 ## 3. Detentor desativado não pode ser reativado
+
+> ✅ **Resolvido em 24/09/2026 (revisão completa do código).** **Resolvido:** a tela carrega
+> também os inativos e tem o interruptor **"Mostrar inativos"** (desligado por padrão), com chip
+> *Inativo* e botão **Reativar**. Reativar usa o `PUT /api/usuarios/{id}` com `ativo = true` e
+> fica auditado como edição do detentor (não foi criada ação de auditoria própria). A paginação
+> volta à página 1 ao mudar a busca ou o filtro. O `Atribuir` do backend passou a recusar
+> detentor inativo (400).
 
 **Problema:** a tela *Usuários* só pede os ativos (`useUsuarios()` com `incluirInativos = false`).
 O detentor desativado some, e com ele o botão **Editar**, que é onde fica o interruptor *Ativo*.
@@ -137,6 +158,10 @@ volta a aparecer no diálogo **Atribuir** e que a auditoria registrou.
 
 ## 4. "Excluir definitivamente" visível sem a permissão
 
+> ✅ **Resolvido em 24/09/2026 (revisão completa do código).** **Resolvido:** sem
+> `dispositivos.excluir_definitivo` o diálogo (`ExcluirDispositivoDialog.tsx`) mostra só
+> *Arquivar*. O texto do diálogo usa `identificacaoExibida`.
+
 **Problema:** o diálogo de exclusão mostra a opção **Excluir definitivamente** para quem tem só
 `dispositivos.excluir`. O backend recusa com 403 ao confirmar, depois de o usuário ter digitado
 `EXCLUIR` e a senha, e a mensagem que aparece é genérica.
@@ -159,6 +184,12 @@ arquivado**, sem essa permissão não sobra ação nenhuma, e o diálogo nem dev
 ---
 
 ## 5. Atribuir e Alterar status escondem o motivo do erro
+
+> ✅ **Resolvido em 24/09/2026 (revisão completa do código).** **Resolvido:** os dois mostram a
+> mensagem do servidor via `mensagemErroApi`. Além disso, **Atribuir** nem aparece para
+> aparelho *Baixado*, *Em manutenção* ou *Bloqueado* (`statusPermiteAtribuir` em
+> `features/dispositivos/status.ts`), e o menu de status de um *Bloqueado* só oferece
+> **Dar baixa** (item 33), com a dica "Desbloqueie pelo comando remoto (só a baixa é manual).". Ver também o item 32.
 
 **Problema:**
 
@@ -186,6 +217,13 @@ unidade. A mensagem do backend precisa aparecer.
 ---
 
 ## 6. Login não distingue desativado ou bloqueado
+
+> **Parcial — 24/09/2026 (revisão completa do código).** **Resolvido:** a tela mostra a
+> mensagem do servidor (fallback "Credenciais inválidas."), e o `AuthController` confere a senha
+> **antes** (`CheckPasswordSignInAsync`, com lockout): "Este login está desativado…" só aparece
+> com a senha certa, então a tela não revela quais logins existem. **Pendente:** a mensagem
+> específica de bloqueio por tentativas (`IsLockedOut`) — hoje o lockout ainda sai como
+> "Credenciais inválidas.".
 
 **Problema:** a tela mostra sempre "Credenciais inválidas.". O backend já devolve "Este login está
 desativado. Fale com um administrador." para login desativado.
@@ -561,6 +599,10 @@ não tem OTA).
 
 ## 25. Inconsistências menores nos agentes
 
+> **Parcial — 24/09/2026 (revisão completa do código).** **Resolvido:** o comentário de
+> `AgenteOptions.cs` não sugere mais `"Telefone"`. **Pendente:** o default `Simular = true` no
+> código e os três pontos do Android abaixo.
+
 Nenhuma afeta o funcionamento. Corrija quando mexer nos arquivos.
 
 - `agents/Tracker.Agent.Windows/AgenteOptions.cs`: o comentário sugere o tipo `"Telefone"`, que não
@@ -570,3 +612,194 @@ Nenhuma afeta o funcionamento. Corrija quando mexer nos arquivos.
 - Android: o token vai na URL do hub sem URL-encode. É inofensivo com base64url, mas vale
   codificar por consistência com o Windows.
 - Android: a origem da localização é sempre `GpsAndroid`, mesmo quando a posição veio da rede.
+
+---
+
+## 26. Trocar o código de instalação vazado no histórico do Git
+
+**Problema:** o valor **real** de produção do `Enrollment:CompanyKey` (o código de instalação dos
+agentes) foi escrito no `docs/agentes/agente-android.md` e entrou no commit `e36d642`
+(13/08/2026). O arquivo já usa o marcador `<CODIGO-DO-COFRE>`, mas **o valor continua no
+histórico do Git**: qualquer clone, fork ou cópia antiga do repositório o recupera com `git log`.
+
+**Impacto:** quem tiver o código cadastra aparelhos falsos no inventário e recebe token de
+agente. Tirar do arquivo **não basta**: a chave tem de ser considerada vazada.
+
+**Onde:** variável `Enrollment__CompanyKey` do servidor (API **e** runner do CI), o
+`Instalar-Agente.exe` do agente Windows (embute a chave) e o cofre de onde os técnicos copiam o
+código para o registro Android.
+
+**Correção sugerida:**
+
+1. Trocar a chave pelo procedimento **"Trocar (se vazar, ou por rotina)"** de
+   [backup-e-chaves.md](../operacao/backup-e-chaves.md#enrollment__companykey-o-código-de-instalação-dos-agentes).
+2. Regerar o instalador Windows. O CI **não** regera sozinho numa release que não mexa no
+   agente: apague `C:\TrackerAgentDist\ultima-geracao.txt` antes da próxima tag (força a
+   regeração) ou rode o `gerar-pendrive.ps1` à mão. Descarte os `.exe` antigos.
+3. Reescrever o histórico (`git filter-repo`) é **opcional** e caro (invalida todos os clones).
+   Sem a troca da chave ele não resolve nada; com a troca, deixa de ser necessário.
+
+**Nunca escreva o valor, nem o antigo, em doc, commit, issue ou chat** ao executar isto.
+
+**Verificar:** um auto-cadastro com o código antigo recebe 401 "Chave de instalação inválida.";
+os aparelhos já cadastrados seguem com heartbeat normal (usam o token, não a chave); um
+`Instalar-Agente.exe` novo cadastra uma máquina de teste.
+
+---
+
+## 27. Android bloqueado com token revogado fica preso
+
+**Problema:** desde o agente 1.1.3 o bloqueio no Android é reaplicado (boot, `VigilanteWorker`,
+abertura do app) só pelo sinal `bloqueado` persistido, **independente do token**. É de
+propósito: um aparelho bloqueado não pode voltar livre quando o token some. Mas o 401 apaga o
+token, e o agente Android não se recadastra sozinho (item 23). Resultado: aparelho
+**bloqueado + token revogado** (token regenerado no painel, backup antigo restaurado, servidor
+trocado) fica bloqueado **para sempre**. O Desbloquear não chega (sem token não há heartbeat nem
+hub) e a sobreposição cobre a tela de registro, onde o técnico digitaria o código.
+
+**Onde:** `agents/Tracker.Agent.Android/.../servico/AgenteService.kt` (laço de heartbeat sem
+token), `servico/BootReceiver.kt`, `servico/VigilanteWorker.kt`, `TrackerApp.kt` e
+`dados/Armazenamento.kt` (`bloqueado` no arquivo `tracker-agente-estado`).
+
+**Saída hoje:** só por `adb`, com o aparelho na mão da TI. Ver
+[agente-android.md](../agentes/agente-android.md#bloqueado-e-sem-token-aparelho-preso).
+
+**Correção sugerida (escolha uma):**
+
+- Com o aparelho bloqueado **e** sem token, a sobreposição oferece o registro (campo do código de
+  instalação). Só a TI tem o código, então isso não libera o usuário; depois do registro, o
+  `deveEstarBloqueado` do servidor decide.
+- Resolver o item 23 (recadastro automático), que elimina a causa.
+
+Mexe no agente: `versionCode` novo e OTA.
+
+**Verificar:** em aparelho de laboratório, bloquear, regenerar o token no painel e conferir que
+a TI consegue registrar de novo e desbloquear sem `adb`.
+
+---
+
+## 28. Máquinas Windows com serial genérico duplicam ao recadastrar
+
+**Problema:** o agente Windows passou a descartar serial genérico de BIOS ("To be filled by
+O.E.M.", "Default string" etc.) e a mandar `WIN-<UUID do SMBIOS>`, depois `WIN-<MachineGuid>` e,
+por último, `HOST-<nome>`. Uma máquina **já cadastrada** com serial genérico ou com `HOST-<nome>`
+passa a se apresentar com outro serial. Enquanto o `token.dat` vale, nada muda. Mas se ela **se
+recadastrar** (401, `token.dat` apagado), o reencontro (patrimônio, série, IMEI) não a acha,
+porque o agente Windows não envia patrimônio, e ela entra como **registro novo**. Máquinas
+diferentes que já dividiam o mesmo registro por causa do serial genérico também se separam
+nesse momento.
+
+**Onde:** `agents/Tracker.Agent.Windows/InfoMaquina.cs` (fallback do serial) e
+`AgenteController.ReencontrarAsync`.
+
+**Correção sugerida:**
+
+- Por ora, limpar à mão: arquivar o registro que sobrar e acertar identificação interna,
+  detentor e unidade no que ficar.
+- Definitiva: no auto-cadastro com serial `WIN-*` sem reencontro, procurar um `Notebook` cujo
+  serial seja genérico (`SerialGenerico.EhGenerico`) ou `HOST-<mesmo hostname>` **e** com o
+  mesmo MAC, e promover o serial em vez de criar outro.
+
+**Verificar:** listar os candidatos antes de a frota se recadastrar (`NumeroSerie LIKE 'HOST-%'`
+ou valores genéricos) e, depois, procurar hostnames repetidos na lista de dispositivos.
+
+---
+
+## 29. Relatórios convertem a data pelo fuso do servidor
+
+**Problema:** o "Cadastrado em" dos relatórios usa `ToLocalTime()`, que depende do fuso
+configurado na máquina. O termo de uso e o filtro da auditoria já usam o helper `FusoBrasil`
+(`src/Tracker.Application/Common/FusoBrasil.cs`), fixo em Brasília.
+
+**Impacto:** nenhum enquanto o servidor estiver no fuso de Brasília. Num servidor em UTC (ou num
+runner de teste), cadastro feito à noite sai com a data do dia seguinte.
+
+**Onde:** `src/Tracker.Infrastructure/Relatorios/RelatorioInventarioService.cs`
+(`CadastradoEm`).
+
+**Correção:** trocar por `FusoBrasil.ParaBrasilia(d.CriadoEm)`.
+
+**Verificar:** teste que gera o relatório com um `CriadoEm` às 01:00Z e espera a data do dia
+anterior, independente do fuso da máquina.
+
+---
+
+## 30. Heartbeat sem a data da leitura da localização
+
+**Problema:** o `HeartbeatRequest` não tem campo com o momento em que a posição foi lida, e o
+servidor grava o ponto com a hora do heartbeat. O agente Android 1.1.3 mitiga descartando a
+última posição conhecida com mais de 5 minutos, mas uma leitura de até 5 minutos atrás ainda
+aparece como "agora".
+
+**Onde:** `src/Tracker.Application/Dtos/AgenteDtos.cs` (`HeartbeatRequest`),
+`AgenteController.Heartbeat` e `localizacao/Geolocalizacao.kt` no Android.
+
+**Correção sugerida:** campo opcional `localizacaoLidaEm` (UTC) no request, gravado no ponto
+quando vier. Sem ele, vale a hora do heartbeat (compatível com o agente Windows e com agentes
+Android antigos). Atualizar o [protocolo-agente.md](../agentes/protocolo-agente.md).
+
+---
+
+## 31. DisableTaskMgr removido em todo logon
+
+**Problema:** a tela de bloqueio do Windows liga `DisableTaskMgr` no `HKCU` do usuário. Para
+nunca deixar o Gerenciador de Tarefas desligado depois do desbloqueio, o overlay sem
+`locked.flag` só **remove** o valor e sai. Isso roda em todo logon (tarefa `TrackerAgentLock`) e
+depois de cada desbloqueio, e a remoção é **incondicional**.
+
+**Impacto:** se uma GPO da empresa definir `DisableTaskMgr` para o usuário, o agente a desfaz a
+cada logon, até a próxima atualização de política.
+
+**Onde:** `agents/Tracker.Agent.Windows/LockOverlay.cs` (limpeza) e `BloqueioTela.cs`.
+
+**Correção sugerida:** gravar um marcador próprio quando o **agente** liga o valor e só remover
+se o marcador existir; ou conferir se há política em `HKCU\Software\Policies`.
+
+**Verificar:** com a GPO aplicada, fazer logon e conferir que o Gerenciador continua desabilitado;
+bloquear, desbloquear e conferir que volta ao estado da GPO.
+
+---
+
+## 32. Atribuir aparelho Bloqueado: só o site recusa
+
+**Problema:** o site esconde **Atribuir** para *Baixado*, *Em manutenção* e *Bloqueado*
+(`statusPermiteAtribuir`, em `src/Tracker.Web/src/features/dispositivos/status.ts`), mas o
+`DispositivosController.Atribuir` só recusa *Baixado* e *Em manutenção*. Com *Bloqueado* ele
+aceita, troca o detentor e mantém o status *Bloqueado*. A regra do projeto é gatear os dois lados.
+
+**Impacto:** baixo, porque só acontece por chamada direta à API. Mas o espelho da regra está
+incompleto.
+
+**Correção:** no `Atribuir`, recusar *Bloqueado* com 400 e a mesma mensagem do front
+("Dispositivo bloqueado. Desbloqueie pelo comando remoto antes de atribuir.").
+
+**Verificar:** teste de integração que atribui um dispositivo *Bloqueado* e espera 400.
+
+---
+
+## 33. Aparelho perdido fica Bloqueado para sempre
+
+> ✅ **Resolvido em 24/09/2026 (revisão completa do código).** `AtualizarStatus` aceita **Bloqueado →
+> Baixado** (só esse destino); o menu de status do site oferece só "Dar baixa" num Bloqueado; um
+> Bloquear confirmado depois da baixa mantém `Baixado`. Coberto por
+> `RegrasDispositivoTests.BaixaDeAparelhoBloqueado_NaoDestrava`. Arquivar continua recusado com
+> Bloquear a caminho.
+
+**Problema:** desde a revisão de 24/09/2026, `AtualizarStatus` recusa qualquer mudança em
+aparelho *Bloqueado*, e a exclusão/arquivamento já recusava. O status só sai de *Bloqueado*
+quando o **agente confirma** um Desbloquear. Um aparelho roubado ou perdido que nunca mais se
+conecta, portanto, **não recebe baixa nem pode ser arquivado**: fica *Bloqueado* no inventário,
+no dashboard e nos relatórios. Antes da revisão, o manual orientava "mantenha bloqueado e dê
+baixa" — hoje esse passo é recusado.
+
+**Onde:** `src/Tracker.Api/Controllers/DispositivosController.cs` (`AtualizarStatus` e
+`Excluir`).
+
+**Correção sugerida:** permitir **Dar baixa** num *Bloqueado* (só esse destino), mantendo o
+último comando como Bloquear: o `deveEstarBloqueado` do heartbeat segue o último comando, não o
+status, então se o aparelho reaparecer ele continua travado. Pedir motivo e auditar. Arquivar
+um *Baixado* que ainda tem Bloquear vigente é decisão à parte (a trava da exclusão existe para
+não sumir com o único botão de Desbloquear).
+
+**Verificar:** teste que bloqueia (comando confirmado), dá baixa e confere que o heartbeat
+seguinte ainda responde `deveEstarBloqueado = true`.

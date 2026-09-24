@@ -23,6 +23,8 @@ import type { Dispositivo } from '../../api/types'
 import { useAtribuirDispositivo } from './hooks'
 import { useUsuarios } from '../usuarios/hooks'
 import { usePaginacao } from '../../utils/paginacao'
+import { mensagemErroApi } from '../../utils/erroApi'
+import { motivoSemAtribuicao } from './status'
 
 /** Poucos por página: a lista mora dentro do diálogo e não pode empurrar os botões para fora. */
 const USUARIOS_POR_PAGINA = 5
@@ -84,9 +86,13 @@ export function AtribuirDialog({ dispositivo, onClose }: Props) {
     onClose()
   }
 
+  // A lista não oferece "Atribuir" nesses status; aqui é a defesa caso o status mude com o
+  // diálogo aberto (refetch). O backend recusa do mesmo jeito.
+  const bloqueioAtribuicao = dispositivo ? motivoSemAtribuicao(dispositivo.status) : null
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!dispositivo || !usuarioId) return
+    if (!dispositivo || !usuarioId || bloqueioAtribuicao) return
     atribuir.mutate(
       {
         id: dispositivo.id,
@@ -115,7 +121,12 @@ export function AtribuirDialog({ dispositivo, onClose }: Props) {
       <form onSubmit={handleSubmit}>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
-            {atribuir.isError && <Alert severity="error">Não foi possível atribuir o dispositivo.</Alert>}
+            {bloqueioAtribuicao && <Alert severity="warning">{bloqueioAtribuicao}</Alert>}
+            {atribuir.isError && (
+              <Alert severity="error">
+                {mensagemErroApi(atribuir.error, 'Não foi possível atribuir o dispositivo.')}
+              </Alert>
+            )}
             <TextField
               label="Buscar usuário"
               value={busca}
@@ -192,7 +203,7 @@ export function AtribuirDialog({ dispositivo, onClose }: Props) {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClose}>Cancelar</Button>
-          <Button type="submit" variant="contained" disabled={atribuir.isPending || !usuarioId}>
+          <Button type="submit" variant="contained" disabled={atribuir.isPending || !usuarioId || !!bloqueioAtribuicao}>
             {atribuir.isPending ? 'Atribuindo...' : 'Atribuir'}
           </Button>
         </DialogActions>

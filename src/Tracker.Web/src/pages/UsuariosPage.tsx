@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   Typography,
@@ -18,37 +18,67 @@ import {
   Alert,
   TableSortLabel,
   TablePagination,
+  FormControlLabel,
+  Switch,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
 } from '@mui/material'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined'
 import EditIcon from '@mui/icons-material/EditOutlined'
+import RestoreIcon from '@mui/icons-material/RestoreOutlined'
 import type { Usuario } from '../api/types'
-import { useUsuarios, useDesativarUsuario } from '../features/usuarios/hooks'
+import { useUsuarios, useDesativarUsuario, useReativarUsuario } from '../features/usuarios/hooks'
 import { UsuarioFormDialog } from '../features/usuarios/UsuarioFormDialog'
 import { formatarCpf, formatarTelefone } from '../utils/formato'
 import { useOrdenacao } from '../utils/ordenacao'
 import { usePaginacao } from '../utils/paginacao'
+import { mensagemErroApi } from '../utils/erroApi'
 
 export function UsuariosPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const termoBusca = searchParams.get('q') ?? ''
   const [dialogAberto, setDialogAberto] = useState(false)
   const [usuarioEmEdicao, setUsuarioEmEdicao] = useState<Usuario | null>(null)
-  const { data: usuariosCarregados, isLoading } = useUsuarios()
+  const [mostrarInativos, setMostrarInativos] = useState(false)
+  const [usuarioADesativar, setUsuarioADesativar] = useState<Usuario | null>(null)
+  // Carrega SEMPRE com os inativos e filtra no cliente: sem isso o detentor desativado sumia da
+  // tela e não havia como reativá-lo.
+  const { data: usuariosCarregados, isLoading, isError, error } = useUsuarios(true)
   const desativar = useDesativarUsuario()
+  const reativar = useReativarUsuario()
 
   const usuariosFiltrados = useMemo(() => {
-    if (!termoBusca.trim()) return usuariosCarregados
+    const visiveis = mostrarInativos ? usuariosCarregados : usuariosCarregados?.filter((u) => u.ativo)
+    if (!termoBusca.trim()) return visiveis
     const termo = termoBusca.trim().toLowerCase()
-    return usuariosCarregados?.filter((u) =>
+    return visiveis?.filter((u) =>
       [u.nome, u.email, u.telefone].some((campo) => campo.toLowerCase().includes(termo)),
     )
-  }, [usuariosCarregados, termoBusca])
+  }, [usuariosCarregados, termoBusca, mostrarInativos])
 
   const { ordenados: usuarios, coluna, direcao, ordenarPor } = useOrdenacao(
     usuariosFiltrados,
     'nome',
   )
-  const { itensPagina, total, paginacaoProps } = usePaginacao(usuarios)
+  const { itensPagina, total, setPagina, paginacaoProps } = usePaginacao(usuarios)
+
+  // Busca/filtro nova começa da primeira página (a lista pode mudar sem encolher).
+  useEffect(() => {
+    setPagina(0)
+  }, [termoBusca, mostrarInativos, setPagina])
+
+  const fecharConfirmacao = () => {
+    desativar.reset()
+    setUsuarioADesativar(null)
+  }
+
+  const confirmarDesativacao = () => {
+    if (!usuarioADesativar) return
+    desativar.mutate(usuarioADesativar.id, { onSuccess: fecharConfirmacao })
+  }
 
   return (
     <>
@@ -65,10 +95,24 @@ export function UsuariosPage() {
         </Alert>
       )}
 
+      <FormControlLabel
+        sx={{ mb: 1 }}
+        control={<Switch checked={mostrarInativos} onChange={(e) => setMostrarInativos(e.target.checked)} />}
+        label="Mostrar inativos"
+      />
+
+      {reativar.isError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => reativar.reset()}>
+          {mensagemErroApi(reativar.error, 'Não foi possível reativar o usuário.')}
+        </Alert>
+      )}
+
       {isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
           <CircularProgress />
         </Box>
+      ) : isError ? (
+        <Alert severity="error">{mensagemErroApi(error, 'Não foi possível carregar os usuários.')}</Alert>
       ) : (
         <TableContainer component={Paper}>
           <Table>
@@ -151,14 +195,20 @@ export function UsuariosPage() {
                       <IconButton size="small" title="Editar" onClick={() => setUsuarioEmEdicao(u)}>
                         <EditIcon fontSize="small" />
                       </IconButton>
-                      <IconButton
-                        size="small"
-                        title="Desativar"
-                        disabled={!u.ativo}
-                        onClick={() => desativar.mutate(u.id)}
-                      >
-                        <DeleteOutlineIcon fontSize="small" />
-                      </IconButton>
+                      {u.ativo ? (
+                        <IconButton size="small" title="Desativar" onClick={() => setUsuarioADesativar(u)}>
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      ) : (
+                        <IconButton
+                          size="small"
+                          title="Reativar"
+                          disabled={reativar.isPending}
+                          onClick={() => reativar.mutate(u)}
+                        >
+                          <RestoreIcon fontSize="small" />
+                        </IconButton>
+                      )}
                     </Stack>
                   </TableCell>
                 </TableRow>
@@ -168,7 +218,9 @@ export function UsuariosPage() {
                   <TableCell colSpan={7} align="center">
                     {termoBusca
                       ? `Nenhum usuário encontrado para "${termoBusca}".`
-                      : 'Nenhum usuário cadastrado.'}
+                      : mostrarInativos
+                        ? 'Nenhum usuário cadastrado.'
+                        : 'Nenhum usuário ativo. Ligue "Mostrar inativos" para ver os desativados.'}
                   </TableCell>
                 </TableRow>
               )}
@@ -177,6 +229,34 @@ export function UsuariosPage() {
           {total > 0 && <TablePagination {...paginacaoProps} />}
         </TableContainer>
       )}
+
+      <Dialog open={!!usuarioADesativar} onClose={fecharConfirmacao} maxWidth="xs" fullWidth>
+        <DialogTitle>Desativar usuário</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2}>
+            <DialogContentText>
+              Desativar <strong>{usuarioADesativar?.nome}</strong>? Ele deixa de aparecer para
+              atribuição de dispositivos. Dá para reativar depois (ligue "Mostrar inativos").
+            </DialogContentText>
+            {desativar.isError && (
+              <Alert severity="error">
+                {mensagemErroApi(desativar.error, 'Não foi possível desativar o usuário.')}
+              </Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={fecharConfirmacao}>Cancelar</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={confirmarDesativacao}
+            disabled={desativar.isPending}
+          >
+            {desativar.isPending ? 'Desativando...' : 'Desativar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <UsuarioFormDialog open={dialogAberto} onClose={() => setDialogAberto(false)} />
       <UsuarioFormDialog

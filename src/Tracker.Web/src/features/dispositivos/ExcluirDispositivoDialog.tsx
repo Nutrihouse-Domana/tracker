@@ -19,6 +19,8 @@ import type { Dispositivo } from '../../api/types'
 import { useExcluirDispositivo } from './hooks'
 import { useTermosPorDispositivo } from '../termos/hooks'
 import { mensagemErroApi } from '../../utils/erroApi'
+import { PERMISSOES, usePermissao } from '../auth/permissoes'
+import { identificacaoExibida } from './aluguel'
 
 interface Props {
   dispositivo: Dispositivo | null
@@ -40,17 +42,25 @@ export function ExcluirDispositivoDialog({ dispositivo, onClose, onExcluido }: P
   const [motivo, setMotivo] = useState('')
   const [confirmacao, setConfirmacao] = useState('')
   const excluir = useExcluirDispositivo()
+  // "Ocultar, não desabilitar": sem a permissão, a opção definitiva nem aparece (o backend recusa).
+  const podeExcluirDefinitivo = usePermissao(PERMISSOES.dispositivosExcluirDefinitivo)
 
   // Quantos termos assinados serão destruídos junto: é a informação que muda a decisão.
   const { data: termos } = useTermosPorDispositivo(dispositivo?.id)
 
-  const definitiva = modo === 'definitiva'
-  const identificacao = dispositivo?.hostname ?? dispositivo?.numeroSerie ?? ''
+  // Sem a permissão, nunca é definitiva (mesmo que o estado diga o contrário, ex.: já arquivado).
+  const definitiva = modo === 'definitiva' && podeExcluirDefinitivo
+  const identificacao = dispositivo ? identificacaoExibida(dispositivo) : ''
   // Já arquivado só tem um caminho adiante: arquivar de novo não faria nada.
   const jaArquivado = !!dispositivo?.excluidoEm
   // Digitar EXCLUIR evita que a opção destrutiva seja disparada por um clique distraído.
   const confirmacaoOk = !definitiva || confirmacao.trim().toUpperCase() === 'EXCLUIR'
+  // Arquivado sem a permissão definitiva: não sobra ação nenhuma neste diálogo.
+  const semAcao = jaArquivado && !podeExcluirDefinitivo
 
+  const dispositivoId = dispositivo?.id
+  // Reseta só quando o diálogo ABRE ou troca de aparelho (muda o id). O objeto `dispositivo` é
+  // recriado a cada refetch da query e, com ele na dependência, a senha/o texto digitado sumia.
   useEffect(() => {
     if (!dispositivo) return
     // Arquivar é o padrão: a opção sem volta precisa ser uma escolha consciente.
@@ -60,7 +70,7 @@ export function ExcluirDispositivoDialog({ dispositivo, onClose, onExcluido }: P
     setConfirmacao('')
     excluir.reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispositivo])
+  }, [dispositivoId])
 
   const handleClose = () => {
     excluir.reset()
@@ -69,7 +79,7 @@ export function ExcluirDispositivoDialog({ dispositivo, onClose, onExcluido }: P
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!dispositivo || !confirmacaoOk) return
+    if (!dispositivo || !confirmacaoOk || semAcao) return
     excluir.mutate(
       { id: dispositivo.id, data: { senha, motivo: motivo.trim() || null, definitiva } },
       {
@@ -88,10 +98,21 @@ export function ExcluirDispositivoDialog({ dispositivo, onClose, onExcluido }: P
         <DialogContent>
           <Stack spacing={2}>
             <DialogContentText>
-              {jaArquivado ? (
+              {semAcao ? (
+                <>
+                  <strong>{identificacao}</strong> já está arquivado. Apagá-lo de vez exige a
+                  permissão "Excluir definitivo", que você não tem.
+                </>
+              ) : jaArquivado ? (
                 <>
                   <strong>{identificacao}</strong> já está arquivado. A única ação restante é
                   apagá-lo de vez.
+                </>
+              ) : !podeExcluirDefinitivo ? (
+                <>
+                  Arquivar <strong>{identificacao}</strong>? Sai do inventário, da busca e do
+                  dashboard; histórico e termos são preservados e ele pode ser restaurado na aba
+                  Arquivados.
                 </>
               ) : (
                 <>
@@ -103,7 +124,7 @@ export function ExcluirDispositivoDialog({ dispositivo, onClose, onExcluido }: P
             <RadioGroup
               value={modo}
               onChange={(e) => setModo(e.target.value as Modo)}
-              sx={{ display: jaArquivado ? 'none' : undefined }}
+              sx={{ display: jaArquivado || !podeExcluirDefinitivo ? 'none' : undefined }}
             >
               <FormControlLabel
                 value="arquivar"
@@ -118,18 +139,20 @@ export function ExcluirDispositivoDialog({ dispositivo, onClose, onExcluido }: P
                   </Stack>
                 }
               />
-              <FormControlLabel
-                value="definitiva"
-                control={<Radio color="error" />}
-                label={
-                  <Stack>
-                    <Typography variant="body2">Excluir definitivamente</Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Apaga o registro e tudo que está ligado a ele. Não tem volta.
-                    </Typography>
-                  </Stack>
-                }
-              />
+              {podeExcluirDefinitivo && (
+                <FormControlLabel
+                  value="definitiva"
+                  control={<Radio color="error" />}
+                  label={
+                    <Stack>
+                      <Typography variant="body2">Excluir definitivamente</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Apaga o registro e tudo que está ligado a ele. Não tem volta.
+                      </Typography>
+                    </Stack>
+                  }
+                />
+              )}
             </RadioGroup>
 
             {definitiva && (
@@ -150,53 +173,59 @@ export function ExcluirDispositivoDialog({ dispositivo, onClose, onExcluido }: P
               </Alert>
             )}
 
-            <TextField
-              label="Motivo (opcional)"
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              fullWidth
-              multiline
-              minRows={2}
-              placeholder="Descarte, roubo, devolução ao fornecedor..."
-              slotProps={{ htmlInput: { maxLength: 400 } }}
-            />
+            {!semAcao && (
+              <>
+                <TextField
+                  label="Motivo (opcional)"
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  placeholder="Descarte, roubo, devolução ao fornecedor..."
+                  slotProps={{ htmlInput: { maxLength: 400 } }}
+                />
 
-            {definitiva && (
-              <TextField
-                label="Digite EXCLUIR para confirmar"
-                value={confirmacao}
-                onChange={(e) => setConfirmacao(e.target.value)}
-                required
-                fullWidth
-              />
+                {definitiva && (
+                  <TextField
+                    label="Digite EXCLUIR para confirmar"
+                    value={confirmacao}
+                    onChange={(e) => setConfirmacao(e.target.value)}
+                    required
+                    fullWidth
+                  />
+                )}
+
+                <TextField
+                  label="Sua senha do Tracker"
+                  type="password"
+                  value={senha}
+                  onChange={(e) => setSenha(e.target.value)}
+                  required
+                  fullWidth
+                  autoComplete="current-password"
+                  helperText="Confirme com a mesma senha que você usa para entrar."
+                />
+              </>
             )}
-
-            <TextField
-              label="Sua senha do Tracker"
-              type="password"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              required
-              fullWidth
-              autoComplete="current-password"
-              helperText="Confirme com a mesma senha que você usa para entrar."
-            />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose}>Cancelar</Button>
-          <Button
-            type="submit"
-            variant="contained"
-            color="error"
-            disabled={excluir.isPending || !senha || !confirmacaoOk}
-          >
-            {excluir.isPending
-              ? 'Excluindo...'
-              : definitiva
-                ? 'Excluir definitivamente'
-                : 'Arquivar'}
-          </Button>
+          <Button onClick={handleClose}>{semAcao ? 'Fechar' : 'Cancelar'}</Button>
+          {!semAcao && (
+            <Button
+              type="submit"
+              variant="contained"
+              color="error"
+              disabled={excluir.isPending || !senha || !confirmacaoOk}
+            >
+              {excluir.isPending
+                ? 'Excluindo...'
+                : definitiva
+                  ? 'Excluir definitivamente'
+                  : 'Arquivar'}
+            </Button>
+          )}
         </DialogActions>
       </form>
     </Dialog>

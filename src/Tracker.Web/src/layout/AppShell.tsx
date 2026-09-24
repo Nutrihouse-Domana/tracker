@@ -22,7 +22,14 @@ import DarkModeIcon from '@mui/icons-material/DarkModeOutlined'
 import LightModeIcon from '@mui/icons-material/LightModeOutlined'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useMe, useLogout } from '../features/auth/useAuth'
-import { usePermissoes, PERMISSOES, type Permissao } from '../features/auth/permissoes'
+import {
+  usePermissoes,
+  PERMISSOES,
+  EXIGENCIA_UNIDADES,
+  EXIGENCIA_USUARIOS,
+  atendeExigencia,
+  type ExigenciaPermissao,
+} from '../features/auth/permissoes'
 import { useModoTema } from '../features/tema/ModoTemaProvider'
 import { WaveFooter } from './WaveFooter'
 import { BarraDeBusca } from '../features/busca/BarraDeBusca'
@@ -30,7 +37,7 @@ import { LogoTracker } from './LogoTracker'
 import { nutrihouseColors } from '../theme'
 import { MenuRelatorios } from '../features/relatorios/MenuRelatorios'
 
-type NavLink = { label: string; path: string; perm: Permissao }
+type NavLink = { label: string; path: string; perm: ExigenciaPermissao }
 type NavGroup = { label: string; itens: NavLink[] }
 type NavItem = NavLink | NavGroup
 
@@ -44,8 +51,8 @@ const navItemsBase: NavItem[] = [
   {
     label: 'Cadastros',
     itens: [
-      { label: 'Usuários', path: '/usuarios', perm: PERMISSOES.usuariosGerir },
-      { label: 'Unidades', path: '/unidades', perm: PERMISSOES.unidadesGerir },
+      { label: 'Usuários', path: '/usuarios', perm: EXIGENCIA_USUARIOS },
+      { label: 'Unidades', path: '/unidades', perm: EXIGENCIA_UNIDADES },
     ],
   },
 ]
@@ -58,7 +65,7 @@ const menuContaItens: NavLink[] = [
 ]
 
 /** Remove itens sem permissão e grupos que ficaram vazios. */
-function filtrarNav(itens: NavItem[], tem: (p: Permissao) => boolean): NavItem[] {
+function filtrarNav(itens: NavItem[], tem: (p: ExigenciaPermissao) => boolean): NavItem[] {
   return itens
     .map((item) => {
       if (ehGrupo(item)) {
@@ -74,7 +81,7 @@ export function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const { data: usuarioAdm } = useMe()
-  const { tem } = usePermissoes()
+  const { tem, lista: permissoesDoUsuario } = usePermissoes()
   const { modo, alternar } = useModoTema()
   const logout = useLogout()
   const [menuAberto, setMenuAberto] = useState(false)
@@ -83,8 +90,9 @@ export function AppShell() {
   const [grupoMenu, setGrupoMenu] = useState<{ label: string; el: HTMLElement } | null>(null)
   const [usuarioEl, setUsuarioEl] = useState<null | HTMLElement>(null)
 
-  const navItems = filtrarNav(navItemsBase, tem)
-  const contaItens = menuContaItens.filter((i) => tem(i.perm))
+  const atende = (p: ExigenciaPermissao) => atendeExigencia(permissoesDoUsuario, p)
+  const navItems = filtrarNav(navItemsBase, atende)
+  const contaItens = menuContaItens.filter((i) => atende(i.perm))
   const podeBuscar = tem(PERMISSOES.dispositivosVer)
   // Os relatórios leem o inventário: mesma permissão da lista de dispositivos.
   const podeVerRelatorios = tem(PERMISSOES.dispositivosVer)

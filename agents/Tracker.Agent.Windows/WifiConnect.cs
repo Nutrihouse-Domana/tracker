@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security;
 using System.Text;
@@ -28,7 +29,7 @@ public static partial class WifiConnect
         }
         catch { /* cai no netsh */ }
 
-        var saida = RodarNetsh("wlan show interfaces");
+        var saida = RodarNetsh("wlan show interfaces").Saida;
         return !saida.Contains("no wireless interface", StringComparison.OrdinalIgnoreCase)
             && !saida.Contains("sem fio no sistema", StringComparison.OrdinalIgnoreCase);
     }
@@ -51,7 +52,7 @@ public static partial class WifiConnect
 
     private static List<string> ListarRedesNetsh()
     {
-        var saida = RodarNetsh("wlan show networks");
+        var saida = RodarNetsh("wlan show networks").Saida;
         var redes = new List<string>();
         foreach (Match m in SsidRegex().Matches(saida))
         {
@@ -69,14 +70,17 @@ public static partial class WifiConnect
         try
         {
             File.WriteAllText(arquivo, MontarPerfil(ssid, senha), new UTF8Encoding(false));
-            RodarNetsh($"wlan add profile filename=\"{arquivo}\" user=current");
-            var r = RodarNetsh($"wlan connect name=\"{ssid}\" ssid=\"{ssid}\"");
+            // Sucesso decidido pelo CÓDIGO DE SAÍDA do netsh, não pelo texto: a mensagem é
+            // traduzida conforme o idioma do Windows ("concluída com êxito", "completed
+            // successfully"...) e a comparação por palavra quebrava com acento/codepage.
+            var perfil = RodarNetsh($"wlan add profile filename=\"{arquivo}\" user=current");
+            if (perfil.Codigo != 0)
+                return (false, $"Falha ao gravar o perfil da rede. {perfil.Saida.Trim()}");
 
-            // netsh responde algo como "A solicitação de conexão foi concluída com êxito."
-            var ok = r.Contains("êxito", StringComparison.OrdinalIgnoreCase)
-                  || r.Contains("success", StringComparison.OrdinalIgnoreCase)
-                  || r.Contains("concluíd", StringComparison.OrdinalIgnoreCase);
-            return (ok, ok ? "Conectando… aguarde alguns segundos." : $"Falha ao conectar. {r.Trim()}");
+            var r = RodarNetsh($"wlan connect name=\"{ssid}\" ssid=\"{ssid}\"");
+            return r.Codigo == 0
+                ? (true, "Conectando… aguarde alguns segundos.")
+                : (false, $"Falha ao conectar. {r.Saida.Trim()}");
         }
         catch (Exception ex)
         {
@@ -124,25 +128,58 @@ public static partial class WifiConnect
         """;
     }
 
-    private static string RodarNetsh(string args)
+    /// <summary>
+    /// Roda o netsh e devolve código de saída + texto. O netsh escreve na codepage OEM do console
+    /// (850 no Windows em pt-BR), não em UTF-8: lido como UTF-8, "êxito" virava lixo. A saída só
+    /// serve para mostrar ao usuário e para as checagens de "sem interface"; o sucesso é o código.
+    /// </summary>
+    private static (int Codigo, string Saida) RodarNetsh(string args)
     {
         try
         {
+            var codificacao = CodificacaoOem();
             var psi = new ProcessStartInfo("netsh.exe", args)
             {
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                StandardOutputEncoding = Encoding.UTF8,
+                StandardOutputEncoding = codificacao,
+                StandardErrorEncoding = codificacao,
             };
             using var p = Process.Start(psi)!;
-            var saida = p.StandardOutput.ReadToEnd() + p.StandardError.ReadToEnd();
-            p.WaitForExit(15000);
-            return saida;
+            // Lê os dois fluxos em paralelo: ler um até o fim antes do outro pode travar se o
+            // buffer do segundo encher.
+            var saida = p.StandardOutput.ReadToEndAsync();
+            var erro = p.StandardError.ReadToEndAsync();
+            if (!p.WaitForExit(15000))
+            {
+                try { p.Kill(); } catch { }
+                return (-1, "O netsh não respondeu em 15s.");
+            }
+            return (p.ExitCode, saida.Result + erro.Result);
         }
-        catch (Exception ex) { return ex.Message; }
+        catch (Exception ex) { return (-1, ex.Message); }
     }
+
+    private static Encoding? _oem;
+
+    /// <summary>Codepage OEM do sistema (GetOEMCP). No .NET, codepages legadas como a 850 exigem
+    /// registrar o <see cref="CodePagesEncodingProvider"/>.</summary>
+    private static Encoding CodificacaoOem()
+    {
+        if (_oem is not null) return _oem;
+        try
+        {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            _oem = Encoding.GetEncoding((int)GetOEMCP());
+        }
+        catch { _oem = Encoding.GetEncoding(CultureInfo.CurrentCulture.TextInfo.OEMCodePage); }
+        return _oem;
+    }
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetOEMCP();
 
     [GeneratedRegex(@"(?im)^\s*SSID\s+\d+\s*:\s*(.+?)\s*$")]
     private static partial Regex SsidRegex();
