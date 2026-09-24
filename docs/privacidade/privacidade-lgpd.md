@@ -63,6 +63,10 @@ com Device Owner), número de série, **nível de bateria** (Android), nível de
 - No Android, o hostname é o **nome do aparelho escolhido pelo usuário**, que pode conter o nome
   da pessoa (ex.: "Celular da Maria").
 - O agente Windows **não coleta** o usuário logado no Windows.
+- Desde 24/09/2026, em máquina **sem número de série de fábrica** o agente Windows envia no lugar
+  um identificador técnico da máquina (`WIN-<UUID do SMBIOS>` ou `WIN-<MachineGuid>`). É do mesmo
+  tipo do número de série (identifica o equipamento, não a pessoa) e fica no mesmo campo; vale o
+  jurídico confirmar que a finalidade declarada para o número de série cobre este caso.
 - A lista de redes Wi-Fi da tela de bloqueio é usada **só no aparelho**, sem ser enviada ao servidor.
 
 ### Histórico e registros

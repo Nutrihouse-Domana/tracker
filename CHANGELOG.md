@@ -18,7 +18,66 @@ marcações e escreva do ponto de vista de quem usa ou opera, não do código.
 
 ---
 
-## [Não publicado]
+## [Não publicado] · Agente Windows · Agente Android (versionCode 5)
+
+Correções da revisão completa do código (24/09/2026).
+
+- **Banco:** sem migração de schema. O start passa a gravar a claim
+  `tracker.permissoes-configuradas` nos ADMs da role Admin (dado, não schema).
+- **Agente Windows:** **exige reinstalar** o `Instalar-Agente.exe` na frota para receber as
+  permissões novas das pastas (sem OTA no Windows). O CI regera o instalador uma vez no primeiro
+  deploy (o marcador `ultima-geracao.txt` ainda não existe).
+- **Agente Android:** 1.1.3 (`versionCode` 5). Chega à frota por OTA **depois de publicado na
+  página Agente**.
+
+**Bloqueio remoto e status**
+
+- O "deve estar bloqueado" do heartbeat segue o **último comando** Bloquear/Desbloquear: o
+  Android não destrava mais logo depois de aplicar um Bloquear ainda não confirmado.
+- Aparelho **Bloqueado** não muda de status à mão, não abre nem conclui reparo e não pode ser
+  arquivado/excluído com um Bloquear a caminho. "Bloqueado" deixou de ser opção manual.
+- Desbloquear só tira de Bloqueado; volta a Em uso só com responsável (detentor ou unidade).
+- Trocar a posse não deixa mais um aparelho "Em uso" sem responsável.
+
+**Painel**
+
+- Usuários: **Mostrar inativos**, **Reativar** e confirmação ao **Desativar**.
+- Usuários e Unidades exigem também **Ver dispositivos** (antes abriam com lista vazia).
+- Atribuir some para Baixado/Em manutenção/Bloqueado e recusa detentor desativado; erros de
+  atribuir, alterar status, relatórios e login mostram a mensagem do servidor.
+- "Excluir definitivamente" só aparece para quem tem a permissão.
+- Diálogos de senha não perdem o que foi digitado quando a tela recarrega os dados.
+- Login: "desativado" só é revelado com a senha certa.
+- Termo de uso impresso com a data de Brasília; filtro de período da auditoria pelo dia de Brasília.
+- Revogar permissões de um ADM não é mais desfeito no próximo start do site.
+- **Mudança de comportamento:** `--redefinir-senha-adm` passa a exigir as regras completas de
+  senha do Identity (maiúscula, minúscula, dígito, símbolo, 10+ caracteres) e avisa — sem
+  reativar — quando o login está desativado.
+
+**Agentes**
+
+- Windows: canal em tempo real que reconecta para sempre; tela de bloqueio mais robusta (detecção
+  por processo, troca de monitor com o painel Wi-Fi aberto, Gerenciador de Tarefas liberado após
+  desbloquear); serial estável (`WIN-<UUID>`) em máquinas sem serial de fábrica; pastas
+  protegidas por ACL.
+- Android: serviço que não cai no Android 14 sem localização, bloqueio independente do token e do
+  Keystore, quiosque de verdade com Device Owner, OTA e localização com prazos, Wi-Fi da tela de
+  bloqueio com varredura nova.
+- Auto-cadastro recusa serial genérico de BIOS sem patrimônio.
+
+**Deploy**
+
+- `atualizar-servidor.ps1` espera o app pool parar e a DLL ser liberada, restaura o backup se a
+  troca falhar e nunca deixa o site parado.
+- O instalador do agente Windows é regerado contra a **última geração bem-sucedida**, não contra a
+  tag anterior.
+- `gerar-apk-agente.ps1` preserva o `local.properties`; `gerar-pendrive.ps1 -Tipo` aceita `Mobile`.
+
+**Segurança — ação pendente:** o código de instalação dos agentes (`Enrollment__CompanyKey`) de
+produção está no histórico do Git e precisa ser **trocado** (ver
+[backup-e-chaves.md](docs/operacao/backup-e-chaves.md#enrollment__companykey-o-código-de-instalação-dos-agentes)).
+
+**Também não publicado:**
 
 - Documentação: índices revisados, manual do usuário, guia de backup e chaves, backlog de
   melhorias, protocolo do agente, privacidade/LGPD, recuperação de desastre e este changelog.

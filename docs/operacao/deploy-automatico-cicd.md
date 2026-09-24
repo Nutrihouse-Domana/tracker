@@ -21,10 +21,11 @@ Você cria a tag v1.2.0  ->  GitHub Actions (self-hosted runner on-prem)
   logo os testes **nunca tocam o banco de produção** configurado na máquina.
 - **node_modules:** restaurado de um cache local do servidor (`C:\TrackerCI`), chaveado pelo
   hash do `package-lock.json` — só roda `npm ci` quando o lock muda.
-- **Publish + deploy:** gera o pacote site + API e troca os arquivos no IIS (backup, para, copia,
-  reinicia, health check).
+- **Publish + deploy:** gera o pacote site + API e troca os arquivos no IIS (backup, para, espera
+  liberar, copia, reinicia, health check). Falha na troca **restaura o backup** sozinha.
 - **Instalador do agente Windows:** regerado em `C:\TrackerAgentDist` **só se o agente mudou**
-  desde a tag anterior (roda depois do deploy; falha aqui não desfaz o site).
+  desde a **última geração bem-sucedida** (roda depois do deploy; falha aqui não desfaz o site).
+  Detalhes em [Instalador do agente Windows](#instalador-do-agente-windows).
 
 Arquivos: [`.github/workflows/deploy-producao.yml`](../../.github/workflows/deploy-producao.yml) e
 [`deploy/atualizar-servidor.ps1`](../../deploy/atualizar-servidor.ps1).
@@ -92,17 +93,50 @@ No servidor `192.168.0.254`, como **Administrador**:
 
 ## O que o deploy faz no servidor (a cada execução)
 
-1. **Backup** de `C:\Tracker` em `C:\TrackerBackups\Tracker-<data-hora>` (mantém os 5 últimos).
-2. Para o **site** e o **app pool** no IIS.
-3. Substitui os arquivos de `C:\Tracker` (a pasta de dados `C:\TrackerDados` fica de fora e é preservada).
-4. Reinicia e faz **health check** em `https://localhost/health`. Se não responder `{"status":"ok"}`,
-   o job **falha** — e o backup anterior continua disponível para rollback manual.
+Script: [`deploy/atualizar-servidor.ps1`](../../deploy/atualizar-servidor.ps1).
+
+1. **Backup** do **conteúdo** de `C:\Tracker` em `C:\TrackerBackups\Tracker-<data-hora>` (mantém os
+   5 últimos). Como é o conteúdo, e não a pasta, restaurar é copiar `backup\*` de volta.
+2. Para o **site** e o **app pool** no IIS e **espera de verdade**: o pool chegar a `Stopped` e o
+   `Tracker.Api.dll` ser liberado (abre o arquivo com exclusividade em laço), até **60 s** cada.
+   `Stop-WebAppPool` só *pede* a parada; sem a espera, a cópia pegava a DLL ainda presa pelo
+   `w3wp`. Estourou o prazo: o deploy é abortado sem tocar nos arquivos.
+3. Substitui os arquivos de `C:\Tracker` (a pasta de dados `C:\TrackerDados` fica de fora e é
+   preservada). **Se a troca falhar, restaura o backup** na hora e o site volta na versão anterior.
+4. **Sempre** religa o app pool e o site (num `finally`), mesmo em falha — o site nunca fica parado.
+   Falha na parada ou na troca encerra o script com **`exit 1`**, e o job do CI fica vermelho.
+5. **Health check** no `/health` do host do binding https (ou `https://localhost/health`). Se não
+   responder `{"status":"ok"}`, o script **só avisa** (SNI/loopback pode impedir o teste local com
+   o app saudável): confira a URL pública e, se estiver fora, faça o rollback manual abaixo.
+
+---
+
+## Instalador do agente Windows
+
+O último passo do workflow decide se regera o `Instalar-Agente.exe` em `C:\TrackerAgentDist`
+(ou `TRACKER_AGENTE_DIST`). Regera quando **qualquer** uma destas vale:
+
+- `Instalar-Agente.exe` não existe no destino;
+- o marcador `ultima-geracao.txt` não existe, está vazio ou aponta para um commit que não está no
+  histórico;
+- há diferença entre o commit do marcador e o commit da release em `agents/Tracker.Agent.Windows`,
+  `deploy/gerar-pendrive.ps1` ou `deploy/Instalador`.
+
+O `ultima-geracao.txt` tem três linhas — commit, tag e data/hora da geração — e é gravado **por
+último**, só depois de o `.exe` e a cópia versionada (`Instalar-Agente-<tag>.exe`) saírem. Antes,
+o diff era contra a **tag anterior**: se uma release falhava antes de gerar o agente, a seguinte
+via "sem mudança" e o instalador ficava velho para sempre. **No primeiro deploy depois dessa
+mudança o marcador ainda não existe, então o agente é regerado uma vez.**
+
+**Forçar a regeração** (ex.: depois de trocar o `Enrollment__CompanyKey`, que não muda código):
+apague `C:\TrackerAgentDist\ultima-geracao.txt` antes da próxima tag.
 
 ---
 
 ## Rollback manual
 
-Se algo der errado após um deploy:
+A troca de arquivos já restaura o backup sozinha quando **ela** falha. Este procedimento é para
+quando o deploy terminou, mas a versão nova está com problema:
 
 ```powershell
 # no servidor, como Administrador
@@ -126,3 +160,4 @@ Start-Website -Name Tracker
 - [ ] Conta do serviço com permissão de IIS + escrita em `C:\Tracker` e `C:\TrackerBackups`.
 - [ ] Site `Tracker` e variáveis de ambiente de produção já configurados.
 - [ ] Um deploy manual já funcionou pelo menos uma vez (valida IIS + banco + certificado).
+- [ ] `Enrollment__CompanyKey` definido na env da máquina do runner (o passo do agente depende dela).

@@ -17,6 +17,26 @@ A instalação cria `C:\TrackerAgent`, extrai o agente já configurado, registra
 impede usuário comum de parar) e a tarefa `TrackerAgentLock` (tela de bloqueio). O dispositivo
 aparece no Tracker em até 1 minuto, via auto-cadastro.
 
+### Permissões das pastas (ACL)
+
+Desde a revisão de 24/09/2026, o instalador (e o `instalar-agente.ps1`) aplica ACL **explícita,
+sem herança**, por SID (funciona em Windows em português, onde "Administrators" não existe):
+
+| Pasta | SYSTEM e Administradores | Usuários |
+|---|---|---|
+| `C:\TrackerAgent` (executável, `appsettings.json`, `token.dat`, log) | Controle total | Leitura e execução |
+| `%ProgramData%\TrackerAgent` (`locked.flag`) | Controle total | Só leitura |
+
+O dono das duas passa a ser Administradores e os arquivos de dentro perdem permissões próprias.
+Sem isso, um usuário comum conseguia apagar o `locked.flag` ou trocar o executável. O marcador
+antigo `overlay-alive.flag` é apagado: a tela de bloqueio agora é detectada pelo processo.
+
+> **Máquinas instaladas antes desta versão não têm a ACL.** A frota Windows não tem OTA:
+> **reinstale** o agente (rodar o `Instalar-Agente.exe` novo) para aplicá-la. O `token.dat` é
+> preservado, então o aparelho não duplica no inventário.
+
+Depois da instalação, editar o `appsettings.json` exige um editor aberto **como Administrador**.
+
 O resultado fica em `logs\<HOSTNAME>-instalacao.log` ao lado do `.exe` — use para auditar o
 lote de máquinas. Se a mídia estiver somente leitura, o log vai para `%ProgramData%\TrackerAgent`.
 
@@ -74,7 +94,8 @@ executável e **apaga o zip em seguida** (ele contém a `EnrollmentKey`). A past
 - A `EnrollmentKey` é lida do `dotnet user-secrets` do projeto `Tracker.Api`
   (chave `Enrollment:CompanyKey`) e nunca aparece na tela. Use `-EnrollmentKey "<chave>"`
   para informar outra explicitamente.
-- `-Tipo Telefone` — tipo do dispositivo criado no auto-cadastro (padrão `Notebook`).
+- `-Tipo Notebook|Mobile` — tipo do dispositivo criado no auto-cadastro (padrão `Notebook`).
+  `Telefone` não existe mais: celular e tablet são `Mobile`.
 - `-Simular` — kit de teste: o agente não trava a tela de verdade.
 
 A pasta de instalação (`C:\TrackerAgent`) é a constante `PastaInstalacao` em `Program.cs`.
@@ -89,7 +110,9 @@ A pasta de instalação (`C:\TrackerAgent`) é a constante `PastaInstalacao` em 
 | `sc create` código 1073 ("o serviço já existe") | Instalação anterior cujo SDDL antigo impedia até administrador de apagar o serviço. O instalador atual resolve sozinho: reaproveita o serviço ou redefine o descritor via registro. |
 | `sc create` código 5 ("acesso negado") | A conta usada no UAC não é administrador **local** desta máquina — ser admin do domínio não basta. |
 | Serviço não entra em execução | Ver `C:\TrackerAgent\agent.log` — normalmente URL do backend inacessível. |
-| Dispositivo não aparece no Tracker | `EnrollmentKey` divergente da configurada no servidor (`Enrollment__CompanyKey`). |
+| Dispositivo não aparece no Tracker | `EnrollmentKey` divergente da configurada no servidor (`Enrollment__CompanyKey`). Veja no `agent.log`: o agente registra o status e o corpo da recusa do auto-cadastro. |
+| Auto-cadastro recusado com 400 "número de série … genérico de BIOS" | A máquina não tem serial de fábrica e o instalador é anterior ao fallback `WIN-<UUID>`. Reinstale com o `Instalar-Agente.exe` atual. |
+| `icacls ... falhou` na instalação | A conta não é administrador local, ou um arquivo em `C:\TrackerAgent` está aberto por outro processo. Feche e rode de novo. |
 | Executável bloqueado pelo administrador | AppLocker/WDAC barrando binário em mídia removível ou não assinado — precisa de exceção por hash/caminho. |
 | SmartScreen avisa "editor desconhecido" | O `.exe` não é assinado. Prosseguir em *Mais informações*, ou assinar com certificado da empresa. |
 

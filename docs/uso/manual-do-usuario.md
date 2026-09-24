@@ -11,12 +11,16 @@ por tarefa: procure o que você quer fazer.
 
 ## Entrar, sair e navegar
 
-- **Entrar:** e-mail e senha. Qualquer falha mostra **"Credenciais inválidas."** — inclusive
-  login desativado ou bloqueado por muitas tentativas erradas. Se a senha está certa e mesmo
-  assim não entra, peça a um gestor de Acessos para conferir se o login está ativo.
+- **Entrar:** e-mail e senha. Senha errada ou e-mail inexistente mostram **"Credenciais
+  inválidas."**. Com a senha **certa** e o login desativado, a tela diz **"Este login está
+  desativado. Fale com um administrador."**. O bloqueio por muitas tentativas erradas ainda
+  aparece como "Credenciais inválidas." — se tiver certeza da senha, espere alguns minutos antes
+  de tentar de novo, em vez de insistir.
 - O login fica lembrado no navegador. **Sair:** clique no seu nome (canto superior direito) →
   **Sair**.
-- **Menu principal:** Dashboard, Dispositivos e **Cadastros** (Usuários, Unidades).
+- **Menu principal:** Dashboard, Dispositivos e **Cadastros** (Usuários, Unidades). Usuários e
+  Unidades exigem a permissão de gestão **e** também **Ver dispositivos** (as listas vêm do
+  inventário); sem as duas, o item não aparece.
 - **Menu da conta** (clique no seu nome): Perfil, **Relatórios**, Agente, Acessos, Auditoria.
 - **Tema claro/escuro:** botão sol/lua na barra. Sem escolha, segue o tema do Windows.
 - No celular, o menu vira uma gaveta (ícone ☰). **Relatórios não estão na versão celular** —
@@ -92,11 +96,13 @@ de novo.
 3. O status vira **Em uso** automaticamente.
 4. Gere e colha a assinatura do **termo de uso** (próximo item).
 
-Não é possível atribuir: ativo do local, aparelho **Baixado** (devolva ao estoque antes) ou
-**Em manutenção** (conclua o reparo antes). Nesses casos a tela mostra só "Não foi possível
-atribuir o dispositivo." — confira o status.
+O botão **Atribuir não aparece** para ativo do local nem para aparelho **Baixado** (devolva ao
+estoque antes), **Em manutenção** (conclua o reparo antes) ou **Bloqueado** (desbloqueie pelo
+comando remoto antes). Se o sistema recusar por outro motivo, a mensagem do servidor aparece no
+diálogo.
 
-Só aparecem colaboradores **ativos** cadastrados em **Usuários**.
+Só aparecem colaboradores **ativos** cadastrados em **Usuários**; o sistema também recusa um
+detentor desativado.
 
 ### Termo de uso
 
@@ -115,10 +121,16 @@ anexado não pode ser apagado pela tela.
 No detalhe, chip de status → **Alterar status** → **Devolver ao estoque**. O detentor é
 liberado e a devolução fica no histórico de movimentação.
 
+> **Aparelho Bloqueado não muda de status.** O menu **Alterar status** some e aparece a dica
+> "Desbloqueie pelo comando remoto." — devolver, dar baixa ou colocar em uso só depois de o
+> agente confirmar o **Desbloquear**. "Bloqueado" também não é escolha manual: só o comando
+> remoto leva a ele. Se o sistema recusar uma mudança, a mensagem aparece na tela.
+
 ### Enviar para conserto
 
 Aba **Reparos** → descreva o problema (e o custo estimado, se houver) → **Abrir reparo**. O
-dispositivo passa para **Em manutenção**.
+dispositivo passa para **Em manutenção**. Aparelho **Bloqueado** não abre nem conclui reparo:
+desbloqueie antes.
 
 - **Concluído:** o aparelho volta sozinho para **Em uso** (se tiver detentor) ou **Em estoque**.
 - **Cancelado:** o status do aparelho **não muda** — ajuste-o à mão pelo chip de status.
@@ -132,7 +144,9 @@ estoque** traz o aparelho de volta.
 
 Aba **Unidade & Posse** → interruptor **Pertence ao local** → escolha a unidade, motivo e sua
 senha. O detentor atual é liberado (fica no histórico) e o status sai de Em uso para Em estoque.
-Para colocá-lo em uso na unidade: chip de status → **Colocar em uso**.
+Para colocá-lo em uso na unidade: chip de status → **Colocar em uso**. O caminho inverso (voltar a
+**Pertence a um usuário**) também leva um aparelho Em uso para Em estoque, até ele ser atribuído
+a alguém.
 
 ### Identificação interna e vencimento do aluguel
 
@@ -165,16 +179,23 @@ Aba **Agente & Bloqueio** (Notebook/Mobile), com permissão de bloquear.
   comando como falho: um comando parado em Pendente/Enviado por muito tempo significa que o
   aparelho não recebeu — confira o **Último heartbeat** e a **Proteção do agente**.
 - O bloqueio é **persistente**: continua após reiniciar e sem internet. Só a TI desbloqueia.
-- **Desbloquear:** o aparelho volta para Em uso (com detentor) ou Em estoque.
-- Um aparelho **bloqueado não pode ser arquivado nem excluído** — desbloqueie antes.
+- **Desbloquear:** quando o agente confirma, o aparelho que estava **Bloqueado** volta para
+  **Em uso** se tiver responsável (o detentor, ou a unidade no ativo do local) ou para **Em
+  estoque**. O desbloqueio não mexe em outro status (Baixado e Em manutenção ficam como estão).
+- Enquanto está **Bloqueado**, o aparelho não muda de status, não abre nem conclui reparo e não
+  recebe detentor.
+- Um aparelho **bloqueado não pode ser arquivado nem excluído**, nem um com **Bloquear ainda a
+  caminho** (comando Pendente/Enviado sem Desbloquear depois) — desbloqueie antes.
 
 ### Aparelho perdido ou roubado
 
 1. **Bloquear** imediatamente.
 2. Aba **Localização**: última posição conhecida e horário (só a mais recente).
 3. Registre o ocorrido em **Comentários** (data, quem comunicou, boletim de ocorrência se houver).
-4. Recuperado: **Desbloquear** e conferir o estado. Não recuperado: mantenha bloqueado e
-   **Dar baixa**; arquive só depois, se for o caso (arquivar exige desbloquear antes).
+4. Recuperado: **Desbloquear** e conferir o estado. Não recuperado: mantenha bloqueado. Hoje
+   ele **não pode receber baixa nem ser arquivado** enquanto estiver Bloqueado, e só sai desse
+   status quando o próprio aparelho confirmar um Desbloquear (ver
+   [Limitações conhecidas](#limitações-conhecidas)).
 
 ### O que mais aparece nesta aba
 
@@ -188,6 +209,8 @@ Aba **Agente & Bloqueio** (Notebook/Mobile), com permissão de bloquear.
   vez** — copie na hora. Com o instalador (`Instalar-Agente.exe`) ou o registro do app Android,
   não é necessário. **Atenção:** gerar um token novo **invalida o atual**. O notebook se recadastra
   sozinho, mas o **celular/tablet para de comunicar** até alguém refazer o registro no aparelho.
+  **Nunca gere token novo para um celular/tablet Bloqueado:** ele fica preso na tela de bloqueio
+  e só sai com a TI e um cabo (`adb`).
 
 ---
 
@@ -202,7 +225,7 @@ No detalhe ou na lista, **Excluir** abre duas opções:
 
 Ambas pedem sua senha; a definitiva também pede digitar `EXCLUIR`. Prefira sempre **arquivar**:
 o termo assinado é documento com valor legal. A exclusão definitiva exige uma permissão própria
-— sem ela, o sistema recusa.
+(**Excluir definitivo**) — sem ela, a opção nem aparece no diálogo.
 
 ### Restaurar um arquivado
 
@@ -221,8 +244,10 @@ Pessoas que recebem equipamentos. **Não são logins do painel** — esses ficam
 
 - **Novo usuário:** nome, CPF (validado), e-mail (único) e telefone.
 - O CPF **não pode ser alterado** depois de salvo. Confira antes.
-- **Desativar** age na hora, sem confirmação, e o detentor **some da lista** — hoje a tela não
-  oferece como reativá-lo. Desative só quem saiu da empresa e já devolveu os equipamentos.
+- **Desativar** pede confirmação ("Desativar usuário"). O detentor deixa de aparecer para
+  atribuição. Desative quem saiu da empresa e já devolveu os equipamentos.
+- **Mostrar inativos** (desligado por padrão) exibe os desativados, com o chip **Inativo** e o
+  botão **Reativar** (age na hora; fica registrado na auditoria como edição do usuário).
 
 ### Unidades
 
@@ -246,6 +271,7 @@ Menu da conta → **Relatórios** → escolha o tipo e o formato (PDF ou Excel):
 | Parque por unidade | Totais por unidade, alugados, próprios e distribuição por status |
 
 - Arquivados não entram. A coluna de data é a **data de cadastro no Tracker**, não a de compra.
+- Se a geração falhar, a mensagem de erro aparece dentro do próprio submenu de relatórios.
 - O Excel traz uma aba **Resumo** e colunas de data/número de verdade (filtram e ordenam certo).
 
 ---
@@ -274,7 +300,8 @@ Menu da conta → **Acessos**.
 Menu da conta → **Auditoria**. Registro somente-leitura de toda ação de escrita: quem, quando,
 o quê, motivo e IP — inclusive logins efetuados e recusados.
 
-- Filtre por texto (usuário ou descrição), tipo de ação e período.
+- Filtre por texto (usuário ou descrição), tipo de ação e período. O período é o **dia de
+  Brasília**: "até 10/01" inclui tudo o que aconteceu até 23:59 de 10/01 no horário de Brasília.
 - O registro sobrevive à exclusão definitiva do dispositivo.
 - Relatórios baixados **não** são registrados (são só leitura).
 
@@ -313,8 +340,8 @@ pessoa: peça a um gestor de Acessos para **Redefinir senha**.
 | Excluir definitivo | Apagar de vez (irreversível) |
 | Bloquear/desbloquear | Bloqueio remoto e tratar alertas do aparelho |
 | Publicar APK do agente | Página Agente |
-| Gerir usuários (detentores) | Cadastros → Usuários |
-| Gerir unidades | Cadastros → Unidades |
+| Gerir usuários (detentores) | Cadastros → Usuários (junto com **Ver dispositivos**) |
+| Gerir unidades | Cadastros → Unidades (junto com **Ver dispositivos**) |
 | Ver auditoria | Página Auditoria |
 | Gerir acessos | Página Acessos (logins e permissões) |
 
@@ -325,12 +352,17 @@ pessoa: peça a um gestor de Acessos para **Redefinir senha**.
 Comportamentos atuais do sistema que vale conhecer. Detalhes técnicos e correção sugerida de
 cada um: [melhorias-pendentes.md](../desenvolvimento/melhorias-pendentes.md).
 
-- A tela de login não distingue senha errada de login desativado/bloqueado.
-- **Bloquear, Desbloquear, Restaurar** e **desativar detentor** não pedem confirmação.
-- Detentor desativado não pode ser reativado pela tela.
-- **Atribuir** e **Alterar status** não mostram o motivo quando o sistema recusa.
-- A opção **Excluir definitivamente** aparece para quem só pode arquivar; o sistema recusa ao
-  confirmar.
+- O login bloqueado por muitas tentativas erradas aparece como "Credenciais inválidas." (login
+  desativado já tem mensagem própria).
+- **Bloquear, Desbloquear** e **Restaurar** não pedem confirmação (Desativar detentor já pede).
+- Aparelho **perdido e Bloqueado** que nunca mais se conecta fica **Bloqueado para sempre**: não
+  recebe baixa nem pode ser arquivado, porque só sai desse status quando o próprio aparelho
+  confirma um Desbloquear.
+- Celular/tablet **Bloqueado** cujo token foi revogado (token regenerado, servidor restaurado)
+  **fica preso na tela de bloqueio**: o Desbloquear não chega e a tela cobre o registro. Só a TI
+  resolve, com o aparelho conectado por cabo (`adb`).
+- Notebook Windows sem número de série de fábrica (placas genéricas) pode **aparecer duplicado**
+  no inventário depois de se recadastrar. Arquive o registro que sobrar.
 - Alguns rótulos aparecem em forma técnica: status do reparo (`EmAndamento`, `Concluido`),
   comandos (`Bloquear`, `Pendente`), origem da localização (`GpsAndroid`, `IpGeolocationWindows`)
   e, na auditoria, a ação de vencimento de aluguel.

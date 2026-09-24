@@ -190,7 +190,9 @@ Assim os agentes funcionam **de qualquer rede**, com o endereço fixo e HTTPS.
 ## Parte 10 — Atualizar a aplicação no futuro
 
 **Caminho normal (automático):** crie uma tag de versão na `main` — o pipeline compila, roda os
-testes, faz backup de `C:\Tracker`, publica no IIS e confere o `/health`:
+testes, faz backup de `C:\Tracker`, publica no IIS e confere o `/health`. O script
+(`deploy/atualizar-servidor.ps1`) espera o app pool parar e a DLL ser liberada (até 60 s), restaura
+o backup sozinho se a troca de arquivos falhar e religa pool e site mesmo em falha:
 
 ```bash
 git checkout main
@@ -199,14 +201,20 @@ git tag v1.2.0
 git push origin v1.2.0
 ```
 
-Configuração do runner e rollback: `docs/operacao/deploy-automatico-cicd.md`.
+Configuração do runner, rollback e o critério de regeração do instalador do agente Windows
+(marcador `C:\TrackerAgentDist\ultima-geracao.txt`):
+[deploy-automatico-cicd.md](deploy-automatico-cicd.md).
 
 **Caminho manual** (runner indisponível):
 
 1. Na máquina de build: rode `deploy\publicar-servidor.ps1` de novo.
-2. No servidor: no IIS, **pare o site** `Tracker`.
-3. Substitua os arquivos em `C:\Tracker` pela nova publicação (preserve a pasta de dados, que fica em `C:\TrackerDados`).
-4. **Inicie o site**. As migrações de banco novas são aplicadas sozinhas no start.
+2. No servidor, o jeito mais seguro é rodar o mesmo script do CI, que faz backup, espera o pool
+   parar, troca os arquivos com rollback automático e religa tudo:
+   `.\deploy\atualizar-servidor.ps1 -Origem C:\publish\Tracker` (como Administrador).
+3. Sem o script: no IIS, **pare o site e o app pool** `Tracker` e espere o pool aparecer como
+   *Parado* antes de copiar (senão o `Tracker.Api.dll` continua em uso). Substitua os arquivos em
+   `C:\Tracker` pela nova publicação (preserve a pasta de dados, que fica em `C:\TrackerDados`).
+4. **Inicie o app pool e o site**. As migrações de banco novas são aplicadas sozinhas no start.
 
 > Em qualquer caminho, as migrações não voltam atrás com o rollback de arquivos — tenha o backup
 > do `TrackerDb` do dia antes de publicar.

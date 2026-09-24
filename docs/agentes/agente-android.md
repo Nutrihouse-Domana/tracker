@@ -48,18 +48,59 @@ resolve: o usuário digita a senha dele e volta a usar o aparelho normalmente.
 1. **Janela de sobreposição** (`OverlayBloqueio`, `TYPE_APPLICATION_OVERLAY`) — o mecanismo
    principal. Fica acima de **qualquer** aplicativo, inclusive da tela inicial, e consome todos os
    toques. Reaplicada a cada 2 segundos pelo `AgenteService`, a mesma cadência do agente Windows.
-   Mostra o patrimônio e a série, para a TI identificar o aparelho sem liberá-lo.
+   Mostra o patrimônio e a **série digitada no registro** (desde a 1.1.3; a mesma aparece na
+   tela de diagnóstico), para a TI identificar o aparelho sem liberá-lo.
 2. **`lockNow()` uma única vez** ao aplicar o bloqueio, só para apagar a tela na hora e tirar o
    aparelho da mão do usuário. Não é repetido: em ciclo, daria a impressão de "só travou a tela".
-3. **Modo quiosque** (`startLockTask`) quando há Device Owner, que fecha também o botão Home.
+3. **Modo quiosque** quando há Device Owner (desde a 1.1.3): a `BloqueioActivity` sobe em
+   **lock task** (`startLockTask`) **por baixo** da sobreposição, o que fecha também Home,
+   Recentes, a barra de status e as configurações rápidas. Ao desbloquear, o agente chama
+   `stopLockTask`.
 
-O bloqueio é **persistente**, como no Windows: fica gravado localmente
-(`Armazenamento.bloqueado`, em `EncryptedSharedPreferences`) e é reaplicado pelo `BootReceiver`
-após reiniciar, mesmo offline. Só a TI o remove, pelo botão Desbloquear.
+O bloqueio é **persistente**, como no Windows: fica gravado localmente (`Armazenamento.bloqueado`)
+e é reaplicado após reiniciar (`BootReceiver`), pelo `VigilanteWorker` e ao abrir o app, mesmo
+offline. **A reaplicação depende só desse sinal, nunca do token**: o 401 apaga o token, mas não
+mexe no bloqueio. Só a TI o remove, pelo botão Desbloquear (ver
+[Bloqueado e sem token](#bloqueado-e-sem-token-aparelho-preso) para o caso em que o Desbloquear
+não consegue mais chegar).
 
 Se o app for reinstalado ou os dados limpos, o sinal local se perde — nesse caso o campo
 `deveEstarBloqueado` do heartbeat traz o estado do servidor e o agente **reaplica a trava** e
-registra o alerta `BloqueioReaplicado`.
+registra o alerta `BloqueioReaplicado`. O servidor calcula esse campo pelo **último comando**
+Bloquear/Desbloquear emitido (não só pelo status), e o agente **ignora** a resposta de um
+heartbeat que saiu antes de um comando ser aplicado (contador `geracaoComandos`): sem isso, o
+heartbeat em voo desfazia o Bloquear que tinha acabado de chegar pelo hub. Comandos repetidos
+(hub + heartbeat) são deduplicados pelo `id` (últimos 50). Detalhes em
+[protocolo-agente.md](protocolo-agente.md).
+
+### Onde o agente guarda o estado
+
+| Arquivo (SharedPreferences) | Conteúdo | Criptografia |
+|---|---|---|
+| `tracker-agente` | token, id do dispositivo, série digitada, patrimônio | `EncryptedSharedPreferences` (Keystore) |
+| `tracker-agente-fallback` | os mesmos segredos, **só** se o Keystore falhar | nenhuma |
+| `tracker-agente-estado` | sinal `bloqueado` e o marcador de fallback (`usarArquivoSimples`) | nenhuma, de propósito |
+
+- A escolha "criptografado ou simples" é feita **uma vez por processo**, com novas tentativas
+  curtas (falha transitória do Keystore logo após o boot é comum). Se ainda falhar, o marcador
+  `usarArquivoSimples` é gravado e **todas** as execuções seguintes usam o arquivo simples, sem
+  alternar de volta. Chaves que versões antigas deixaram no arquivo simples são migradas.
+- O sinal `bloqueado` fica **fora** do `EncryptedSharedPreferences`: amarrado ao Keystore, um
+  aparelho bloqueado voltaria livre no dia em que o Keystore corrompesse (acontece após
+  atualização do sistema em alguns aparelhos). É gravado com `commit()` síncrono. Na primeira
+  execução da 1.1.3, o valor antigo é migrado — bloqueado em qualquer arquivo = bloqueado.
+
+### Serviço em primeiro plano (Android 14)
+
+O `AgenteService` roda em primeiro plano e declara no manifest
+`foregroundServiceType="location|specialUse"`, com a permissão
+`FOREGROUND_SERVICE_SPECIAL_USE` e a propriedade `PROPERTY_SPECIAL_USE_FGS_SUBTYPE`. O tipo é
+**escolhido em tempo de execução**: `location` só quando a permissão de localização está
+concedida; senão `specialUse`. No Android 14, declarar `location` sem permissão — ou subir do
+`BOOT_COMPLETED` sem direito de uso em primeiro plano — lança `SecurityException`; antes da
+1.1.3 isso virava loop de crash e o bloqueio parava de ser reaplicado. Agora o agente tenta as
+alternativas, chama `startForeground` em todo `onStartCommand` e nunca deixa a exceção derrubar
+o processo.
 
 ### Wi-Fi na tela de bloqueio
 
@@ -72,6 +113,10 @@ conectar a uma rede informando SSID e senha:
 |---|---|---|
 | Como conecta | Lista de redes, senha e botão Conectar **dentro** da tela de bloqueio | Botão abre o **painel de Wi-Fi do sistema** |
 | Sai da tela de bloqueio? | Não | Sim, por até **60 segundos** |
+
+No modo Device Owner, a lista espera o resultado de uma varredura nova
+(`SCAN_RESULTS_AVAILABLE_ACTION`, até 8 s, fora da thread principal) em vez de ler o cache logo
+após o `startScan` — o cache de um aparelho ocioso costuma vir vazio ou só com a rede atual.
 
 No modo Device Admin, o painel usado é o `Settings.Panel.ACTION_WIFI` (Android 10+), que mostra
 **apenas** a lista de redes — não dá acesso ao resto das Configurações, então o usuário não
@@ -210,8 +255,8 @@ faltar algum. No runner não existe `local.properties`, então o SDK é localiza
 
 ---
 
-**Com a keystore na máquina** — um comando que faz tudo (cria a keystore na primeira vez, escreve o
-`local.properties`, compila e mostra o que digitar no painel):
+**Com a keystore na máquina** — um comando que faz tudo (cria a keystore na primeira vez, grava
+as credenciais de assinatura no `local.properties`, compila e mostra o que digitar no painel):
 
 ```powershell
 .\deploy\gerar-apk-agente.ps1
@@ -220,7 +265,11 @@ faltar algum. No runner não existe `local.properties`, então o SDK é localiza
 Ele pede a senha da keystore no prompt (a senha não passa pela linha de comando, que seria
 visível na lista de processos) e, ao final, imprime o caminho do APK, o `versionCode`, o
 `versionName` e o SHA-256 para conferência. Da segunda vez em diante ele só pede a senha e
-recompila. A keystore fica por padrão em `Documents\TrackerKeystore\` — **fora do repositório**,
+recompila. No `local.properties` ele atualiza **só** as quatro chaves de assinatura
+(`tracker.keystoreFile`, `tracker.keystorePassword`, `tracker.keyAlias`, `tracker.keyPassword`)
+e grava `sdk.dir` apenas se faltar; o resto do arquivo — em especial `tracker.backendBaseUrl` —
+é preservado. Os valores são escapados no formato `.properties` (barra invertida e caracteres
+especiais) e o arquivo é gravado sem BOM. A keystore fica por padrão em `Documents\TrackerKeystore\` — **fora do repositório**,
 de propósito: worktrees e clones novos não levam a chave junto.
 
 O passo a passo manual abaixo continua válido se você preferir controlar cada etapa.
@@ -404,7 +453,12 @@ Como a instalação se resolve:
 | Sem Device Owner, OTAs seguintes (Android 12+) | Silencioso: após a 1ª OTA o agente vira o instalador de si mesmo. |
 
 O APK precisa estar **assinado com a mesma keystore** do instalado — assinatura diferente é
-recusada pelo Android (o aparelho segue funcionando na versão antiga). Depois de instalar, o
+recusada pelo Android (o aparelho segue funcionando na versão antiga).
+
+Desde a 1.1.3, uma instalação que fica esperando o usuário (`PENDING_USER_ACTION`) sem resposta
+é liberada depois de **10 minutos**, e a oferta volta no heartbeat seguinte. Sessões do
+`PackageInstaller` que falham na cópia ou no commit são abandonadas, assim como as antigas que
+tiverem sobrado. Depois de instalar, o
 serviço religa sozinho (`MY_PACKAGE_REPLACED`) e um bloqueio ativo continua valendo: o sinal
 persistente sobrevive à atualização.
 
@@ -451,6 +505,8 @@ registrados continuam funcionando, porque eles usam o token individual, não o c
 | `CLEARTEXT communication not permitted` | APK de release apontando para `http://`, ou debug sem o manifest de `src/debug`. Use HTTPS, ou o build de debug. |
 | API de dev inacessível pelo celular | A API precisa escutar em `0.0.0.0` (perfil `rede` do launchSettings), a porta 5171 liberada no firewall, e o aparelho no mesmo Wi-Fi. |
 | App voltou a pedir o código | O token foi revogado/regenerado no painel. Digite o código novamente no aparelho. |
+| Aparelho **bloqueado** que não desbloqueia nunca, sem heartbeat no painel | Token revogado com o aparelho bloqueado: ver [Bloqueado e sem token](#bloqueado-e-sem-token-aparelho-preso). |
+| Aparelho parou de reportar posição com a localização negada | Esperado: o serviço sobe como `specialUse` e segue reaplicando o bloqueio; o painel mostra o alerta `LocalizacaoNegada`. |
 | Publiquei um APK e a frota não atualiza | `versionCode` publicado igual/menor que o instalado (o painel barra, mas confira), permissão "instalar apps desconhecidos" ausente nos aparelhos sem Device Owner, ou APK assinado com outra keystore. |
 | O mesmo aparelho apareceu duas vezes no inventário | Foi registrado sem o patrimônio depois de o APK trocar de assinatura (o identificador provisório muda junto). Arquive o registro novo, apague os dados do app no aparelho e registre de novo **informando o patrimônio** do cadastro original. |
 | A tela diz "Série provisória" | Aparelho com Android 10+ sem Device Owner: o sistema não libera o serial de fábrica. Digite o número de série e o patrimônio no registro, ou provisione como Device Owner. |
@@ -483,6 +539,35 @@ Serviço vivo e restrições de bateria:
 adb shell dumpsys activity services | Select-String nutrihouse
 ```
 
+### Bloqueado e sem token: aparelho preso
+
+Aparelho **bloqueado** cujo token foi revogado (token regenerado no painel, backup antigo do
+banco, troca de servidor) fica bloqueado para sempre: o bloqueio não depende do token, o
+Desbloquear não chega (sem token não há heartbeat nem hub) e a sobreposição cobre a tela de
+registro. Pendência registrada no
+[item 27 do backlog](../desenvolvimento/melhorias-pendentes.md#27-android-bloqueado-com-token-revogado-fica-preso).
+
+**Prevenção:** não gere token novo para um celular/tablet bloqueado.
+
+**Saída hoje** (com o aparelho na mão da TI, depuração USB ligada):
+
+1. No painel, emita **Desbloquear** para o aparelho. Ao se registrar de novo, ele recebe o estado
+   do **último comando**; sem isso, volta a travar logo depois do registro.
+2. Apague os dados do app (token, sinal de bloqueio e demais estados):
+
+   ```bash
+   adb shell pm clear br.com.nutrihouse.tracker.agent
+   ```
+
+3. Abra o app e refaça o registro (código de instalação + a **mesma** série da etiqueta, para
+   reencontrar o cadastro original).
+
+> Caminho sugerido a partir do código, **não testado nesta revisão**. Se o Android recusar o
+> `pm clear` (o esperado em aparelho **Device Owner**), use o procedimento de
+> [descomissionamento](#descomissionar-um-aparelho-device-owner) ou, em Device Admin, desative o
+> administrador à mão (Configurações > Segurança > Apps de administração do dispositivo),
+> desinstale e reinstale o APK.
+
 ---
 
 ## Mudanças no backend que acompanham este agente
@@ -492,6 +577,7 @@ adb shell dumpsys activity services | Select-String nutrihouse
 - `DispositivoComAgente`: `Fabricante`, `Modelo`, `BateriaPercentual`, `NivelProtecao`.
 - Entidade `AlertaDispositivo` e `POST /api/agente/alertas`, mais os endpoints ADM
   `GET /api/dispositivos/{id}/alertas` e `POST .../alertas/{alertaId}/reconhecer`.
-- `HeartbeatResponse.DeveEstarBloqueado`, para o agente recuperar o bloqueio perdido.
+- `HeartbeatResponse.DeveEstarBloqueado`, para o agente recuperar o bloqueio perdido. Desde
+  24/09/2026 ele segue o último comando Bloquear/Desbloquear emitido, não só o status.
 - `POST /api/dispositivos/mobiles` para cadastro manual (`/telefones` segue como alias).
 - Migração `AgenteMobileTabletEAlertas` (telemetria e alertas).

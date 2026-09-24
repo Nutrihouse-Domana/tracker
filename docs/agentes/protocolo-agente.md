@@ -6,7 +6,8 @@ agente sem quebrar o outro e para escrever um agente novo.
 
 Referências principais: `src/Tracker.Api/Controllers/AgenteController.cs` (endpoints),
 `src/Tracker.Application/Dtos/AgenteDtos.cs` (DTOs), `src/Tracker.Api/Agente/` (autenticação e
-hub). Levantado em 23/09/2026: ao mudar o protocolo, **atualize este documento**.
+hub). Levantado em 23/09/2026 e revisado em 24/09/2026 (revisão completa do código): ao mudar
+o protocolo, **atualize este documento**.
 
 ---
 
@@ -30,13 +31,18 @@ Agente  ────────────────────────
 ## Formato
 
 - JSON em **camelCase**.
-- **Enums como texto** (`"Bloquear"`, `"Mobile"`), tanto nos controllers quanto no SignalR
-  (`AddSignalR().AddJsonProtocol(...)` em `Program.cs`). Sem a configuração do SignalR, o hub
-  mandava números e os agentes descartavam o comando em silêncio. Os dois agentes aceitam
-  também o número, como defesa.
-- Datas da API saem em UTC com `Z`. Os payloads do agente não trazem datas.
-- Nenhum DTO do agente tem validador FluentValidation. Campos `string` não anuláveis são
-  obrigatórios pela validação implícita do `[ApiController]` (resposta 400).
+- **Enums como texto** (`"Bloquear"`, `"Mobile"`), tanto nos controllers quanto no SignalR. A
+  configuração fica num lugar só, `JsonConfig.Aplicar` (`src/Tracker.Api/Json/JsonConfig.cs`),
+  aplicada aos controllers, ao `AddSignalR().AddJsonProtocol(...)` e aos testes. Sem a do
+  SignalR, o hub mandava números e os agentes descartavam o comando em silêncio. **Os dois
+  agentes aceitam `tipoComando` como texto ou como número**, no heartbeat e no hub, como defesa.
+- Datas da API saem em UTC com `Z` — no SignalR também (`UtcDateTimeConverter`, via `JsonConfig`).
+  Os payloads do agente não trazem datas.
+- **Validação:** o auto-cadastro (`AutoEnrollmentRequest`) e os alertas (`AlertaAgenteRequest`)
+  têm validador FluentValidation (400 com `ValidationProblemDetails`). O heartbeat **não** é
+  recusado por enum desconhecido: `nivelProtecao` ou `origem` fora do enum são **ignorados**
+  (recusar cortaria também a entrega de comandos de bloqueio). Campos `string` não anuláveis
+  continuam obrigatórios pela validação implícita do `[ApiController]`.
 
 ---
 
@@ -61,10 +67,10 @@ Agente  ────────────────────────
 
 | Método e rota | Auth | Sucesso | Erros |
 |---|---|---|---|
-| `POST /api/agente/auto-enrollment` | `X-Enrollment-Key` | 200 `EnrollmentResponse` | 401 "Chave de instalação inválida." · 400 "Auto-cadastro só vale para notebook ou mobile." · 409 existe ativo **sem agente** (periférico) com a identificação · 409 "…está arquivado. Restaure-o no painel…" |
+| `POST /api/agente/auto-enrollment` | `X-Enrollment-Key` | 200 `EnrollmentResponse` | 401 "Chave de instalação inválida." · 400 validação (ex.: serial genérico de BIOS **sem** patrimônio) · 400 "Auto-cadastro só vale para notebook ou mobile." · 409 existe ativo **sem agente** (periférico) com a identificação · 409 "…está arquivado. Restaure-o no painel…" |
 | `POST /api/agente/heartbeat` | `X-Agent-Token` | 200 `HeartbeatResponse` | 401 (sem corpo) |
 | `POST /api/agente/comandos/{id}/confirmar` | `X-Agent-Token` | 204 | 401 · 404 (comando inexistente ou de outro aparelho) |
-| `POST /api/agente/alertas` | `X-Agent-Token` | 204 | 401 |
+| `POST /api/agente/alertas` | `X-Agent-Token` | 204 | 401 · 400 (tipo fora do enum) |
 | `GET /api/agente/atualizacao/apk` | `X-Agent-Token` | 200 APK (`application/vnd.android.package-archive`) | 401 · 404 "Nenhum pacote publicado." |
 | `WS /hubs/comandos?token=` | query | conexão no grupo `device-{id}` | conexão abortada |
 | `GET /health` | nenhuma | `{"status":"ok"}` | usado pelo deploy, não pelos agentes |
@@ -78,7 +84,7 @@ Agente  ────────────────────────
 | Campo | Tipo | Obrigatório | Windows envia | Android envia |
 |---|---|---|---|---|
 | `hostname` | string | sim | `MachineName` | nome do aparelho (definido pelo usuário) |
-| `numeroSerie` | string | sim | serial da BIOS (WMI), senão `HOST-<nome>` | série **digitada** pelo técnico, senão a de fábrica, senão `ANDROID-<ANDROID_ID>` |
+| `numeroSerie` | string | sim | serial da BIOS (WMI); se for genérico, `WIN-<UUID do SMBIOS>`, senão `WIN-<MachineGuid>`, senão `HOST-<nome>` | série **digitada** pelo técnico, senão a de fábrica, senão `ANDROID-<ANDROID_ID>` |
 | `sistemaOperacional` | string | sim | descrição do SO | `"Android"` |
 | `versaoSO` | string? | | versão | `"Android 13 (API 33)"` |
 | `macAddress` | string? | | 1ª interface ativa | `null` |
@@ -88,10 +94,24 @@ Agente  ────────────────────────
 | `nivelProtecao` | enum? | | — | `Nenhuma` / `DeviceAdmin` / `DeviceOwner` |
 | `assetTag` | string? | | — | o cliente aceita, mas **a tela de registro não pede** (patrimônio fica no painel) |
 
+**Serial genérico de BIOS.** Placas genéricas e VMs devolvem o mesmo texto ("To be filled by
+O.E.M.", "Default string", "0", só um caractere repetido…) em máquinas diferentes. Usado como
+identidade, faria uma máquina reencontrar o cadastro de outra e roubar o token dela. A regra
+fica em `SerialGenerico.EhGenerico` (`src/Tracker.Application/Common/SerialGenerico.cs`), com
+**espelho** em `agents/Tracker.Agent.Windows/InfoMaquina.cs` — mudar a lista exige mexer nos dois:
+
+- **Sem patrimônio:** o validador recusa com **400**.
+- **Com patrimônio:** o serial recebido é **descartado** — não entra no reencontro nem na
+  promoção — e um cadastro novo grava `SEM-SERIE-<patrimônio>` (único, porque o patrimônio é).
+- O agente Windows já não manda serial genérico: troca-o por `WIN-<UUID do SMBIOS>` →
+  `WIN-<MachineGuid>` → `HOST-<nome>`. O `WIN-*` é estável por máquina; o `HOST-*` muda se a
+  máquina for renomeada. Máquina cadastrada antes com serial genérico ou `HOST-*` pode ganhar
+  registro **novo** se se recadastrar ([item 28](../desenvolvimento/melhorias-pendentes.md#28-máquinas-windows-com-serial-genérico-duplicam-ao-recadastrar)).
+
 **O que o servidor faz:**
 
 1. **Reencontra** um cadastro existente, nesta ordem: **patrimônio → número de série → IMEI**
-   (IMEI só entre `Mobile`). Arquivados ficam de fora.
+   (IMEI só entre `Mobile`; série genérica é pulada). Arquivados ficam de fora.
 2. Se não achou, mas existe um **arquivado** com a mesma série ou patrimônio, responde **409**.
 3. Se não achou nada, **cria** o `Notebook`/`Mobile` com `Status = EmEstoque` e patrimônio
    `AUTO-<série>` quando não veio um.
@@ -126,12 +146,16 @@ Agente  ────────────────────────
 | `latitude`, `longitude` | por IP | GPS/rede | Com os dois, **insere uma linha** em `HistoricoLocalizacoes` |
 | `enderecoAproximado` | "cidade, região, país" | `null` | Gravado com o ponto |
 | `precisaoMetros` | `5000` fixo | precisão real | Gravado com o ponto |
-| `origem` | — | `"GpsAndroid"` (sempre) | Sem ela, o servidor assume `IpGeolocationWindows` |
+| `origem` | — | `"GpsAndroid"` (sempre) | Sem ela (ou fora do enum), o servidor assume `IpGeolocationWindows` |
 | `bateriaPercentual` | — | sim | Atualiza |
-| `nivelProtecao` | — | sim | Atualiza; **se caiu**, cria o alerta `ProtecaoRebaixada` |
+| `nivelProtecao` | — | sim | Atualiza; **se caiu**, cria o alerta `ProtecaoRebaixada`. Valor fora do enum é ignorado |
 | `imei` | — | com Device Owner | Grava **só se o cadastro estiver vazio** (nunca sobrescreve o digitado) |
 
 O heartbeat grava `UltimoHeartbeatEm` e **não altera o status** do dispositivo.
+
+**Sem data da leitura da localização:** o ponto é gravado com a hora do heartbeat. O Android
+1.1.3 descarta a última posição conhecida com mais de 5 min, mas não há campo para dizer quando
+a posição foi lida ([item 30](../desenvolvimento/melhorias-pendentes.md#30-heartbeat-sem-a-data-da-leitura-da-localização)).
 
 **Response** (`HeartbeatResponse`):
 
@@ -147,9 +171,19 @@ O heartbeat grava `UltimoHeartbeatEm` e **não altera o status** do dispositivo.
 - `comandosPendentes`: comandos em `Pendente` **e** `Enviado`, em ordem de emissão. Os
   `Pendente` passam a `Enviado`. Um comando é **reentregue a cada heartbeat até ser confirmado**,
   então o agente precisa deduplicar pelo `id`.
-- `deveEstarBloqueado`: vale `true` quando o status é `Bloqueado` e não há `Desbloquear` pendente.
-  O Android usa esse campo para reaplicar o bloqueio se o sinal local sumir. **O Windows o ignora**
-  ([melhorias-pendentes.md, item 22](../desenvolvimento/melhorias-pendentes.md#22-agente-windows-ignora-deve-estar-bloqueado)).
+- `deveEstarBloqueado`: segue o **último comando** `Bloquear`/`Desbloquear` que não falhou
+  (pendente, enviado ou confirmado; o mais recente por `DataEmissao`). Último = `Bloquear` →
+  `true`; último = `Desbloquear` → `false`. **Só sem comando algum** vale o status
+  (`Bloqueado` → `true`). Regra em `RegrasDispositivo.DeveEstarBloqueado`
+  (`src/Tracker.Application/Dispositivos/`) + `ConsultasComandoRemoto.UltimoComandoVigenteAsync`.
+  Antes, o campo vinha só do status, que só vira `Bloqueado` quando o agente confirma: o
+  heartbeat que entregava um Bloquear pendente respondia "desbloqueado" e o Android destravava
+  logo depois de aplicar.
+  - O **Android** usa o campo para reaplicar o bloqueio se o sinal local sumir, e **ignora** o
+    `deveEstarBloqueado` de um heartbeat que **saiu antes** de um comando ser aplicado (contador
+    `geracaoComandos` em `AgenteService`): a resposta já nasceu velha e desfaria o comando
+    recém-chegado pelo hub. Comando entregue no próprio ciclo prevalece.
+  - **O Windows o ignora** ([melhorias-pendentes.md, item 22](../desenvolvimento/melhorias-pendentes.md#22-agente-windows-ignora-deve-estar-bloqueado)).
 - `atualizacaoAgente`: o pacote de maior `versaoCode`, quando ele é maior que o
   `agenteVersaoCode` enviado; senão `null`. **O Windows ignora esse campo** (não tem OTA).
 
@@ -158,6 +192,8 @@ O heartbeat grava `UltimoHeartbeatEm` e **não altera o status** do dispositivo.
 - **Windows:** apaga o `token.dat`, refaz o auto-cadastro com a chave da empresa e reconecta o hub.
 - **Android:** apaga o token e **aguarda um novo registro manual**, porque não tem o código
   guardado ([item 23](../desenvolvimento/melhorias-pendentes.md#23-agente-android-não-se-recadastra-sozinho)).
+  O 401 **não mexe no bloqueio**: aparelho bloqueado continua bloqueado, e hoje só sai por `adb`
+  ([item 27](../desenvolvimento/melhorias-pendentes.md#27-android-bloqueado-com-token-revogado-fica-preso)).
 
 ---
 
@@ -171,8 +207,11 @@ O heartbeat grava `UltimoHeartbeatEm` e **não altera o status** do dispositivo.
 - **O hub não tem métodos agente → servidor.** Confirmação e alertas vão por REST.
 - **O envio pelo hub não muda o status do comando.** Ele só vira `Enviado` no heartbeat.
 - **Reconexão:**
-  - **Windows:** `WithAutomaticReconnect()` do cliente .NET. Se a conexão falhar, o agente segue
-    só com o heartbeat.
+  - **Windows:** reconexão **perpétua**: `WithAutomaticReconnect` com política própria
+    (`RecuoHub`: 0, 2, 5, 10, 30 e depois 60 s para sempre) mais um laço no `Worker` que refaz o
+    `StartAsync` quando a conexão está `Disconnected` (primeiro start falho, evento `Closed`).
+    Ao trocar o token no recadastro, a conexão é recriada com o token novo. Enquanto o hub
+    está fora, o heartbeat continua entregando os comandos.
   - **Android:** o cliente Java **não tem** reconexão automática. `AgenteService.lacoDeConexaoHub`
     verifica a cada 5 s e reconecta com espera crescente, até 60 s. Ao reconectar, o agente manda
     um heartbeat extra (sem localização) para buscar pendências.
@@ -193,17 +232,30 @@ Pendente ──(heartbeat entrega)──► Enviado ──(POST .../confirmar)�
   `Pendente`/`Enviado` para sempre ([item 11](../desenvolvimento/melhorias-pendentes.md#11-status-de-comando-falhou-nunca-é-gravado)).
 - **Efeito da confirmação no dispositivo:**
   - `Bloquear` → status `Bloqueado`.
-  - `Desbloquear` → `EmUso` se tiver detentor, senão `EmEstoque`.
+  - `Desbloquear` → **só mexe se o status era `Bloqueado`**: volta a `EmUso` se houver
+    responsável (detentor, ou unidade no ativo do local), senão `EmEstoque`. `Baixado` e
+    `EmManutencao` ficam como estão (`RegrasDispositivo.StatusAposDesbloqueio`).
+- **No painel**, `Bloqueado` só entra e sai por comando: `AtualizarStatus` recusa `Bloqueado`
+  manual e qualquer mudança num aparelho `Bloqueado` (400); abrir e concluir reparo idem.
+  Arquivar/excluir é recusado com o aparelho `Bloqueado` **ou** com um `Bloquear` ainda a
+  caminho (último comando = Bloquear pendente/enviado).
+- `POST /api/dispositivos/{id}/comandos` valida o `tipoComando` (enum): um valor fora do enum
+  era gravado e auditado como "Desbloqueou".
 - **Agente Windows:** deduplica por `id`, executa e confirma. Se falhar, esquece o `id` para
   tentar de novo no próximo ciclo.
-- **Agente Android:** executa e confirma. Um tipo desconhecido **não** é confirmado.
+- **Agente Android:** deduplica por `id` (lembra os **últimos 50**): a reentrega do mesmo comando
+  (hub + heartbeat) só é reconfirmada, não reaplicada. Um tipo desconhecido **não** é confirmado.
 
 **O bloqueio é persistente no aparelho**, independentemente do servidor:
 
 - **Windows:** arquivo-sinal `%ProgramData%\TrackerAgent\locked.flag`. Um timer de 2 s reabre a
   tela cheia (`LockOverlay`, uma janela por monitor, lançada na sessão do usuário pela tarefa
-  agendada `TrackerAgentLock`).
-- **Android:** sobreposição `TYPE_APPLICATION_OVERLAY`, reaplicada a cada 2 s.
+  agendada `TrackerAgentLock`). O serviço sabe que a tela está viva pelo **processo**
+  `--overlay` em cada sessão ativa (WMI), e o overlay segura o mutex `Local\TrackerAgentOverlay`
+  (uma tela por sessão). Se a tela não sobe, o relançamento recua de 10 s até 120 s por sessão.
+- **Android:** sobreposição `TYPE_APPLICATION_OVERLAY`, reaplicada a cada 2 s, a partir do sinal
+  `bloqueado` persistido — **independente do token**. Com Device Owner, a `BloqueioActivity`
+  roda em lock task por baixo da sobreposição.
 
 ---
 
@@ -266,7 +318,8 @@ As origens `WifiConhecida` e `ManualTI` existem no enum, mas nada as grava.
 
 Caminhos fixos:
 
-- `%ProgramData%\TrackerAgent\locked.flag` e `overlay-alive.flag`;
+- `%ProgramData%\TrackerAgent\locked.flag` (o antigo `overlay-alive.flag` foi abolido; o
+  instalador o apaga);
 - `token.dat` e `agent.log`, ao lado do executável;
 - serviço `TrackerAgent`;
 - tarefa agendada `TrackerAgentLock`.
@@ -290,12 +343,16 @@ Caminhos fixos:
 | Recurso | Windows | Android |
 |---|---|---|
 | Recadastro automático no 401 | ✅ | ❌ (registro manual) |
-| Reaplica bloqueio por `deveEstarBloqueado` | ❌ (só o sinal local) | ✅ |
+| Bloqueio sobrevive ao 401 (token apagado) | ✅ (`locked.flag`) | ✅ (sinal `bloqueado`), mas fica preso sem `adb` |
+| Reaplica bloqueio por `deveEstarBloqueado` | ❌ (só o sinal local) | ✅ (ignora resposta mais velha que o último comando) |
+| Deduplica comando por `id` | ✅ | ✅ (últimos 50) |
+| `tipoComando` numérico aceito | ✅ | ✅ |
+| Serial quando falta o de fábrica | `WIN-<UUID>` / `WIN-<MachineGuid>` / `HOST-<nome>` | série digitada / `ANDROID-<ANDROID_ID>` |
 | Alertas | ❌ | ✅ |
 | OTA | ❌ (reinstalar com o `.exe`) | ✅ |
 | Versão real reportada | ❌ (`1.0.0` fixo) | ✅ |
 | Bateria, modelo, proteção | ❌ | ✅ |
-| Reconexão do hub | automática (cliente .NET) | laço próprio |
+| Reconexão do hub | perpétua (`RecuoHub` + laço de `StartAsync`) | laço próprio |
 
 ---
 
@@ -310,5 +367,8 @@ Caminhos fixos:
 - [ ] Aceitar `tipoComando` como texto e como número.
 - [ ] Persistir o bloqueio localmente (sobreviver a reinício e à falta de rede) e respeitar
       `deveEstarBloqueado`.
+- [ ] Ignorar o `deveEstarBloqueado` de uma resposta que saiu antes do último comando aplicado.
+- [ ] Nunca amarrar a reaplicação do bloqueio à existência do token.
+- [ ] Não mandar serial genérico de BIOS (ver `SerialGenerico`): sem patrimônio, o servidor recusa.
 - [ ] Enviar `origem` na localização e evitar pontos repetidos.
 - [ ] Reportar a versão real (`agenteVersao` e, se houver OTA, `agenteVersaoCode`).
