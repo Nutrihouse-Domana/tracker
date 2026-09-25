@@ -18,6 +18,7 @@ acontece se cada chave for perdida ou vazada.
 | **`Encryption__CpfKeyBase64`** | Variável de ambiente da máquina, no servidor | **CPFs ilegíveis para sempre** | CPFs do backup do banco ficam legíveis |
 | `Enrollment__CompanyKey` | Variável de ambiente da máquina (servidor e runner) | Nada se perde: basta definir outra | Qualquer um cadastra aparelhos falsos no inventário |
 | `ConnectionStrings__TrackerDb` | Variável de ambiente da máquina | Redefinir a senha do login `tracker_app` no SQL | Acesso direto ao banco |
+| `Snmp__Community` (community SNMP das impressoras, valor `<CODIGO-DO-COFRE>`) | Variável de ambiente da máquina, no servidor, e configurada em cada impressora | Nada se perde: definir outra no servidor **e** em todas as impressoras (senão elas aparecem offline) | Leitura do status/contadores das impressoras na rede; se a community tiver escrita habilitada na impressora, alteração da configuração dela. Ver [monitoramento-impressoras-snmp.md](monitoramento-impressoras-snmp.md) |
 | **Keystore do APK** (`.jks` + senhas) | Fora do repositório + secrets `ANDROID_*` do GitHub | **Não dá mais para atualizar a frota Android** | Um terceiro pode assinar APK aceito como atualização |
 | Certificado HTTPS (`.pfx`) | Repositório de certificados do servidor | Site fora do ar até reemitir | Reemitir e revogar |
 | Senha do ADM | Cabeça de quem usa | Recuperável (ver [Senha do ADM](#senha-do-adm-perdida)) | Trocar em **Acessos** |
