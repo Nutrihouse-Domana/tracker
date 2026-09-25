@@ -118,6 +118,7 @@ public enum AcaoAuditoria
     DispositivoRestaurado,
     DispositivoAluguelDefinido,
     ImpressoraConexaoDefinida,
+    ImpressoraDadosDefinidos,
 
     // Reparo / comentário
     ReparoAberto,

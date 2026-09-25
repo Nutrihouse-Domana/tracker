@@ -651,8 +651,7 @@ public class DispositivosController : ControllerBase
 
     /// <summary>
     /// Corrige os dados descritivos da impressora (tipo, fabricante, modelo, colorida). Sem senha do
-    /// ADM; auditado. Ainda não há ação de auditoria própria no enum: usa a de conexão, com a
-    /// descrição dizendo o que mudou.
+    /// ADM; auditado como <see cref="AcaoAuditoria.ImpressoraDadosDefinidos"/>.
     /// </summary>
     [HttpPut("{id:guid}/dados-impressora")]
     [Authorize(Policy = Permissoes.DispositivosCadastrar)]
@@ -672,7 +671,7 @@ public class DispositivosController : ControllerBase
         impressora.Modelo = string.IsNullOrWhiteSpace(request.Modelo) ? null : request.Modelo.Trim();
         impressora.Colorida = request.Colorida;
 
-        _auditoria.Registrar(AcaoAuditoria.ImpressoraConexaoDefinida,
+        _auditoria.Registrar(AcaoAuditoria.ImpressoraDadosDefinidos,
             $"Alterou os dados da impressora {impressora.NumeroSerie}: {impressora.TipoImpressora}, "
             + $"{impressora.Fabricante ?? "sem fabricante"} {impressora.Modelo ?? ""}".TrimEnd()
             + $", {(impressora.Colorida ? "colorida" : "monocromática")}.",
