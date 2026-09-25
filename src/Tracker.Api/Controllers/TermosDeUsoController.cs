@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Tracker.Api.Seguranca;
+using Tracker.Application.Dispositivos;
 using Tracker.Application.Dtos;
 using Tracker.Application.Seguranca;
 using Tracker.Domain.Entities;
@@ -49,6 +50,9 @@ public class TermosDeUsoController : ControllerBase
 
         var dispositivo = await _db.Dispositivos.AsNoTracking().FirstOrDefaultAsync(d => d.Id == request.DispositivoId);
         if (dispositivo is null) return NotFound(new { message = "Dispositivo não encontrado." });
+        // Termo de uso é de detentor nominal; impressora é sempre do local.
+        if (!RegrasDispositivo.AceitaDetentor(dispositivo))
+            return BadRequest(new { message = RegrasDispositivo.MensagemImpressoraSemDetentor });
 
         var usuario = await _db.Usuarios.AsNoTracking().FirstOrDefaultAsync(u => u.Id == request.UsuarioId);
         if (usuario is null) return NotFound(new { message = "Usuário não encontrado." });
@@ -87,8 +91,13 @@ public class TermosDeUsoController : ControllerBase
         if (!string.Equals(Path.GetExtension(arquivo.FileName), ".pdf", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { message = "Apenas arquivos PDF são aceitos." });
 
-        var dispositivoExiste = await _db.Dispositivos.AnyAsync(d => d.Id == dispositivoId);
-        if (!dispositivoExiste) return NotFound(new { message = "Dispositivo não encontrado." });
+        var tipoDispositivo = await _db.Dispositivos
+            .Where(d => d.Id == dispositivoId)
+            .Select(d => (TipoDispositivo?)d.Tipo)
+            .FirstOrDefaultAsync();
+        if (tipoDispositivo is null) return NotFound(new { message = "Dispositivo não encontrado." });
+        if (tipoDispositivo == TipoDispositivo.Impressora)
+            return BadRequest(new { message = RegrasDispositivo.MensagemImpressoraSemDetentor });
 
         var usuario = await _db.Usuarios.FirstOrDefaultAsync(u => u.Id == usuarioId);
         if (usuario is null) return NotFound(new { message = "Usuário não encontrado." });

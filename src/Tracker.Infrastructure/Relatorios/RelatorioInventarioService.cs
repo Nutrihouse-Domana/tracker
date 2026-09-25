@@ -40,6 +40,7 @@ public class RelatorioInventarioService : IRelatorioInventarioService
         [TipoDispositivo.Notebook] = "Notebook",
         [TipoDispositivo.Mobile] = "Mobile",
         [TipoDispositivo.Periferico] = "Periférico",
+        [TipoDispositivo.Impressora] = "Impressora",
     };
 
     /// <summary>
@@ -56,6 +57,11 @@ public class RelatorioInventarioService : IRelatorioInventarioService
         var hostnamesMobile = await _db.Set<Domain.Entities.Mobile>().AsNoTracking()
             .Select(m => new { m.Id, m.Hostname })
             .ToDictionaryAsync(x => x.Id, x => x.Hostname, ct);
+
+        // Impressora não segue o prefixo "MAQ": o aluguel dela é o interruptor Alugada.
+        var impressorasAlugadas = await _db.Set<Domain.Entities.Impressora>().AsNoTracking()
+            .Select(i => new { i.Id, i.Alugada })
+            .ToDictionaryAsync(x => x.Id, x => x.Alugada, ct);
 
         var brutos = await _db.Dispositivos.AsNoTracking()
             .Select(d => new
@@ -80,11 +86,14 @@ public class RelatorioInventarioService : IRelatorioInventarioService
                 : hostnamesMobile.TryGetValue(d.Id, out var hm) ? hm
                 : null;
             var identificacao = ClassificacaoAluguel.IdentificacaoExibida(d.IdentificacaoInterna, hostname, d.NumeroSerie);
+            bool? impressoraAlugada = impressorasAlugadas.TryGetValue(d.Id, out var alugada) ? alugada : null;
 
             return new LinhaInventarioDto(
                 Identificacao: identificacao,
-                Tipo: RotuloTipo[d.Tipo],
-                Origem: ClassificacaoAluguel.Rotulo(ClassificacaoAluguel.EhAlugado(identificacao)),
+                // Fallback para o nome do enum: um tipo novo sem rótulo não pode derrubar o relatório.
+                Tipo: RotuloTipo.TryGetValue(d.Tipo, out var rotuloTipo) ? rotuloTipo : d.Tipo.ToString(),
+                Origem: ClassificacaoAluguel.Rotulo(
+                    ClassificacaoAluguel.EhAlugado(d.Tipo, impressoraAlugada, identificacao)),
                 NumeroSerie: d.NumeroSerie,
                 Patrimonio: d.AssetTag,
                 Unidade: d.UnidadeNome,

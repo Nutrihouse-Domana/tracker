@@ -94,7 +94,7 @@ public class RelatorioExcelService : IRelatorioExcelService
         Finalizar(comparativo, 3, 3);
 
         var criterio = comparativo.Cell(5, 1);
-        criterio.Value = $"Critério: alugado = identificação começa com \"{ClassificacaoAluguel.PrefixoAlugado}\".";
+        criterio.Value = $"Critério: alugado = identificação começa com \"{ClassificacaoAluguel.PrefixoAlugado}\" (impressoras: interruptor \"Alugada\" do cadastro).";
         criterio.Style.Font.Italic = true;
         criterio.Style.Font.FontColor = XLColor.Gray;
 

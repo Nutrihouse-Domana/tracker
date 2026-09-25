@@ -54,6 +54,42 @@ public static class RegrasDispositivo
         return TemResponsavel(dispositivo) ? StatusDispositivo.EmUso : StatusDispositivo.EmEstoque;
     }
 
+    /// <summary>Mensagem única das recusas de detentor/termo para impressora (400 nos endpoints).</summary>
+    public const string MensagemImpressoraSemDetentor =
+        "Impressora pertence ao local (unidade): não pode ser atribuída a um usuário nem ter termo de uso.";
+
+    /// <summary>
+    /// Se o tipo admite detentor nominal (atribuição, "pertence a usuário", termo de uso).
+    /// Impressora é sempre do local — o espelho no site esconde os mesmos controles.
+    /// </summary>
+    public static bool AceitaDetentor(Dispositivo dispositivo) => dispositivo is not Impressora;
+
+    /// <summary>
+    /// Grava a conexão da impressora já normalizada: textos aparados (vazio vira nulo) e, com USB,
+    /// endereço nulo e SNMP desligado — o servidor não alcança impressora ligada a um computador.
+    /// O validador já recusa USB com SNMP ligado; isto é a segunda barreira (e a que vale se um
+    /// caminho novo esquecer o validador).
+    /// </summary>
+    public static void AplicarConexao(
+        Impressora impressora, ConexaoImpressora conexao, string? enderecoRede, string? macAddress, bool monitorarSnmp)
+    {
+        static string? Limpo(string? v) => string.IsNullOrWhiteSpace(v) ? null : v.Trim();
+
+        impressora.Conexao = conexao;
+        impressora.MacAddress = Limpo(macAddress);
+
+        if (conexao == ConexaoImpressora.Usb)
+        {
+            impressora.EnderecoRede = null;
+            impressora.MonitorarSnmp = false;
+            return;
+        }
+
+        impressora.EnderecoRede = Limpo(enderecoRede);
+        // Sem endereço não há o que consultar: o SNMP só fica ligado com IP/nome preenchido.
+        impressora.MonitorarSnmp = monitorarSnmp && impressora.EnderecoRede is not null;
+    }
+
     /// <summary>
     /// Corrige um "Em uso" que ficou sem responsável (ex.: troca de posse). Outros status —
     /// inclusive Bloqueado — não são tocados.

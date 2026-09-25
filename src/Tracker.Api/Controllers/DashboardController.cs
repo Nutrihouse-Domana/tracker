@@ -43,6 +43,7 @@ public class DashboardController : ControllerBase
             TotalNotebooks: Qtd(tipos, TipoDispositivo.Notebook),
             TotalMobiles: Qtd(tipos, TipoDispositivo.Mobile),
             TotalPerifericos: Qtd(tipos, TipoDispositivo.Periferico),
+            TotalImpressoras: Qtd(tipos, TipoDispositivo.Impressora),
             EmUso: Qtd(status, StatusDispositivo.EmUso),
             EmEstoque: Qtd(status, StatusDispositivo.EmEstoque),
             EmManutencao: Qtd(status, StatusDispositivo.EmManutencao),
