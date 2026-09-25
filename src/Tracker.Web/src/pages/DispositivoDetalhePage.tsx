@@ -28,6 +28,8 @@ import { ComentariosSection } from '../features/dispositivos/ComentariosSection'
 import { AgenteSection } from '../features/dispositivos/AgenteSection'
 import { LocalizacaoSection } from '../features/dispositivos/LocalizacaoSection'
 import { TermoDeUsoSection } from '../features/termos/TermoDeUsoSection'
+import { AlertasDispositivoSection } from '../features/dispositivos/AlertasDispositivoSection'
+import { MonitoramentoImpressoraSection } from '../features/impressoras/MonitoramentoImpressoraSection'
 import { ImpressoraSection } from '../features/dispositivos/ImpressoraSection'
 import { rotuloTipo, tipoTemAgente } from '../features/dispositivos/status'
 import { ehAlugado, identificacaoExibida, rotuloAluguel } from '../features/dispositivos/aluguel'
@@ -82,7 +84,11 @@ export function DispositivoDetalhePage() {
             render: () => (
               <Stack spacing={3}>
                 <ImpressoraSection dispositivo={dispositivo} />
-                {/* Fase 2: <MonitoramentoImpressoraSection dispositivoId={dispositivo.id} monitorarSnmp={dispositivo.monitorarSnmp ?? false} /> */}
+                <AlertasDispositivoSection dispositivoId={dispositivo.id} titulo="Alertas da impressora" />
+                <MonitoramentoImpressoraSection
+                  dispositivoId={dispositivo.id}
+                  monitorarSnmp={dispositivo.monitorarSnmp ?? false}
+                />
               </Stack>
             ),
           },

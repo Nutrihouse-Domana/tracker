@@ -192,6 +192,18 @@ conexão. Nenhum deles pede sua senha.
 **Status:** **Colocar em uso** exige a unidade definida (como qualquer ativo do local). Ao concluir
 um reparo, a impressora volta para **Em estoque** — use **Colocar em uso** de novo.
 
+**Monitoramento (só impressoras em rede com "Monitorar por SNMP" ligado):** na mesma aba aparecem
+o chip **Online/Offline** com a última resposta, o estado informado pela impressora (ociosa,
+imprimindo, sem papel, atolada...), a barra de cada suprimento (vermelha quando está no limite
+ou abaixo, 15% por padrão), o **contador de páginas** e o bloco **Páginas no período** (padrão:
+mês corrente) para conferir a franquia do contrato de locação. **Ler agora** consulta na hora
+(permissão de cadastrar dispositivos). O servidor consulta sozinho a cada 15 minutos.
+
+**Alertas da impressora:** "parou de responder" (após 2 falhas seguidas) e "suprimento baixo"
+aparecem no topo da aba. Clique **Tratar** depois de resolver: enquanto um alerta do mesmo tipo
+estiver sem tratar, um novo não é gerado — ou seja, se você não tratar após trocar o toner, a
+próxima falta não avisa. Impressora USB ou sem o monitoramento ligado não gera alerta.
+
 ### Comentários e histórico
 
 - **Comentários:** anotações livres da TI. Não podem ser editados nem apagados — escreva com

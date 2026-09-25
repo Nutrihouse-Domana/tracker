@@ -17,6 +17,8 @@ export type TipoAlertaDispositivo =
   | 'LocalizacaoNegada'
   | 'BloqueioReaplicado'
   | 'ProtecaoRebaixada'
+  | 'ImpressoraOffline'
+  | 'SuprimentoBaixo'
 
 export interface UsuarioAdm {
   id: string

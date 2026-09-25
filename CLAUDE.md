@@ -138,11 +138,29 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   com endereço. O validador recusa e `RegrasDispositivo.AplicarConexao` força de novo (use-a em
   todo caminho que grave conexão). Endpoints `PUT {id}/aluguel`, `{id}/conexao-impressora` e
   `{id}/dados-impressora` pedem `dispositivos.cadastrar`, **sem senha do ADM**, e auditam
-  (`DispositivoAluguelDefinido`; os dois últimos `ImpressoraConexaoDefinida` — não há ação própria
-  para "dados" ainda). **Fabricante/Modelo/MacAddress são colunas COMPARTILHADAS** com
+  (`DispositivoAluguelDefinido`, `ImpressoraConexaoDefinida`, `ImpressoraDadosDefinidos`).
+  **Fabricante/Modelo/MacAddress são colunas COMPARTILHADAS** com
   `DispositivoComAgente` no TPH: o nome da coluna está fixado nos DOIS lados no `TrackerDbContext`
-  — fixar só num fazia o EF renomear as colunas existentes para `Notebook_Fabricante` etc. O
-  monitoramento SNMP (último estado na entidade, histórico em `LeituraImpressora`) é da Fase 2.
+  — fixar só num fazia o EF renomear as colunas existentes para `Notebook_Fabricante` etc.
+- **Monitoramento SNMP de impressora é feito pelo SERVIDOR** (não há agente nelas). Guia:
+  `docs/operacao/monitoramento-impressoras-snmp.md`; config na seção `Snmp` (community por
+  `Snmp__Community`, nunca no appsettings versionado). Pontos a não quebrar:
+  - Rede atrás de `IClienteSnmp` (Application); OIDs e regras puras (monitorável, offline após N
+    falhas, suprimento baixo, páginas no período) em `InterpretacaoSnmpImpressora` — OID nova entra ali.
+  - `Lextm.SharpSnmpLib`: use os métodos SÍNCRONOS (com timeout) dentro de `Task.Run` — os `*Async`
+    dela não têm timeout nem cancelamento e uma impressora muda prenderia o ciclo.
+  - Worker: um escopo/DbContext POR impressora no `Parallel.ForEachAsync`. `TravasLeituraImpressora`
+    (singleton) serializa ciclo x "Ler agora" da mesma impressora (senão o alerta duplica).
+  - Alerta (`ImpressoraOffline`/`SuprimentoBaixo`) não duplica enquanto houver um NÃO tratado do
+    mesmo tipo — a TI precisa "Tratar" após trocar o toner, senão a próxima falta não avisa.
+    Tratar alerta de impressora pede `dispositivos.cadastrar` (o de agente, `dispositivos.bloquear`),
+    decidido no corpo de `ReconhecerAlerta`; espelho em `AlertasDispositivoSection.tsx`.
+  - Os alertas ficavam SÓ na aba "Agente & Bloqueio", que a impressora não tem — por isso o
+    componente `AlertasDispositivoSection` é usado nas duas abas. Tipo de alerta novo: rótulo lá.
+  - Leitura offline PRESERVA contador/suprimentos na `Impressora` (a `LeituraImpressora` sai com
+    contador nulo). "Páginas no período" = maior − menor contador válido do período.
+  - Testes: um `ModuleInitializer` põe `Snmp__Habilitado=false` no projeto de testes inteiro — sem
+    ele o `WebApplicationFactory` subiria o worker contra o banco de dev.
 - **`Mobile` cobre celular E tablet.** Não existe tipo separado para tablet: o agente é o mesmo e
   separá-los não mudava nada no controle de ativos. `Mobile.Imei` é nulo em aparelhos só-Wi-Fi.
 - **`Dispositivo.IdentificacaoInterna` é o rótulo MANUAL da TI** (nulo por padrão, na base → todos os
