@@ -19,6 +19,7 @@ import { useDefinirPosseDispositivo, useDefinirUnidadeDispositivo } from './hook
 import { useUnidades } from '../unidades/hooks'
 import { mensagemErroApi } from '../../utils/erroApi'
 import { usePermissoes, PERMISSOES } from '../auth/permissoes'
+import { tipoAceitaDetentor } from './status'
 
 interface Props {
   dispositivo: Dispositivo
@@ -103,25 +104,37 @@ export function PosseSection({ dispositivo }: Props) {
         )}
       </Stack>
 
-      <Stack spacing={0.5}>
-        {podeMovimentar ? (
-          <FormControlLabel
-            control={<Switch checked={pertenceAUsuario} onChange={() => setDialogAberto(true)} />}
-            label={pertenceAUsuario ? 'Pertence a um usuário' : 'Pertence ao local (unidade)'}
-          />
-        ) : (
+      {/* Impressora é sempre do local: sem interruptor (o backend recusa "pertence a usuário"). */}
+      {!tipoAceitaDetentor(dispositivo.tipo) ? (
+        <Stack spacing={0.5}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {pertenceAUsuario ? 'Pertence a um usuário' : 'Pertence ao local (unidade)'}
+            Pertence ao local (unidade)
           </Typography>
-        )}
-        <Typography variant="caption" color="text.secondary">
-          {pertenceAUsuario
-            ? 'O ativo tem um detentor nominal: segue o fluxo de atribuição e termo de uso.'
-            : `O ativo é da unidade${
-                dispositivo.unidadeNome ? ` ${dispositivo.unidadeNome}` : ''
-              } e aparece com o nome dela no lugar do usuário.`}
-        </Typography>
-      </Stack>
+          <Typography variant="caption" color="text.secondary">
+            Impressoras são sempre da unidade: não são atribuídas a usuários nem têm termo de uso.
+          </Typography>
+        </Stack>
+      ) : (
+        <Stack spacing={0.5}>
+          {podeMovimentar ? (
+            <FormControlLabel
+              control={<Switch checked={pertenceAUsuario} onChange={() => setDialogAberto(true)} />}
+              label={pertenceAUsuario ? 'Pertence a um usuário' : 'Pertence ao local (unidade)'}
+            />
+          ) : (
+            <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              {pertenceAUsuario ? 'Pertence a um usuário' : 'Pertence ao local (unidade)'}
+            </Typography>
+          )}
+          <Typography variant="caption" color="text.secondary">
+            {pertenceAUsuario
+              ? 'O ativo tem um detentor nominal: segue o fluxo de atribuição e termo de uso.'
+              : `O ativo é da unidade${
+                  dispositivo.unidadeNome ? ` ${dispositivo.unidadeNome}` : ''
+                } e aparece com o nome dela no lugar do usuário.`}
+          </Typography>
+        </Stack>
+      )}
 
       <Dialog open={dialogAberto} onClose={() => setDialogAberto(false)} maxWidth="xs" fullWidth>
         <DialogTitle>{novoValor ? 'Passar a pertencer a um usuário' : 'Passar a pertencer ao local'}</DialogTitle>

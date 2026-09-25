@@ -28,6 +28,9 @@ import { ComentariosSection } from '../features/dispositivos/ComentariosSection'
 import { AgenteSection } from '../features/dispositivos/AgenteSection'
 import { LocalizacaoSection } from '../features/dispositivos/LocalizacaoSection'
 import { TermoDeUsoSection } from '../features/termos/TermoDeUsoSection'
+import { ImpressoraSection } from '../features/dispositivos/ImpressoraSection'
+import { rotuloTipo, tipoTemAgente } from '../features/dispositivos/status'
+import { ehAlugado, identificacaoExibida, rotuloAluguel } from '../features/dispositivos/aluguel'
 import { usePermissoes, PERMISSOES } from '../features/auth/permissoes'
 import { formatarDataHora } from '../utils/formato'
 import {
@@ -59,7 +62,9 @@ export function DispositivoDetalhePage() {
     return <Typography>Dispositivo não encontrado.</Typography>
   }
 
-  const temAgente = dispositivo.tipo !== 'Periferico'
+  // Periférico e impressora não têm agente: sem bloqueio, localização, enrollment nem termo.
+  const temAgente = tipoTemAgente(dispositivo.tipo)
+  const ehImpressora = dispositivo.tipo === 'Impressora'
 
   const tabs: { label: string; render: () => React.ReactNode }[] = [
     {
@@ -70,6 +75,19 @@ export function DispositivoDetalhePage() {
         </Typography>
       ),
     },
+    ...(ehImpressora
+      ? [
+          {
+            label: 'Dados da impressora',
+            render: () => (
+              <Stack spacing={3}>
+                <ImpressoraSection dispositivo={dispositivo} />
+                {/* Fase 2: <MonitoramentoImpressoraSection dispositivoId={dispositivo.id} monitorarSnmp={dispositivo.monitorarSnmp ?? false} /> */}
+              </Stack>
+            ),
+          },
+        ]
+      : []),
     { label: 'Unidade & Posse', render: () => <PosseSection dispositivo={dispositivo} /> },
     { label: 'Movimentação', render: () => <MovimentacaoSection dispositivoId={dispositivo.id} /> },
     { label: 'Reparos', render: () => <ReparosSection dispositivoId={dispositivo.id} /> },
@@ -94,9 +112,7 @@ export function DispositivoDetalhePage() {
           <Box>
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
               {/* Identificação interna da TI tem prioridade sobre o hostname reportado pelo agente. */}
-              <Typography variant="h5">
-                {dispositivo.identificacaoInterna ?? dispositivo.hostname ?? dispositivo.numeroSerie}
-              </Typography>
+              <Typography variant="h5">{identificacaoExibida(dispositivo)}</Typography>
               {tem(PERMISSOES.dispositivosCadastrar) && (
                 <IconButton
                   size="small"
@@ -108,8 +124,25 @@ export function DispositivoDetalhePage() {
               )}
             </Stack>
             <Typography variant="body2" color="text.secondary">
-              {dispositivo.tipo} — {dispositivo.assetTag ?? dispositivo.numeroSerie}
+              {rotuloTipo[dispositivo.tipo] ?? dispositivo.tipo} — {dispositivo.assetTag ?? dispositivo.numeroSerie}
             </Typography>
+            {ehImpressora && (
+              <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                <Chip
+                  size="small"
+                  label={rotuloAluguel(dispositivo)}
+                  color={ehAlugado(dispositivo) ? 'warning' : 'default'}
+                  variant={ehAlugado(dispositivo) ? 'filled' : 'outlined'}
+                />
+                {dispositivo.monitorarSnmp && dispositivo.online != null && (
+                  <Chip
+                    size="small"
+                    label={dispositivo.online ? 'Online' : 'Offline'}
+                    color={dispositivo.online ? 'success' : 'error'}
+                  />
+                )}
+              </Stack>
+            )}
           </Box>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             {tem(PERMISSOES.dispositivosMovimentar) && (
@@ -199,12 +232,31 @@ export function DispositivoDetalhePage() {
               <Typography variant="body2">{dispositivo.tipoPeriferico}</Typography>
             </Grid>
           )}
-          <Grid size={{ xs: 6, sm: 3 }}>
-            <Typography variant="caption" color="text.secondary">Último heartbeat</Typography>
-            <Typography variant="body2">
-              {dispositivo.ultimoHeartbeatEm ? formatarDataHora(dispositivo.ultimoHeartbeatEm) : '—'}
-            </Typography>
-          </Grid>
+          {ehImpressora && (
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Typography variant="caption" color="text.secondary">Modelo</Typography>
+              <Typography variant="body2">
+                {[dispositivo.fabricante, dispositivo.modelo].filter(Boolean).join(' ') || '—'}
+              </Typography>
+            </Grid>
+          )}
+          {ehImpressora && (
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Typography variant="caption" color="text.secondary">Conexão</Typography>
+              <Typography variant="body2">
+                {dispositivo.conexao === 'Usb' ? 'USB' : (dispositivo.enderecoRede ?? 'Rede (sem endereço)')}
+              </Typography>
+            </Grid>
+          )}
+          {/* Heartbeat é do agente: não existe em periférico nem em impressora. */}
+          {temAgente && (
+            <Grid size={{ xs: 6, sm: 3 }}>
+              <Typography variant="caption" color="text.secondary">Último heartbeat</Typography>
+              <Typography variant="body2">
+                {dispositivo.ultimoHeartbeatEm ? formatarDataHora(dispositivo.ultimoHeartbeatEm) : '—'}
+              </Typography>
+            </Grid>
+          )}
         </Grid>
       </Paper>
 

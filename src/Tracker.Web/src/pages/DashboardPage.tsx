@@ -3,6 +3,7 @@ import type { SvgIconComponent } from '@mui/icons-material'
 import LaptopMacIcon from '@mui/icons-material/LaptopMacOutlined'
 import SmartphoneIcon from '@mui/icons-material/SmartphoneOutlined'
 import MouseIcon from '@mui/icons-material/MouseOutlined'
+import PrintIcon from '@mui/icons-material/PrintOutlined'
 import Inventory2Icon from '@mui/icons-material/Inventory2Outlined'
 import BuildIcon from '@mui/icons-material/BuildOutlined'
 import BlockIcon from '@mui/icons-material/BlockOutlined'
@@ -111,6 +112,7 @@ export function DashboardPage() {
     { titulo: 'Notebooks', valor: data?.totalNotebooks, cor: nutrihouseColors.terracota, Icone: LaptopMacIcon, legenda: 'Ver todos', tipo: 'Notebook' },
     { titulo: 'Mobiles', valor: data?.totalMobiles, cor: nutrihouseColors.tealVerdeAzulado, Icone: SmartphoneIcon, legenda: 'Ver todos', tipo: 'Mobile' },
     { titulo: 'Periféricos', valor: data?.totalPerifericos, cor: nutrihouseColors.dourado, Icone: MouseIcon, legenda: 'Ver todos', tipo: 'Periferico' },
+    { titulo: 'Impressoras', valor: data?.totalImpressoras, cor: '#9C8566', Icone: PrintIcon, legenda: 'Ver todas', tipo: 'Impressora' },
   ]
 
   const porStatus: (Omit<CartaoProps, 'onClick'> & { status: string })[] = [

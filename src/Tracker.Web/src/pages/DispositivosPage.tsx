@@ -36,7 +36,7 @@ import {
 import { DispositivoFormDialog } from '../features/dispositivos/DispositivoFormDialog'
 import { AtribuirDialog } from '../features/dispositivos/AtribuirDialog'
 import { ExcluirDispositivoDialog } from '../features/dispositivos/ExcluirDispositivoDialog'
-import { corStatus, rotuloStatus, statusPermiteAtribuir } from '../features/dispositivos/status'
+import { corStatus, rotuloStatus, statusPermiteAtribuir, tipoAceitaDetentor } from '../features/dispositivos/status'
 import { ehAlugado, identificacaoExibida, rotuloAluguel } from '../features/dispositivos/aluguel'
 import {
   DIAS_DE_ALERTA,
@@ -55,6 +55,7 @@ const abas: { label: string; tipo?: TipoDispositivo; arquivados?: boolean }[] = 
   { label: 'Notebooks', tipo: 'Notebook' },
   { label: 'Mobiles', tipo: 'Mobile' },
   { label: 'Periféricos', tipo: 'Periferico' },
+  { label: 'Impressoras', tipo: 'Impressora' },
   { label: 'Arquivados', arquivados: true },
 ]
 
@@ -154,6 +155,9 @@ export function DispositivosPage() {
         d.unidadeNome,
         d.sistemaOperacional,
         d.observacoes,
+        // Impressora: IP/nome de rede e modelo (a TI costuma procurar por eles).
+        d.enderecoRede,
+        d.modelo,
       ]
         .filter(Boolean)
         .some((campo) => campo!.toLowerCase().includes(termo)),
@@ -297,7 +301,7 @@ export function DispositivosPage() {
               <TableRow>
                 {cabecalho('identificacao', 'Identificação')}
                 {cabecalho('patrimonio', 'Patrimônio')}
-                {/* Alugado x próprio: derivado do prefixo "MAQ" na identificação. */}
+                {/* Alugado x próprio: prefixo "MAQ" na identificação; na impressora, o interruptor "Alugada". */}
                 {cabecalho('aluguel', 'Aluguel', 'center')}
                 {/* Vencimento do contrato de aluguel: destaca vencido e o que vence em breve. */}
                 {cabecalho('vencimento', 'Vence em', 'center')}
@@ -311,7 +315,26 @@ export function DispositivosPage() {
             <TableBody>
               {itensPagina?.map((d) => (
                 <TableRow key={d.id} hover sx={{ cursor: 'pointer' }} onClick={() => navigate(`/dispositivos/${d.id}`)}>
-                  <TableCell>{identificacaoExibida(d)}</TableCell>
+                  <TableCell>
+                    {identificacaoExibida(d)}
+                    {/* Status SNMP (Fase 2): só em impressora monitorada que já foi lida. */}
+                    {d.tipo === 'Impressora' && d.monitorarSnmp && d.online != null && (
+                      <Tooltip
+                        title={
+                          d.ultimaLeituraEm
+                            ? `Última leitura: ${new Date(d.ultimaLeituraEm).toLocaleString('pt-BR')}`
+                            : ''
+                        }
+                      >
+                        <Chip
+                          size="small"
+                          label={d.online ? 'Online' : 'Offline'}
+                          color={d.online ? 'success' : 'error'}
+                          sx={{ ml: 1 }}
+                        />
+                      </Tooltip>
+                    )}
+                  </TableCell>
                   <TableCell>{d.assetTag ?? '—'}</TableCell>
                   <TableCell align="center">
                     <Chip
@@ -386,7 +409,7 @@ export function DispositivosPage() {
                         <>
                           {/* Ativo do local não tem detentor: atribuir aqui não faz sentido. Nem
                               baixado/em manutenção/bloqueado (o backend recusa). */}
-                          {podeMovimentar && d.pertenceAUsuario && statusPermiteAtribuir(d.status) && (
+                          {podeMovimentar && d.pertenceAUsuario && tipoAceitaDetentor(d.tipo) && statusPermiteAtribuir(d.status) && (
                             <Button size="small" onClick={() => setDispositivoParaAtribuir(d)}>
                               Atribuir
                             </Button>

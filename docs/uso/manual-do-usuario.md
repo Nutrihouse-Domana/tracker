@@ -29,7 +29,7 @@ por tarefa: procure o que você quer fazer.
 ### Busca global
 
 Barra no topo: digite 2+ letras. Encontra **dispositivos** (série, patrimônio, hostname, IMEI,
-nome do detentor, unidade) e **usuários** (nome, e-mail, telefone — o CPF não é pesquisável).
+nome do detentor, unidade; nas impressoras, também o endereço de rede e o modelo) e **usuários** (nome, e-mail, telefone — o CPF não é pesquisável).
 
 - ↑/↓ escolhe, Enter abre, Esc fecha.
 - Enter sem escolher nada abre a lista de Dispositivos filtrada pelo termo — essa busca da lista
@@ -40,7 +40,7 @@ nome do detentor, unidade) e **usuários** (nome, e-mail, telefone — o CPF nã
 
 ## Dashboard
 
-Cards com a contagem do parque **por tipo** (Notebooks, Mobiles, Periféricos) e **por status**
+Cards com a contagem do parque **por tipo** (Notebooks, Mobiles, Periféricos, Impressoras) e **por status**
 (Em uso, Em estoque, Em manutenção, Bloqueados, Baixados). Clicar num card abre a lista já
 filtrada. Arquivados não entram nas contagens.
 
@@ -48,20 +48,22 @@ filtrada. Arquivados não entram nas contagens.
 
 ## Lista de dispositivos
 
-**Abas:** Todos · Notebooks · Mobiles (celular e tablet) · Periféricos · Arquivados.
+**Abas:** Todos · Notebooks · Mobiles (celular e tablet) · Periféricos · Impressoras · Arquivados.
 **Filtro de status** ao lado. Clique no cabeçalho de uma coluna para ordenar.
 
 | Coluna | O que significa |
 |---|---|
-| Identificação | Identificação interna da TI; se vazia, o hostname; se vazio, a série |
-| Aluguel | **Alugado** se a identificação começa com `MAQ`; senão **Próprio** |
+| Identificação | Identificação interna da TI; se vazia, o hostname; se vazio, a série. Impressora monitorada por SNMP ganha o chip **Online**/**Offline** |
+| Aluguel | **Alugado** se a identificação começa com `MAQ`; senão **Próprio**. **Impressora:** vale o interruptor **Alugada** do cadastro |
 | Vence em | Fim do contrato de aluguel. Chip vermelho = vencido; amarelo = vence em até 30 dias |
 | Responsável | O detentor, ou o nome da unidade com o chip **Local** para ativos do local |
 
-> **Alugado x próprio é só o prefixo `MAQ`.** Não existe campo "alugado". Para marcar um
-> equipamento alugado, defina a identificação interna começando com `MAQ`. Sem identificação
-> interna, vale o hostname — que o agente pode mudar sozinho. Para classificação estável, use
-> sempre a identificação interna.
+> **Alugado x próprio é o prefixo `MAQ` — exceto nas impressoras.** Notebooks, mobiles e
+> periféricos não têm campo "alugado": para marcar um equipamento alugado, defina a identificação
+> interna começando com `MAQ`. Sem identificação interna, vale o hostname — que o agente pode mudar
+> sozinho. Para classificação estável, use sempre a identificação interna. **Impressoras** têm o
+> interruptor **Alugada** no cadastro e o prefixo não vale para elas (uma impressora `MAQ-...` com
+> o interruptor desligado é Própria). Ver [Impressoras](#impressoras).
 
 O **alerta amarelo/vermelho** no topo conta os aluguéis vencidos ou a vencer em 30 dias na lista
 inteira (não só na página). Ordene por **Vence em** para ver quais são.
@@ -78,6 +80,7 @@ inteira (não só na página). Ordene por **Vence em** para ver quais são.
      (obrigatórios). No Mobile, o IMEI é opcional (tablet só Wi-Fi não tem) e, se preenchido,
      precisa ter 15 dígitos.
    - **Periférico:** número de série e tipo (Mouse, Teclado, Monitor, Dock, Headset, Outro).
+   - **Impressora:** ver [Impressoras](#impressoras) (sempre do local, unidade obrigatória).
 3. **Unidade que o dispositivo atende** e o interruptor **Pertence a um usuário / ao local**:
    - *Usuário:* o ativo terá um detentor nominal (entregue a uma pessoa, com termo).
    - *Local:* fica lotado na unidade (ex.: notebook da recepção). A unidade é obrigatória.
@@ -158,6 +161,36 @@ No detalhe, ícones de lápis:
   ativo é Alugado ou Próprio.
 - **Vencimento do aluguel:** data de fim do contrato. Não pede senha (fica registrado na
   auditoria). Em branco = sem contrato.
+
+### Impressoras
+
+Impressora **não tem agente**: não há bloqueio remoto, localização, token de instalação nem
+termo de uso. Ela é sempre **do local** (da unidade) — não pode ser atribuída a um colaborador
+nem ter **Pertence a um usuário** ligado (o botão **Atribuir** e o interruptor não aparecem, e o
+sistema recusa se tentado por outro caminho).
+
+**Cadastrar:** Dispositivos → Novo dispositivo → **Impressora**.
+
+- **Número de série** (obrigatório) e **patrimônio** (opcional — impressora alugada costuma vir
+  sem etiqueta).
+- **Tipo** (Laser, Jato de tinta, Multifuncional, Térmica, Matricial, Outra), **fabricante**,
+  **modelo** e **Colorida / Monocromática**.
+- Interruptor **Alugada / Própria**: é ele que classifica a impressora como alugada na lista e nos
+  relatórios. O vencimento do contrato é o mesmo lápis **Vencimento do aluguel** dos demais ativos.
+- **Conexão:**
+  - **Em rede:** informe o **endereço** (IP, ex.: `192.168.0.50`, ou nome de rede). Com
+    **Monitorar por SNMP** ligado, o endereço é obrigatório.
+  - **USB (ligada a um computador):** sem endereço; o monitoramento SNMP fica desligado e não
+    pode ser ligado — o servidor não alcança uma impressora USB.
+  - **MAC** é opcional (formato `AA:BB:CC:DD:EE:FF`).
+- **Unidade** é obrigatória.
+
+**No detalhe**, aba **Dados da impressora**: o interruptor **Alugada** (vale na hora, sem senha,
+fica na auditoria) e os botões **Editar** do equipamento (tipo/fabricante/modelo/colorida) e da
+conexão. Nenhum deles pede sua senha.
+
+**Status:** **Colocar em uso** exige a unidade definida (como qualquer ativo do local). Ao concluir
+um reparo, a impressora volta para **Em estoque** — use **Colocar em uso** de novo.
 
 ### Comentários e histórico
 
@@ -268,7 +301,7 @@ Menu da conta → **Relatórios** → escolha o tipo e o formato (PDF ou Excel):
 | Relatório | Conteúdo |
 |---|---|
 | Inventário de ativos | Todos os ativos: identificação, tipo, origem, série, patrimônio, unidade, responsável, status, data de cadastro |
-| Alugados x próprios | O mesmo + vencimento e dias restantes, e o resumo alugados x próprios (critério `MAQ`) |
+| Alugados x próprios | O mesmo + vencimento e dias restantes, e o resumo alugados x próprios (critério `MAQ`; impressoras pelo interruptor **Alugada**) |
 | Parque por unidade | Totais por unidade, alugados, próprios e distribuição por status |
 
 - Arquivados não entram. A coluna de data é a **data de cadastro no Tracker**, não a de compra.

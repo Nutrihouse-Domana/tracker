@@ -9,6 +9,10 @@ import type {
   CriarPerifericoRequest,
   CriarReparoRequest,
   CriarMobileRequest,
+  CriarImpressoraRequest,
+  DefinirAluguelImpressoraRequest,
+  DefinirConexaoImpressoraRequest,
+  DefinirDadosImpressoraRequest,
   DefinirIdentificacaoInternaRequest,
   DefinirPosseDispositivoRequest,
   DefinirVencimentoAluguelRequest,
@@ -36,6 +40,15 @@ export const dispositivosApi = {
     apiClient.post<Dispositivo>('/api/dispositivos/mobiles', data).then((r) => r.data),
   criarPeriferico: (data: CriarPerifericoRequest) =>
     apiClient.post<Dispositivo>('/api/dispositivos/perifericos', data).then((r) => r.data),
+  criarImpressora: (data: CriarImpressoraRequest) =>
+    apiClient.post<Dispositivo>('/api/dispositivos/impressoras', data).then((r) => r.data),
+  /** Só impressoras: nos demais tipos o aluguel é o prefixo "MAQ" (o backend recusa). */
+  definirAluguelImpressora: (id: string, data: DefinirAluguelImpressoraRequest) =>
+    apiClient.put(`/api/dispositivos/${id}/aluguel`, data).then((r) => r.data),
+  definirConexaoImpressora: (id: string, data: DefinirConexaoImpressoraRequest) =>
+    apiClient.put(`/api/dispositivos/${id}/conexao-impressora`, data).then((r) => r.data),
+  definirDadosImpressora: (id: string, data: DefinirDadosImpressoraRequest) =>
+    apiClient.put(`/api/dispositivos/${id}/dados-impressora`, data).then((r) => r.data),
   atualizarStatus: (id: string, status: StatusDispositivo) =>
     apiClient.put(`/api/dispositivos/${id}/status`, { status }).then((r) => r.data),
   definirUnidade: (id: string, unidadeId: string | null) =>
