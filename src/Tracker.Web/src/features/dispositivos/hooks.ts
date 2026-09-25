@@ -107,11 +107,15 @@ export function useDefinirAluguelImpressora() {
 }
 
 export function useDefinirConexaoImpressora() {
-  const invalidate = useInvalidateDispositivos()
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: DefinirConexaoImpressoraRequest }) =>
       dispositivosApi.definirConexaoImpressora(id, data),
-    onSuccess: invalidate,
+    onSuccess: (_r, { id }) => {
+      queryClient.invalidateQueries({ queryKey: KEY })
+      // A seção de monitoramento lê de outra chave (endereço/monitorável): sem isto ficava o IP antigo.
+      queryClient.invalidateQueries({ queryKey: ['impressoras', id] })
+    },
   })
 }
 

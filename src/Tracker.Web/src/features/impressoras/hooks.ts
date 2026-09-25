@@ -30,7 +30,8 @@ export function useLerImpressoraAgora(dispositivoId: string) {
       queryClient.setQueryData([...KEY, dispositivoId, 'monitoramento'], estado)
       queryClient.invalidateQueries({ queryKey: [...KEY, dispositivoId, 'leituras'] })
       // A leitura pode ter aberto alerta (offline / suprimento baixo) na lista do dispositivo.
-      queryClient.invalidateQueries({ queryKey: ['dispositivos', dispositivoId, 'alertas'] })
+      // e mudado online/contador do DispositivoDto (chip da lista e do detalhe).
+      queryClient.invalidateQueries({ queryKey: ['dispositivos'] })
     },
   })
 }
