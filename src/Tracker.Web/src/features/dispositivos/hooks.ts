@@ -11,6 +11,10 @@ import type {
   CriarPerifericoRequest,
   CriarReparoRequest,
   CriarMobileRequest,
+  CriarImpressoraRequest,
+  DefinirAluguelImpressoraRequest,
+  DefinirConexaoImpressoraRequest,
+  DefinirDadosImpressoraRequest,
   StatusDispositivo,
   StatusReparo,
   TipoComandoRemoto,
@@ -80,6 +84,46 @@ export function useCriarPeriferico() {
   const invalidate = useInvalidateDispositivos()
   return useMutation({
     mutationFn: (data: CriarPerifericoRequest) => dispositivosApi.criarPeriferico(data),
+    onSuccess: invalidate,
+  })
+}
+
+export function useCriarImpressora() {
+  const invalidate = useInvalidateDispositivos()
+  return useMutation({
+    mutationFn: (data: CriarImpressoraRequest) => dispositivosApi.criarImpressora(data),
+    onSuccess: invalidate,
+  })
+}
+
+/** Interruptor de aluguel da impressora. Não pede senha: é dado do contrato. */
+export function useDefinirAluguelImpressora() {
+  const invalidate = useInvalidateDispositivos()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: DefinirAluguelImpressoraRequest }) =>
+      dispositivosApi.definirAluguelImpressora(id, data),
+    onSuccess: invalidate,
+  })
+}
+
+export function useDefinirConexaoImpressora() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: DefinirConexaoImpressoraRequest }) =>
+      dispositivosApi.definirConexaoImpressora(id, data),
+    onSuccess: (_r, { id }) => {
+      queryClient.invalidateQueries({ queryKey: KEY })
+      // A seção de monitoramento lê de outra chave (endereço/monitorável): sem isto ficava o IP antigo.
+      queryClient.invalidateQueries({ queryKey: ['impressoras', id] })
+    },
+  })
+}
+
+export function useDefinirDadosImpressora() {
+  const invalidate = useInvalidateDispositivos()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: DefinirDadosImpressoraRequest }) =>
+      dispositivosApi.definirDadosImpressora(id, data),
     onSuccess: invalidate,
   })
 }

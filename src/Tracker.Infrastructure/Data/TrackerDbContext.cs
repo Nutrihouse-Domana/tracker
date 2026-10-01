@@ -29,6 +29,7 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
     public DbSet<HistoricoReparo> HistoricoReparos => Set<HistoricoReparo>();
     public DbSet<ComentarioDispositivo> ComentariosDispositivo => Set<ComentarioDispositivo>();
     public DbSet<AlertaDispositivo> AlertasDispositivo => Set<AlertaDispositivo>();
+    public DbSet<LeituraImpressora> LeiturasImpressora => Set<LeituraImpressora>();
     public DbSet<PacoteAgenteAndroid> PacotesAgenteAndroid => Set<PacoteAgenteAndroid>();
     public DbSet<LogAuditoria> LogsAuditoria => Set<LogAuditoria>();
 
@@ -68,7 +69,8 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
             entity.HasDiscriminator(d => d.Tipo)
                 .HasValue<Notebook>(Domain.Enums.TipoDispositivo.Notebook)
                 .HasValue<Mobile>(Domain.Enums.TipoDispositivo.Mobile)
-                .HasValue<Periferico>(Domain.Enums.TipoDispositivo.Periferico);
+                .HasValue<Periferico>(Domain.Enums.TipoDispositivo.Periferico)
+                .HasValue<Impressora>(Domain.Enums.TipoDispositivo.Impressora);
 
             entity.HasIndex(d => d.NumeroSerie).IsUnique();
             // Filtrado: periféricos não têm patrimônio, e vários nulos quebrariam o índice único.
@@ -211,6 +213,39 @@ public class TrackerDbContext : IdentityDbContext<UsuarioADM, IdentityRole<Guid>
 
             // A tela do dispositivo lista primeiro os alertas não reconhecidos, mais recentes antes.
             entity.HasIndex(a => new { a.DispositivoId, a.Reconhecido, a.CriadoEm });
+        });
+
+        // TPH: Impressora e DispositivoComAgente têm Fabricante/Modelo/MacAddress e COMPARTILHAM as
+        // colunas. O nome precisa ser fixado nos DOIS lados: fixando só no da Impressora, o EF
+        // "desempatava" renomeando as colunas existentes para Notebook_Fabricante/Mobile_Fabricante
+        // (a migração moveria dados de produção para colunas novas vazias).
+        builder.Entity<DispositivoComAgente>(entity =>
+        {
+            entity.Property(d => d.Fabricante).HasColumnName("Fabricante");
+            entity.Property(d => d.Modelo).HasColumnName("Modelo");
+            entity.Property(d => d.MacAddress).HasColumnName("MacAddress");
+        });
+
+        builder.Entity<Impressora>(entity =>
+        {
+            entity.Property(i => i.Fabricante).HasColumnName("Fabricante");
+            entity.Property(i => i.Modelo).HasColumnName("Modelo");
+            entity.Property(i => i.MacAddress).HasColumnName("MacAddress");
+            entity.Property(i => i.EnderecoRede).HasMaxLength(255);
+            entity.Property(i => i.EstadoReportado).HasMaxLength(200);
+            entity.Property(i => i.ErroUltimaLeitura).HasMaxLength(500);
+        });
+
+        builder.Entity<LeituraImpressora>(entity =>
+        {
+            entity.HasOne(l => l.Impressora)
+                .WithMany(i => i.Leituras)
+                .HasForeignKey(l => l.ImpressoraId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.Property(l => l.EstadoReportado).HasMaxLength(200);
+            entity.Property(l => l.Erro).HasMaxLength(500);
+            // Histórico/contador de uma impressora por período.
+            entity.HasIndex(l => new { l.ImpressoraId, l.CriadoEm });
         });
     }
 }

@@ -125,6 +125,18 @@ builder.Services.AddScoped<Tracker.Api.Seguranca.ConfirmacaoSenhaAdm>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Tracker.Api.Seguranca.IAuditoria, Tracker.Api.Seguranca.AuditoriaService>();
 
+// Monitoramento SNMP das impressoras (seção "Snmp"). O worker lê Snmp:Habilitado no start e, se
+// false, termina sem varrer a rede — os testes desligam por aí (ver Tracker.Api.Tests). A rede fica
+// atrás de IClienteSnmp para os testes trocarem por um fake.
+builder.Services.Configure<Tracker.Infrastructure.Impressoras.OpcoesSnmp>(
+    builder.Configuration.GetSection(Tracker.Infrastructure.Impressoras.OpcoesSnmp.Secao));
+builder.Services.AddSingleton<Tracker.Application.Impressoras.IClienteSnmp,
+    Tracker.Infrastructure.Impressoras.ClienteSnmpSharpSnmp>();
+builder.Services.AddSingleton<Tracker.Infrastructure.Impressoras.TravasLeituraImpressora>();
+builder.Services.AddScoped<Tracker.Infrastructure.Impressoras.LeitorSnmpImpressora>();
+builder.Services.AddScoped<Tracker.Infrastructure.Impressoras.MonitoramentoImpressorasService>();
+builder.Services.AddHostedService<Tracker.Infrastructure.Impressoras.MonitoramentoImpressorasWorker>();
+
 var termosPath = Path.Combine(
     builder.Environment.ContentRootPath,
     builder.Configuration["Storage:TermosDeUsoPath"] ?? "App_Data/termos-de-uso");

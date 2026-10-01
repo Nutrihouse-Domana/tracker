@@ -135,14 +135,24 @@ public class DispositivosAgenteController : ControllerBase
         return Ok(alertas);
     }
 
-    /// <summary>Marca o alerta como tratado pela TI, tirando-o das pendências do dispositivo.</summary>
+    /// <summary>
+    /// Marca o alerta como tratado pela TI, tirando-o das pendências do dispositivo. Alerta de agente
+    /// (proteção/bloqueio) pede <c>dispositivos.bloquear</c>; alerta de impressora (offline, toner),
+    /// que é manutenção e não segurança, pede <c>dispositivos.cadastrar</c> — a mesma permissão do
+    /// "Ler agora". Por isso a checagem é no corpo, depois de saber o tipo.
+    /// </summary>
     [HttpPost("{id:guid}/alertas/{alertaId:guid}/reconhecer")]
-    [Authorize(Policy = Permissoes.DispositivosBloquear)]
+    [Authorize(Policy = Permissoes.DispositivosVer)]
     public async Task<IActionResult> ReconhecerAlerta(Guid id, Guid alertaId)
     {
         var alerta = await _db.AlertasDispositivo
             .FirstOrDefaultAsync(a => a.Id == alertaId && a.DispositivoId == id);
         if (alerta is null) return NotFound();
+
+        var permissaoExigida = EhAlertaDeImpressora(alerta.Tipo)
+            ? Permissoes.DispositivosCadastrar
+            : Permissoes.DispositivosBloquear;
+        if (!User.HasClaim(Permissoes.TipoClaim, permissaoExigida)) return Forbid();
 
         alerta.Reconhecido = true;
         alerta.ReconhecidoEm = DateTime.UtcNow;
@@ -153,6 +163,9 @@ public class DispositivosAgenteController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
+
+    private static bool EhAlertaDeImpressora(TipoAlertaDispositivo tipo) =>
+        tipo is TipoAlertaDispositivo.ImpressoraOffline or TipoAlertaDispositivo.SuprimentoBaixo;
 
     private static ComandoRemotoDto MapToDto(ComandoRemoto c) => new(
         c.Id, c.DispositivoId, c.TipoComando, c.Status, c.EmitidoPorAdmId, c.DataEmissao, c.DataConfirmacao);

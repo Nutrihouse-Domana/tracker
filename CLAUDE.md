@@ -126,7 +126,41 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
 
 - **Entidades** herdam de `EntidadeBase` (Id Guid, CriadoEm). Dispositivo usa **TPH**
   (Table-per-Hierarchy): `Dispositivo` (abstrata) → `Notebook`/`Mobile` (via
-  `DispositivoComAgente`) e `Periferico`. Discriminador `Tipo`.
+  `DispositivoComAgente`), `Periferico` e `Impressora`. Discriminador `Tipo`.
+- **`Impressora` (TPH, `Tipo = 3`) NÃO tem agente e é SEMPRE do local.** Nasce com
+  `PertenceAUsuario = false`; o cadastro (`POST /api/dispositivos/impressoras`) exige unidade.
+  Atribuir, `DefinirPosse` com `PertenceAUsuario = true` e termo de uso (gerar/anexar) recusam com
+  400 (`RegrasDispositivo.AceitaDetentor` / `MensagemImpressoraSemDetentor`); no site
+  `tipoAceitaDetentor`/`tipoTemAgente` (`features/dispositivos/status.ts`) escondem Atribuir, o
+  interruptor de posse e as abas Agente/Localização/Termo. Enrollment e comandos já davam 404 por
+  não ser `DispositivoComAgente`. "Em uso" segue a regra do ativo de local (unidade definida).
+  **Conexão:** `Usb` → `EnderecoRede` nulo e `MonitorarSnmp` false; `MonitorarSnmp` exige `Rede`
+  com endereço. O validador recusa e `RegrasDispositivo.AplicarConexao` força de novo (use-a em
+  todo caminho que grave conexão). Endpoints `PUT {id}/aluguel`, `{id}/conexao-impressora` e
+  `{id}/dados-impressora` pedem `dispositivos.cadastrar`, **sem senha do ADM**, e auditam
+  (`DispositivoAluguelDefinido`, `ImpressoraConexaoDefinida`, `ImpressoraDadosDefinidos`).
+  **Fabricante/Modelo/MacAddress são colunas COMPARTILHADAS** com
+  `DispositivoComAgente` no TPH: o nome da coluna está fixado nos DOIS lados no `TrackerDbContext`
+  — fixar só num fazia o EF renomear as colunas existentes para `Notebook_Fabricante` etc.
+- **Monitoramento SNMP de impressora é feito pelo SERVIDOR** (não há agente nelas). Guia:
+  `docs/operacao/monitoramento-impressoras-snmp.md`; config na seção `Snmp` (community por
+  `Snmp__Community`, nunca no appsettings versionado). Pontos a não quebrar:
+  - Rede atrás de `IClienteSnmp` (Application); OIDs e regras puras (monitorável, offline após N
+    falhas, suprimento baixo, páginas no período) em `InterpretacaoSnmpImpressora` — OID nova entra ali.
+  - `Lextm.SharpSnmpLib`: use os métodos SÍNCRONOS (com timeout) dentro de `Task.Run` — os `*Async`
+    dela não têm timeout nem cancelamento e uma impressora muda prenderia o ciclo.
+  - Worker: um escopo/DbContext POR impressora no `Parallel.ForEachAsync`. `TravasLeituraImpressora`
+    (singleton) serializa ciclo x "Ler agora" da mesma impressora (senão o alerta duplica).
+  - Alerta (`ImpressoraOffline`/`SuprimentoBaixo`) não duplica enquanto houver um NÃO tratado do
+    mesmo tipo — a TI precisa "Tratar" após trocar o toner, senão a próxima falta não avisa.
+    Tratar alerta de impressora pede `dispositivos.cadastrar` (o de agente, `dispositivos.bloquear`),
+    decidido no corpo de `ReconhecerAlerta`; espelho em `AlertasDispositivoSection.tsx`.
+  - Os alertas ficavam SÓ na aba "Agente & Bloqueio", que a impressora não tem — por isso o
+    componente `AlertasDispositivoSection` é usado nas duas abas. Tipo de alerta novo: rótulo lá.
+  - Leitura offline PRESERVA contador/suprimentos na `Impressora` (a `LeituraImpressora` sai com
+    contador nulo). "Páginas no período" = maior − menor contador válido do período.
+  - Testes: um `ModuleInitializer` põe `Snmp__Habilitado=false` no projeto de testes inteiro — sem
+    ele o `WebApplicationFactory` subiria o worker contra o banco de dev.
 - **`Mobile` cobre celular E tablet.** Não existe tipo separado para tablet: o agente é o mesmo e
   separá-los não mudava nada no controle de ativos. `Mobile.Imei` é nulo em aparelhos só-Wi-Fi.
 - **`Dispositivo.IdentificacaoInterna` é o rótulo MANUAL da TI** (nulo por padrão, na base → todos os
@@ -138,8 +172,12 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   própria. Endpoint `PUT /api/dispositivos/{id}/identificacao-interna` (`DefinirIdentificacaoInterna`)
   exige `dispositivos.cadastrar` **e a senha do ADM** (400, não 401, em senha errada) e audita
   (`DispositivoIdentificacaoInternaDefinida`). Enviar vazio limpa o campo (volta ao fallback).
-- **Alugado x próprio é CONVENÇÃO DE NOME, não campo do cadastro.** A identificação EXIBIDA
-  começando com `MAQ` (sem diferenciar maiúsculas) marca equipamento alugado — regra centralizada em
+- **Alugado x próprio é CONVENÇÃO DE NOME, não campo do cadastro — EXCETO NA IMPRESSORA.** A
+  identificação EXIBIDA começando com `MAQ` (sem diferenciar maiúsculas) marca equipamento alugado
+  nos demais tipos; a **impressora** tem o interruptor manual `Impressora.Alugada` e o prefixo NÃO
+  vale para ela (impressora `MAQ-...` com `Alugada = false` é própria). A regra por tipo é
+  `ClassificacaoAluguel.EhAlugado(tipo, impressoraAlugada, identificacao)` no backend e
+  `ehAlugado(d)` (que olha `tipo`/`alugada`) no site — mude os DOIS. Regra centralizada em
   `src/Tracker.Web/src/features/dispositivos/aluguel.ts` (`ehAlugado`, `rotuloAluguel`,
   `identificacaoExibida`), usada na coluna "Aluguel" de `DispositivosPage`. Use `identificacaoExibida`
   em vez de repetir `identificacaoInterna ?? hostname ?? numeroSerie` — ela trata vazio/só espaços
@@ -149,7 +187,9 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   DOIS lados, senão a coluna e o relatório discordam sobre o mesmo aparelho. Consequência a lembrar: como o
   fallback inclui o **hostname**, e o heartbeat sobrescreve o hostname a cada ciclo, um aparelho SEM
   `IdentificacaoInterna` pode mudar de classificação sozinho — só o rótulo manual da TI é estável.
-  Se um dia a origem virar dado de verdade, isso vira campo no `Dispositivo` e a função sai daqui.
+  Se um dia a origem virar dado de verdade, isso vira campo no `Dispositivo` e a função sai daqui
+  (a impressora já é esse caso: `Alugada` fica na subclasse, e o relatório o lê por
+  `Set<Impressora>()` em `RelatorioInventarioService`).
 - **`Dispositivo.VencimentoAluguel` (DateOnly?) é o fim do CONTRATO DE ALUGUEL**, não garantia nem
   vida útil. Nulo = sem contrato (o caso dos próprios); o campo existe em todos os tipos, mas quem
   diz que o ativo é alugado continua sendo o prefixo `MAQ` da identificação. Endpoint
@@ -232,7 +272,10 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   sem discriminador). Consulte `_db.Set<Notebook>()`/`Set<Mobile>()` ou busque a base e faça cast.
   **Ao criar um novo tipo com agente, atualize os DOIS lugares que enumeram os tipos concretos:**
   `AgentAuth.ResolverAsync` (senão o agente não autentica) e `BuscaController.BuscarDispositivos`
-  (senão o aparelho fica invisível na busca por hostname/IMEI).
+  (senão o aparelho fica invisível na busca por hostname/IMEI). **Tipo novo de qualquer espécie**
+  precisa também de rótulo em `RelatorioInventarioService.RotuloTipo` (hoje há fallback para o
+  nome do enum, mas sem acento), em `rotuloTipo` (`features/dispositivos/status.ts`), de aba em
+  `DispositivosPage` e de card/contagem no Dashboard (`EstatisticasDashboardDto`).
 - **Excluir dispositivo tem DOIS modos** (`ExcluirDispositivoRequest.Definitiva`), escolhidos pelo
   ADM no diálogo: arquivar (padrão) ou apagar de vez. Na definitiva, **`TermoDeUso` é o único
   dependente com FK `Restrict`** — o controller remove os termos à mão antes do `Remove`, senão o

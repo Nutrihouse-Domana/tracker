@@ -19,18 +19,17 @@ import type {
   Dispositivo,
   NivelProtecaoAgente,
   StatusComandoRemoto,
-  TipoAlertaDispositivo,
 } from '../../api/types'
 import {
   useAlertasDispositivo,
   useComandos,
   useEmitirComando,
   useGerarEnrollment,
-  useReconhecerAlerta,
 } from './hooks'
 import { rotuloStatus } from './status'
 import { usePermissoes, PERMISSOES } from '../auth/permissoes'
 import { formatarDataHora } from '../../utils/formato'
+import { AlertasDispositivoSection } from './AlertasDispositivoSection'
 
 interface Props {
   dispositivo: Dispositivo
@@ -70,20 +69,12 @@ const protecaoAgente: Record<
   },
 }
 
-const rotuloAlerta: Record<TipoAlertaDispositivo, string> = {
-  AdminDesativado: 'Permissão de administrador desativada no aparelho',
-  LocalizacaoNegada: 'Permissão de localização negada ou revogada',
-  BloqueioReaplicado: 'Bloqueio reaplicado pelo agente',
-  ProtecaoRebaixada: 'Nível de proteção do agente caiu',
-}
-
 export function AgenteSection({ dispositivo }: Props) {
   const [token, setToken] = useState<string | null>(null)
   const { data: comandos } = useComandos(dispositivo.id)
   const { data: alertas } = useAlertasDispositivo(dispositivo.id)
   const emitir = useEmitirComando(dispositivo.id)
   const enrollment = useGerarEnrollment(dispositivo.id)
-  const reconhecer = useReconhecerAlerta(dispositivo.id)
   const { tem } = usePermissoes()
   const podeBloquear = tem(PERMISSOES.dispositivosBloquear)
   const podeCadastrar = tem(PERMISSOES.dispositivosCadastrar)
@@ -150,35 +141,7 @@ export function AgenteSection({ dispositivo }: Props) {
       {alertasPendentes.length > 0 && (
         <>
           <Divider />
-          <Box>
-            <Typography variant="subtitle2" gutterBottom>
-              Alertas do aparelho ({alertasPendentes.length})
-            </Typography>
-            <List dense>
-              {alertasPendentes.map((a) => (
-                <ListItem
-                  key={a.id}
-                  divider
-                  secondaryAction={
-                    podeBloquear ? (
-                      <Button
-                        size="small"
-                        disabled={reconhecer.isPending}
-                        onClick={() => reconhecer.mutate(a.id)}
-                      >
-                        Tratar
-                      </Button>
-                    ) : null
-                  }
-                >
-                  <ListItemText
-                    primary={rotuloAlerta[a.tipo] ?? a.tipo}
-                    secondary={`${formatarDataHora(a.criadoEm)}${a.detalhe ? ` — ${a.detalhe}` : ''}`}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </Box>
+          <AlertasDispositivoSection dispositivoId={dispositivo.id} titulo="Alertas do aparelho" />
         </>
       )}
 

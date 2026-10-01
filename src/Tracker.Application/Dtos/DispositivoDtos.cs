@@ -35,7 +35,21 @@ public record DispositivoDto(
     DateTime? ExcluidoEm = null,
     string? MotivoExclusao = null,
     // Vencimento do contrato de aluguel. Nulo nos ativos próprios (sem contrato registrado).
-    DateOnly? VencimentoAluguel = null);
+    DateOnly? VencimentoAluguel = null,
+    // --- Impressora (nulos nos demais tipos) ---
+    TipoImpressora? TipoImpressora = null,
+    bool? Colorida = null,
+    // Interruptor de aluguel da impressora: nela o aluguel NÃO segue o prefixo "MAQ".
+    bool? Alugada = null,
+    ConexaoImpressora? Conexao = null,
+    string? EnderecoRede = null,
+    // MAC: da impressora ou reportado pelo agente (notebook/mobile).
+    string? MacAddress = null,
+    bool? MonitorarSnmp = null,
+    // Último estado lido por SNMP (Fase 2). Nulos enquanto a impressora nunca foi lida.
+    bool? Online = null,
+    DateTime? UltimaLeituraEm = null,
+    long? ContadorPaginas = null);
 
 /// <summary>
 /// Remove o dispositivo do inventário. Exige a senha do ADM logado.
@@ -108,6 +122,52 @@ public record CriarPerifericoRequest(
     string? Observacoes,
     Guid? UnidadeId = null,
     bool PertenceAUsuario = true);
+
+/// <summary>
+/// Impressora. Não tem agente e é sempre do LOCAL: não há <c>PertenceAUsuario</c> no request e a
+/// unidade é obrigatória. Patrimônio é opcional (impressora alugada costuma não ter etiqueta).
+/// O aluguel é o interruptor <see cref="Alugada"/>, não o prefixo "MAQ" da identificação.
+/// </summary>
+public record CriarImpressoraRequest(
+    string NumeroSerie,
+    string? AssetTag,
+    TipoImpressora TipoImpressora,
+    string? Fabricante,
+    string? Modelo,
+    bool Colorida,
+    bool Alugada,
+    ConexaoImpressora Conexao,
+    string? EnderecoRede,
+    string? MacAddress,
+    bool MonitorarSnmp,
+    DateTime DataAquisicao,
+    string? Observacoes,
+    Guid? UnidadeId,
+    DateOnly? VencimentoAluguel = null);
+
+/// <summary>
+/// Liga/desliga o interruptor de aluguel da impressora. Não pede a senha do ADM (dado do contrato,
+/// como o vencimento), mas é auditado.
+/// </summary>
+public record DefinirAluguelImpressoraRequest(bool Alugada, string? Motivo = null);
+
+/// <summary>
+/// Conexão da impressora. Com <c>Usb</c> o endereço é descartado e o SNMP fica desligado (o
+/// servidor não alcança impressora ligada a um computador). <c>MonitorarSnmp = true</c> exige
+/// <c>Rede</c> com endereço preenchido.
+/// </summary>
+public record DefinirConexaoImpressoraRequest(
+    ConexaoImpressora Conexao,
+    string? EnderecoRede,
+    string? MacAddress,
+    bool MonitorarSnmp);
+
+/// <summary>Dados descritivos da impressora (corrige o que foi digitado no cadastro).</summary>
+public record DefinirDadosImpressoraRequest(
+    TipoImpressora TipoImpressora,
+    string? Fabricante,
+    string? Modelo,
+    bool Colorida);
 
 public record AtualizarStatusDispositivoRequest(StatusDispositivo Status);
 

@@ -63,7 +63,8 @@ public class RelatorioPdfService : IRelatorioPdfService
         var criterio = section.AddParagraph(
             $"Critério: são considerados alugados os ativos cuja identificação começa com "
             + $"\"{ClassificacaoAluguel.PrefixoAlugado}\". A identificação é o rótulo interno definido pela TI; "
-            + "quando ele está vazio, vale o hostname reportado pelo agente e, na falta dele, o número de série.");
+            + "quando ele está vazio, vale o hostname reportado pelo agente e, na falta dele, o número de série. "
+            + "Impressoras são a exceção: para elas vale o interruptor \"Alugada\" do cadastro, não o prefixo.");
         criterio.Format.Font.Size = 8;
         criterio.Format.Font.Italic = true;
         criterio.Format.SpaceAfter = "0.5cm";

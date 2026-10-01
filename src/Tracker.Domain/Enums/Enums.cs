@@ -5,7 +5,9 @@ public enum TipoDispositivo
     Notebook,
     /// <summary>Celulares e tablets: mesmo agente, mesmo tratamento no inventário.</summary>
     Mobile,
-    Periferico
+    Periferico,
+    /// <summary>Impressora: sem agente; monitorada opcionalmente por SNMP pelo servidor.</summary>
+    Impressora
     // Novos valores SEMPRE no fim: o número é gravado como discriminador TPH na tabela.
 }
 
@@ -80,7 +82,12 @@ public enum TipoAlertaDispositivo
     /// <summary>O agente detectou o bloqueio ativo e o reaplicou após uma tentativa de contorno.</summary>
     BloqueioReaplicado,
     /// <summary>O agente perdeu privilégio de Device Owner/Admin e caiu para proteção menor.</summary>
-    ProtecaoRebaixada
+    ProtecaoRebaixada,
+    /// <summary>Impressora monitorada deixou de responder ao SNMP (gerado pelo servidor, não por agente).</summary>
+    ImpressoraOffline,
+    /// <summary>Toner/tinta/cilindro de impressora monitorada abaixo do limite (gerado pelo servidor).</summary>
+    SuprimentoBaixo
+    // Novos valores SEMPRE no fim (gravado como número).
 }
 
 public enum StatusReparo
@@ -109,6 +116,9 @@ public enum AcaoAuditoria
     DispositivoArquivado,
     DispositivoExcluidoDefinitivo,
     DispositivoRestaurado,
+    DispositivoAluguelDefinido,
+    ImpressoraConexaoDefinida,
+    ImpressoraDadosDefinidos,
 
     // Reparo / comentário
     ReparoAberto,
@@ -143,4 +153,27 @@ public enum AcaoAuditoria
     // Autenticação
     LoginEfetuado,
     LoginRecusado
+}
+
+/// <summary>Tecnologia/função da impressora, para filtro e relatório.</summary>
+public enum TipoImpressora
+{
+    Laser,
+    JatoDeTinta,
+    Multifuncional,
+    Termica,
+    Matricial,
+    Outra
+    // Novos valores SEMPRE no fim.
+}
+
+/// <summary>
+/// Como a impressora está ligada. Só <see cref="Rede"/> pode ser monitorada por SNMP: as
+/// ligadas por USB a um computador não são alcançáveis pelo servidor.
+/// </summary>
+public enum ConexaoImpressora
+{
+    Rede,
+    Usb
+    // Novos valores SEMPRE no fim.
 }

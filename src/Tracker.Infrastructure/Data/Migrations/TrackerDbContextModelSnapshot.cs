@@ -444,6 +444,42 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.ToTable("HistoricoReparos");
                 });
 
+            modelBuilder.Entity("Tracker.Domain.Entities.LeituraImpressora", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long?>("ContadorPaginas")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CriadoEm")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Erro")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("EstadoReportado")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("ImpressoraId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Online")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("SuprimentosJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ImpressoraId", "CriadoEm");
+
+                    b.ToTable("LeiturasImpressora");
+                });
+
             modelBuilder.Entity("Tracker.Domain.Entities.Local", b =>
                 {
                     b.Property<Guid>("Id")
@@ -791,138 +827,123 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.ToTable("AspNetUsers", (string)null);
                 });
 
-            modelBuilder.Entity("Tracker.Domain.Entities.Mobile", b =>
+            modelBuilder.Entity("Tracker.Domain.Entities.DispositivoComAgente", b =>
                 {
                     b.HasBaseType("Tracker.Domain.Entities.Dispositivo");
 
                     b.Property<string>("AgenteVersao")
-                        .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("AgenteVersaoCode")
-                        .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("int");
 
                     b.Property<int?>("BateriaPercentual")
-                        .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("int");
 
                     b.Property<string>("Fabricante")
                         .ValueGeneratedOnUpdateSometimes()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Fabricante");
 
                     b.Property<bool>("GeofenceAtivo")
-                        .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("bit");
 
                     b.Property<string>("Hostname")
                         .IsRequired()
-                        .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("Imei")
-                        .HasColumnType("nvarchar(max)")
-                        .HasColumnName("Imei");
 
                     b.Property<string>("MacAddress")
                         .ValueGeneratedOnUpdateSometimes()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("MacAddress");
 
                     b.Property<string>("Modelo")
                         .ValueGeneratedOnUpdateSometimes()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Modelo");
 
                     b.Property<int?>("NivelProtecao")
-                        .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("int");
 
                     b.Property<string>("SistemaOperacional")
                         .IsRequired()
-                        .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<int?>("StatusUltimoComando")
-                        .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("int");
 
                     b.Property<string>("TokenAgenteHash")
-                        .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("UltimoHeartbeatEm")
-                        .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("datetime2");
 
                     b.Property<string>("VersaoSO")
-                        .ValueGeneratedOnUpdateSometimes()
                         .HasColumnType("nvarchar(max)");
-
-                    b.HasDiscriminator().HasValue(1);
                 });
 
-            modelBuilder.Entity("Tracker.Domain.Entities.Notebook", b =>
+            modelBuilder.Entity("Tracker.Domain.Entities.Impressora", b =>
                 {
                     b.HasBaseType("Tracker.Domain.Entities.Dispositivo");
 
-                    b.Property<string>("AgenteVersao")
-                        .ValueGeneratedOnUpdateSometimes()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<bool>("Alugada")
+                        .HasColumnType("bit");
 
-                    b.Property<int?>("AgenteVersaoCode")
-                        .ValueGeneratedOnUpdateSometimes()
+                    b.Property<bool>("Colorida")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Conexao")
                         .HasColumnType("int");
 
-                    b.Property<int?>("BateriaPercentual")
-                        .ValueGeneratedOnUpdateSometimes()
-                        .HasColumnType("int");
+                    b.Property<long?>("ContadorPaginas")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("EnderecoRede")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("ErroUltimaLeitura")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("EstadoReportado")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<string>("Fabricante")
                         .ValueGeneratedOnUpdateSometimes()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("GeofenceAtivo")
-                        .ValueGeneratedOnUpdateSometimes()
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Hostname")
-                        .IsRequired()
-                        .ValueGeneratedOnUpdateSometimes()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Fabricante");
 
                     b.Property<string>("MacAddress")
                         .ValueGeneratedOnUpdateSometimes()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("MacAddress");
 
                     b.Property<string>("Modelo")
                         .ValueGeneratedOnUpdateSometimes()
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Modelo");
+
+                    b.Property<bool>("MonitorarSnmp")
+                        .HasColumnType("bit");
+
+                    b.Property<bool?>("Online")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("SuprimentosJson")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<int?>("NivelProtecao")
-                        .ValueGeneratedOnUpdateSometimes()
+                    b.Property<int>("TipoImpressora")
                         .HasColumnType("int");
 
-                    b.Property<string>("SistemaOperacional")
-                        .IsRequired()
-                        .ValueGeneratedOnUpdateSometimes()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int?>("StatusUltimoComando")
-                        .ValueGeneratedOnUpdateSometimes()
-                        .HasColumnType("int");
-
-                    b.Property<string>("TokenAgenteHash")
-                        .ValueGeneratedOnUpdateSometimes()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("UltimoHeartbeatEm")
-                        .ValueGeneratedOnUpdateSometimes()
+                    b.Property<DateTime?>("UltimaLeituraEm")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("VersaoSO")
-                        .ValueGeneratedOnUpdateSometimes()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<DateTime?>("UltimaRespostaEm")
+                        .HasColumnType("datetime2");
 
-                    b.HasDiscriminator().HasValue(0);
+                    b.HasDiscriminator().HasValue(3);
                 });
 
             modelBuilder.Entity("Tracker.Domain.Entities.Periferico", b =>
@@ -933,6 +954,24 @@ namespace Tracker.Infrastructure.Data.Migrations
                         .HasColumnType("int");
 
                     b.HasDiscriminator().HasValue(2);
+                });
+
+            modelBuilder.Entity("Tracker.Domain.Entities.Mobile", b =>
+                {
+                    b.HasBaseType("Tracker.Domain.Entities.DispositivoComAgente");
+
+                    b.Property<string>("Imei")
+                        .HasColumnType("nvarchar(max)")
+                        .HasColumnName("Imei");
+
+                    b.HasDiscriminator().HasValue(1);
+                });
+
+            modelBuilder.Entity("Tracker.Domain.Entities.Notebook", b =>
+                {
+                    b.HasBaseType("Tracker.Domain.Entities.DispositivoComAgente");
+
+                    b.HasDiscriminator().HasValue(0);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<System.Guid>", b =>
@@ -1097,6 +1136,17 @@ namespace Tracker.Infrastructure.Data.Migrations
                     b.Navigation("Dispositivo");
                 });
 
+            modelBuilder.Entity("Tracker.Domain.Entities.LeituraImpressora", b =>
+                {
+                    b.HasOne("Tracker.Domain.Entities.Impressora", "Impressora")
+                        .WithMany("Leituras")
+                        .HasForeignKey("ImpressoraId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Impressora");
+                });
+
             modelBuilder.Entity("Tracker.Domain.Entities.RegraDeGeofence", b =>
                 {
                     b.HasOne("Tracker.Domain.Entities.Dispositivo", "Dispositivo")
@@ -1156,6 +1206,11 @@ namespace Tracker.Infrastructure.Data.Migrations
             modelBuilder.Entity("Tracker.Domain.Entities.Usuario", b =>
                 {
                     b.Navigation("Dispositivos");
+                });
+
+            modelBuilder.Entity("Tracker.Domain.Entities.Impressora", b =>
+                {
+                    b.Navigation("Leituras");
                 });
 #pragma warning restore 612, 618
         }

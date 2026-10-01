@@ -86,6 +86,7 @@ A documentação fica em `docs/`, separada por assunto. Este arquivo é o índic
 | [deploy-automatico-cicd.md](operacao/deploy-automatico-cicd.md) | Deploy automático por tag, runner self-hosted e rollback |
 | [backup-e-chaves.md](operacao/backup-e-chaves.md) | Backup e restauração do banco, cofre das chaves, troca de chave |
 | [recuperacao-de-desastre.md](operacao/recuperacao-de-desastre.md) | Remontar o servidor do zero (ordem, verificação, o que se perde) |
+| [monitoramento-impressoras-snmp.md](operacao/monitoramento-impressoras-snmp.md) | Monitoramento das impressoras por SNMP: rede (UDP 161), community, configuração e diagnóstico |
 
 ### `agentes/`: notebooks, celulares e tablets
 

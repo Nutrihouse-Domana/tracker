@@ -34,6 +34,10 @@ public class DispositivosController : ControllerBase
     private readonly IValidator<DefinirIdentificacaoInternaRequest> _identificacaoInternaValidator;
     private readonly IValidator<AtualizarStatusDispositivoRequest> _statusValidator;
     private readonly IValidator<AtualizarStatusReparoRequest> _statusReparoValidator;
+    private readonly IValidator<CriarImpressoraRequest> _impressoraValidator;
+    private readonly IValidator<DefinirConexaoImpressoraRequest> _conexaoImpressoraValidator;
+    private readonly IValidator<DefinirDadosImpressoraRequest> _dadosImpressoraValidator;
+    private readonly IValidator<DefinirAluguelImpressoraRequest> _aluguelImpressoraValidator;
     private readonly ConfirmacaoSenhaAdm _confirmacaoSenha;
     private readonly IArmazenamentoArquivosService _arquivos;
     private readonly IAuditoria _auditoria;
@@ -53,6 +57,10 @@ public class DispositivosController : ControllerBase
         IValidator<DefinirIdentificacaoInternaRequest> identificacaoInternaValidator,
         IValidator<AtualizarStatusDispositivoRequest> statusValidator,
         IValidator<AtualizarStatusReparoRequest> statusReparoValidator,
+        IValidator<CriarImpressoraRequest> impressoraValidator,
+        IValidator<DefinirConexaoImpressoraRequest> conexaoImpressoraValidator,
+        IValidator<DefinirDadosImpressoraRequest> dadosImpressoraValidator,
+        IValidator<DefinirAluguelImpressoraRequest> aluguelImpressoraValidator,
         ConfirmacaoSenhaAdm confirmacaoSenha,
         IArmazenamentoArquivosService arquivos,
         IAuditoria auditoria,
@@ -73,6 +81,10 @@ public class DispositivosController : ControllerBase
         _identificacaoInternaValidator = identificacaoInternaValidator;
         _statusValidator = statusValidator;
         _statusReparoValidator = statusReparoValidator;
+        _impressoraValidator = impressoraValidator;
+        _conexaoImpressoraValidator = conexaoImpressoraValidator;
+        _dadosImpressoraValidator = dadosImpressoraValidator;
+        _aluguelImpressoraValidator = aluguelImpressoraValidator;
         _confirmacaoSenha = confirmacaoSenha;
         _auditoria = auditoria;
     }
@@ -103,8 +115,9 @@ public class DispositivosController : ControllerBase
         (d as DispositivoComAgente)?.GeofenceAtivo,
         (d as DispositivoComAgente)?.AgenteVersao,
         (d as Periferico)?.TipoPeriferico,
-        (d as DispositivoComAgente)?.Fabricante,
-        (d as DispositivoComAgente)?.Modelo,
+        // Fabricante/Modelo existem nos com agente (reportados) e na impressora (digitados).
+        (d as DispositivoComAgente)?.Fabricante ?? (d as Impressora)?.Fabricante,
+        (d as DispositivoComAgente)?.Modelo ?? (d as Impressora)?.Modelo,
         (d as DispositivoComAgente)?.BateriaPercentual,
         (d as DispositivoComAgente)?.NivelProtecao,
         d.UnidadeId,
@@ -114,7 +127,21 @@ public class DispositivosController : ControllerBase
         d.PertenceAUsuario ? d.UsuarioAtual?.Nome : d.Unidade?.Nome,
         d.ExcluidoEm,
         d.MotivoExclusao,
-        d.VencimentoAluguel);
+        d.VencimentoAluguel,
+        TipoImpressora: (d as Impressora)?.TipoImpressora,
+        Colorida: (d as Impressora)?.Colorida,
+        Alugada: (d as Impressora)?.Alugada,
+        Conexao: (d as Impressora)?.Conexao,
+        EnderecoRede: (d as Impressora)?.EnderecoRede,
+        MacAddress: (d as DispositivoComAgente)?.MacAddress ?? (d as Impressora)?.MacAddress,
+        MonitorarSnmp: (d as Impressora)?.MonitorarSnmp,
+        Online: (d as Impressora)?.Online,
+        UltimaLeituraEm: (d as Impressora)?.UltimaLeituraEm,
+        ContadorPaginas: (d as Impressora)?.ContadorPaginas);
+
+    /// <summary>Carrega a impressora (tipo concreto, com discriminador) pelo id; nulo nos demais tipos.</summary>
+    private Task<Impressora?> ObterImpressoraAsync(Guid id) =>
+        _db.Set<Impressora>().FirstOrDefaultAsync(i => i.Id == id);
 
     /// <summary>Dispositivos ativos. Os arquivados ficam de fora (filtro global) — veja /arquivados.</summary>
     [HttpGet]
@@ -296,6 +323,53 @@ public class DispositivosController : ControllerBase
         return CreatedAtAction(nameof(ObterPorId), new { id = periferico.Id }, MapToDto(periferico));
     }
 
+    /// <summary>
+    /// Cadastra uma impressora. Sem agente e sempre do LOCAL: nasce com <c>PertenceAUsuario = false</c>
+    /// e exige unidade. O aluguel é o interruptor <c>Alugada</c>, não o prefixo "MAQ".
+    /// </summary>
+    [HttpPost("impressoras")]
+    [Authorize(Policy = Permissoes.DispositivosCadastrar)]
+    public async Task<ActionResult<DispositivoDto>> CriarImpressora(CriarImpressoraRequest request)
+    {
+        var validation = await _impressoraValidator.ValidateAsync(request);
+        if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+
+        // Patrimônio em branco é "sem patrimônio" (nulo): string vazia colidiria no índice único.
+        var assetTag = string.IsNullOrWhiteSpace(request.AssetTag) ? null : request.AssetTag.Trim();
+
+        var duplicidade = await ConferirDuplicidadeAsync(request.NumeroSerie, assetTag);
+        if (duplicidade is not null) return Conflict(new { message = duplicidade });
+
+        var erroUnidade = await ConferirUnidadeAsync(request.UnidadeId, pertenceAUsuario: false);
+        if (erroUnidade is not null) return BadRequest(new { message = erroUnidade });
+
+        var impressora = new Impressora
+        {
+            UnidadeId = request.UnidadeId,
+            NumeroSerie = request.NumeroSerie,
+            AssetTag = assetTag,
+            TipoImpressora = request.TipoImpressora,
+            Fabricante = string.IsNullOrWhiteSpace(request.Fabricante) ? null : request.Fabricante.Trim(),
+            Modelo = string.IsNullOrWhiteSpace(request.Modelo) ? null : request.Modelo.Trim(),
+            Colorida = request.Colorida,
+            Alugada = request.Alugada,
+            VencimentoAluguel = request.VencimentoAluguel,
+            DataAquisicao = request.DataAquisicao,
+            Observacoes = request.Observacoes,
+        };
+        RegrasDispositivo.AplicarConexao(
+            impressora, request.Conexao, request.EnderecoRede, request.MacAddress, request.MonitorarSnmp);
+
+        _db.Dispositivos.Add(impressora);
+        _auditoria.Registrar(AcaoAuditoria.DispositivoCriado,
+            $"Cadastrou a impressora {impressora.NumeroSerie}"
+            + $"{(impressora.Modelo is null ? "" : $" ({impressora.Modelo})")}"
+            + $"{(impressora.Alugada ? ", alugada" : "")}.",
+            "Dispositivo", impressora.Id);
+        await _db.SaveChangesAsync();
+        return CreatedAtAction(nameof(ObterPorId), new { id = impressora.Id }, MapToDto(impressora));
+    }
+
     [HttpPut("{id:guid}/status")]
     [Authorize(Policy = Permissoes.DispositivosMovimentar)]
     public async Task<IActionResult> AtualizarStatus(Guid id, AtualizarStatusDispositivoRequest request)
@@ -366,6 +440,11 @@ public class DispositivosController : ControllerBase
 
         var dispositivo = await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id);
         if (dispositivo is null) return NotFound(new { message = "Dispositivo não encontrado." });
+
+        // Impressora é sempre do local — antes da regra genérica, para a mensagem não sugerir
+        // ligar "Pertence a usuário" (o que também é recusado para ela).
+        if (!RegrasDispositivo.AceitaDetentor(dispositivo))
+            return BadRequest(new { message = RegrasDispositivo.MensagemImpressoraSemDetentor });
 
         // Ativo do local não tem detentor individual: atribuir aqui contradiria o interruptor.
         if (!dispositivo.PertenceAUsuario)
@@ -511,6 +590,97 @@ public class DispositivosController : ControllerBase
     }
 
     /// <summary>
+    /// Liga/desliga o interruptor de aluguel da IMPRESSORA (nos outros tipos o aluguel é o prefixo
+    /// "MAQ" da identificação, e este endpoint recusa com 400). Sem senha do ADM, como o vencimento:
+    /// é dado do contrato. Auditado.
+    /// </summary>
+    [HttpPut("{id:guid}/aluguel")]
+    [Authorize(Policy = Permissoes.DispositivosCadastrar)]
+    public async Task<IActionResult> DefinirAluguel(Guid id, DefinirAluguelImpressoraRequest request)
+    {
+        var validation = await _aluguelImpressoraValidator.ValidateAsync(request);
+        if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+
+        var dispositivo = await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id);
+        if (dispositivo is null) return NotFound();
+        if (dispositivo is not Impressora impressora)
+            return BadRequest(new
+            {
+                message = "O interruptor de aluguel é só das impressoras. Nos demais tipos, o alugado é "
+                          + "marcado pelo prefixo \"MAQ\" na identificação.",
+            });
+
+        impressora.Alugada = request.Alugada;
+        _auditoria.Registrar(AcaoAuditoria.DispositivoAluguelDefinido,
+            request.Alugada
+                ? $"Marcou a impressora {impressora.NumeroSerie} como alugada."
+                : $"Marcou a impressora {impressora.NumeroSerie} como própria.",
+            "Dispositivo", impressora.Id, request.Motivo);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Define como a impressora está ligada (rede/USB), endereço, MAC e se o servidor a monitora por
+    /// SNMP. Com USB o endereço é descartado e o SNMP desligado. Sem senha do ADM; auditado.
+    /// </summary>
+    [HttpPut("{id:guid}/conexao-impressora")]
+    [Authorize(Policy = Permissoes.DispositivosCadastrar)]
+    public async Task<IActionResult> DefinirConexaoImpressora(Guid id, DefinirConexaoImpressoraRequest request)
+    {
+        var validation = await _conexaoImpressoraValidator.ValidateAsync(request);
+        if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+
+        var dispositivo = await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id);
+        if (dispositivo is null) return NotFound();
+        if (dispositivo is not Impressora impressora)
+            return BadRequest(new { message = "Conexão de rede/USB só se aplica a impressoras." });
+
+        RegrasDispositivo.AplicarConexao(
+            impressora, request.Conexao, request.EnderecoRede, request.MacAddress, request.MonitorarSnmp);
+
+        var descricao = impressora.Conexao == ConexaoImpressora.Usb
+            ? "USB"
+            : $"rede ({impressora.EnderecoRede ?? "sem endereço"}), SNMP {(impressora.MonitorarSnmp ? "ligado" : "desligado")}";
+        _auditoria.Registrar(AcaoAuditoria.ImpressoraConexaoDefinida,
+            $"Definiu a conexão da impressora {impressora.NumeroSerie}: {descricao}.",
+            "Dispositivo", impressora.Id);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Corrige os dados descritivos da impressora (tipo, fabricante, modelo, colorida). Sem senha do
+    /// ADM; auditado como <see cref="AcaoAuditoria.ImpressoraDadosDefinidos"/>.
+    /// </summary>
+    [HttpPut("{id:guid}/dados-impressora")]
+    [Authorize(Policy = Permissoes.DispositivosCadastrar)]
+    public async Task<IActionResult> DefinirDadosImpressora(Guid id, DefinirDadosImpressoraRequest request)
+    {
+        var validation = await _dadosImpressoraValidator.ValidateAsync(request);
+        if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
+
+        var impressora = await ObterImpressoraAsync(id);
+        if (impressora is null)
+            return await _db.Dispositivos.AnyAsync(d => d.Id == id)
+                ? BadRequest(new { message = "Estes dados só se aplicam a impressoras." })
+                : NotFound();
+
+        impressora.TipoImpressora = request.TipoImpressora;
+        impressora.Fabricante = string.IsNullOrWhiteSpace(request.Fabricante) ? null : request.Fabricante.Trim();
+        impressora.Modelo = string.IsNullOrWhiteSpace(request.Modelo) ? null : request.Modelo.Trim();
+        impressora.Colorida = request.Colorida;
+
+        _auditoria.Registrar(AcaoAuditoria.ImpressoraDadosDefinidos,
+            $"Alterou os dados da impressora {impressora.NumeroSerie}: {impressora.TipoImpressora}, "
+            + $"{impressora.Fabricante ?? "sem fabricante"} {impressora.Modelo ?? ""}".TrimEnd()
+            + $", {(impressora.Colorida ? "colorida" : "monocromática")}.",
+            "Dispositivo", impressora.Id);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
     /// Alterna entre "pertence a um usuário" e "pertence ao local (unidade)". Exige a senha do
     /// ADM logado: desligar o interruptor solta o detentor atual do ativo.
     /// </summary>
@@ -521,12 +691,16 @@ public class DispositivosController : ControllerBase
         var validation = await _posseValidator.ValidateAsync(request);
         if (!validation.IsValid) return ValidationProblem(new ValidationProblemDetails(validation.ToDictionary()));
 
+        var dispositivo = await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id);
+        if (dispositivo is null) return NotFound();
+
+        // Antes da senha: é recusa estrutural, pedir a senha para depois recusar só confundiria.
+        if (request.PertenceAUsuario && !RegrasDispositivo.AceitaDetentor(dispositivo))
+            return BadRequest(new { message = RegrasDispositivo.MensagemImpressoraSemDetentor });
+
         var adm = await _confirmacaoSenha.ConferirAsync(User, request.Senha);
         // 400, e não 401: o 401 faria o site tratar como sessão expirada e deslogar o ADM.
         if (adm is null) return BadRequest(new { message = "Senha incorreta." });
-
-        var dispositivo = await _db.Dispositivos.FirstOrDefaultAsync(d => d.Id == id);
-        if (dispositivo is null) return NotFound();
 
         var erroUnidade = await ConferirUnidadeAsync(request.UnidadeId, request.PertenceAUsuario);
         if (erroUnidade is not null) return BadRequest(new { message = erroUnidade });

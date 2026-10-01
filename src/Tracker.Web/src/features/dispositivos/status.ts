@@ -1,4 +1,29 @@
-import type { StatusDispositivo } from '../../api/types'
+import type { StatusDispositivo, TipoDispositivo } from '../../api/types'
+
+/** Rótulo pt-BR do tipo (evita exibir "Periferico" sem acento). */
+export const rotuloTipo: Record<TipoDispositivo, string> = {
+  Notebook: 'Notebook',
+  Mobile: 'Mobile',
+  Periferico: 'Periférico',
+  Impressora: 'Impressora',
+}
+
+/**
+ * Se o tipo tem agente instalado (heartbeat, bloqueio remoto, localização, enrollment).
+ * Periférico e impressora são inventário manual.
+ */
+export function tipoTemAgente(tipo: TipoDispositivo): boolean {
+  return tipo === 'Notebook' || tipo === 'Mobile'
+}
+
+/**
+ * Se o tipo aceita detentor nominal (atribuição, "pertence a usuário", termo de uso).
+ * Espelho de `RegrasDispositivo.AceitaDetentor`: impressora é sempre do local e o backend
+ * recusa com 400.
+ */
+export function tipoAceitaDetentor(tipo: TipoDispositivo): boolean {
+  return tipo !== 'Impressora'
+}
 
 /** Rótulo legível (pt-BR) para o status do dispositivo — evita exibir o enum cru (ex.: "EmEstoque"). */
 export const rotuloStatus: Record<StatusDispositivo, string> = {

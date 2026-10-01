@@ -63,7 +63,14 @@ public class BuscaController : ControllerBase
                         || EF.Functions.Like(m.Imei, padrao, "\\"))
             .Select(m => m.Id);
 
-        var ids = await idsBase.Union(idsNotebooks).Union(idsMobiles).ToListAsync();
+        // Impressora não tem hostname/IMEI (série e patrimônio já vêm da base): acha-se também pelo
+        // IP/nome de rede e pelo modelo, que é como a TI costuma se referir a ela.
+        var idsImpressoras = _db.Set<Impressora>()
+            .Where(i => EF.Functions.Like(i.EnderecoRede, padrao, "\\")
+                        || EF.Functions.Like(i.Modelo, padrao, "\\"))
+            .Select(i => i.Id);
+
+        var ids = await idsBase.Union(idsNotebooks).Union(idsMobiles).Union(idsImpressoras).ToListAsync();
         if (ids.Count == 0) return [];
 
         var encontrados = await _db.Dispositivos.AsNoTracking()

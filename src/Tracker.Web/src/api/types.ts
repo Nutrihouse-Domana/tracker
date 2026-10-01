@@ -1,4 +1,7 @@
-export type TipoDispositivo = 'Notebook' | 'Mobile' | 'Periferico'
+export type TipoDispositivo = 'Notebook' | 'Mobile' | 'Periferico' | 'Impressora'
+export type TipoImpressora = 'Laser' | 'JatoDeTinta' | 'Multifuncional' | 'Termica' | 'Matricial' | 'Outra'
+/** Só 'Rede' pode ser monitorada por SNMP: a USB fica ligada a um computador. */
+export type ConexaoImpressora = 'Rede' | 'Usb'
 export type StatusDispositivo = 'EmEstoque' | 'EmUso' | 'EmManutencao' | 'Bloqueado' | 'Baixado'
 export type TipoPeriferico = 'Mouse' | 'Teclado' | 'Monitor' | 'Dock' | 'Headset' | 'Outro'
 export type StatusReparo = 'Aberto' | 'EmAndamento' | 'Concluido' | 'Cancelado'
@@ -14,6 +17,8 @@ export type TipoAlertaDispositivo =
   | 'LocalizacaoNegada'
   | 'BloqueioReaplicado'
   | 'ProtecaoRebaixada'
+  | 'ImpressoraOffline'
+  | 'SuprimentoBaixo'
 
 export interface UsuarioAdm {
   id: string
@@ -185,6 +190,21 @@ export interface Dispositivo {
    * dia exibido volta um. Use os helpers de features/dispositivos/vencimento.ts.
    */
   vencimentoAluguel: string | null
+  // --- Impressora (nulos nos demais tipos) ---
+  tipoImpressora: TipoImpressora | null
+  colorida: boolean | null
+  /** Interruptor de aluguel da impressora: nela o aluguel NÃO segue o prefixo "MAQ". */
+  alugada: boolean | null
+  conexao: ConexaoImpressora | null
+  /** IP ou nome de rede; nulo nas ligadas por USB. */
+  enderecoRede: string | null
+  /** MAC da impressora ou o reportado pelo agente. */
+  macAddress: string | null
+  monitorarSnmp: boolean | null
+  /** Último estado lido por SNMP. Nulo = nunca lida. */
+  online: boolean | null
+  ultimaLeituraEm: string | null
+  contadorPaginas: number | null
 }
 
 export interface ExcluirDispositivoRequest {
@@ -251,6 +271,47 @@ export interface CriarPerifericoRequest {
   pertenceAUsuario?: boolean
 }
 
+/** Impressora: sempre do local (sem `pertenceAUsuario`) e com unidade obrigatória. */
+export interface CriarImpressoraRequest {
+  numeroSerie: string
+  assetTag?: string | null
+  tipoImpressora: TipoImpressora
+  fabricante?: string | null
+  modelo?: string | null
+  colorida: boolean
+  alugada: boolean
+  conexao: ConexaoImpressora
+  enderecoRede?: string | null
+  macAddress?: string | null
+  monitorarSnmp: boolean
+  dataAquisicao: string
+  observacoes?: string | null
+  unidadeId: string
+  /** Data pura "aaaa-mm-dd". */
+  vencimentoAluguel?: string | null
+}
+
+/** Liga/desliga o aluguel da impressora. Não exige senha do ADM. */
+export interface DefinirAluguelImpressoraRequest {
+  alugada: boolean
+  motivo?: string | null
+}
+
+/** Com 'Usb' o endereço é descartado e o SNMP desligado pelo servidor. */
+export interface DefinirConexaoImpressoraRequest {
+  conexao: ConexaoImpressora
+  enderecoRede: string | null
+  macAddress: string | null
+  monitorarSnmp: boolean
+}
+
+export interface DefinirDadosImpressoraRequest {
+  tipoImpressora: TipoImpressora
+  fabricante: string | null
+  modelo: string | null
+  colorida: boolean
+}
+
 export interface AtribuirDispositivoRequest {
   usuarioId: string
   localDestinoId?: string | null
@@ -289,6 +350,7 @@ export interface EstatisticasDashboard {
   totalNotebooks: number
   totalMobiles: number
   totalPerifericos: number
+  totalImpressoras: number
   emUso: number
   emEstoque: number
   emManutencao: number

@@ -126,3 +126,57 @@ public class Periferico : Dispositivo
 
     public TipoPeriferico TipoPeriferico { get; set; }
 }
+
+/// <summary>
+/// Impressora. NÃO tem agente (não é possível instalar software nelas): o inventário é manual e,
+/// quando está em rede com <see cref="MonitorarSnmp"/> ligado, o SERVIDOR consulta o status por
+/// SNMP (Printer-MIB) e grava o último estado aqui e o histórico em <see cref="Leituras"/>.
+/// </summary>
+public class Impressora : Dispositivo
+{
+    public Impressora()
+    {
+        Tipo = TipoDispositivo.Impressora;
+        // Impressora é do LOCAL (unidade), não de um detentor nominal.
+        PertenceAUsuario = false;
+    }
+
+    public TipoImpressora TipoImpressora { get; set; }
+    public string? Fabricante { get; set; }
+    public string? Modelo { get; set; }
+    public bool Colorida { get; set; }
+
+    /// <summary>
+    /// Interruptor MANUAL de aluguel. As impressoras não seguem a convenção do prefixo "MAQ" na
+    /// identificação (que vale para os outros tipos): para elas, quem diz se é alugada é este campo.
+    /// Espelhos da regra: <c>ClassificacaoAluguel</c> (backend) e <c>aluguel.ts</c> (site).
+    /// </summary>
+    public bool Alugada { get; set; }
+
+    public ConexaoImpressora Conexao { get; set; } = ConexaoImpressora.Rede;
+    /// <summary>IP ou nome DNS. Nulo nas ligadas por USB.</summary>
+    public string? EnderecoRede { get; set; }
+    public string? MacAddress { get; set; }
+
+    /// <summary>Liga a consulta SNMP periódica. Só tem efeito com Conexao=Rede e EnderecoRede preenchido.</summary>
+    public bool MonitorarSnmp { get; set; }
+
+    // --- Último estado lido por SNMP (nulo enquanto nunca foi lida) ---
+
+    /// <summary>Quando o servidor tentou ler pela última vez (com ou sem sucesso).</summary>
+    public DateTime? UltimaLeituraEm { get; set; }
+    /// <summary>Última vez que a impressora RESPONDEU.</summary>
+    public DateTime? UltimaRespostaEm { get; set; }
+    /// <summary>Resultado da última tentativa. Nulo = nunca lida.</summary>
+    public bool? Online { get; set; }
+    /// <summary>Contador total de páginas (prtMarkerLifeCount).</summary>
+    public long? ContadorPaginas { get; set; }
+    /// <summary>Estado reportado pela impressora (hrPrinterStatus / hrDeviceStatus) em texto pt-BR.</summary>
+    public string? EstadoReportado { get; set; }
+    /// <summary>Suprimentos da última leitura, JSON de <c>[{descricao, cor, percentual}]</c>.</summary>
+    public string? SuprimentosJson { get; set; }
+    /// <summary>Erro da última tentativa (timeout, community recusada...). Nulo quando respondeu.</summary>
+    public string? ErroUltimaLeitura { get; set; }
+
+    public ICollection<LeituraImpressora> Leituras { get; set; } = new List<LeituraImpressora>();
+}
