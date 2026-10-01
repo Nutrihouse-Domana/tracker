@@ -18,6 +18,38 @@ marcações e escreva do ponto de vista de quem usa ou opera, não do código.
 
 ---
 
+## v1.12.0 — 01/10/2026 · Banco
+
+Impressoras no inventário, com monitoramento opcional por SNMP.
+
+- **Banco:** migração `Impressoras`. Acrescenta colunas novas (todas anuláveis) na tabela
+  `Dispositivos` e cria a tabela `LeiturasImpressora`. Não renomeia nem move dados existentes.
+  Faça o backup antes do deploy, como sempre.
+- **Agente Windows / Android:** sem mudança.
+- **Servidor:** novos pacotes NuGet (`Lextm.SharpSnmpLib` 12.5.7 e
+  `Microsoft.Extensions.Hosting.Abstractions` 8.0.1). Defina `Snmp__Community` na máquina; sem ela, o
+  servidor usa `public`. Ver [docs/operacao/monitoramento-impressoras-snmp.md](docs/operacao/monitoramento-impressoras-snmp.md).
+
+**Impressoras**
+
+- Tipo novo **Impressora** (Dispositivos → Novo dispositivo). Ela não tem agente e pertence sempre
+  à **unidade**: sem atribuição a pessoa, termo de uso, bloqueio ou localização.
+- **Alugada** é um interruptor no perfil da impressora; o prefixo `MAQ` não vale para ela. A lista e
+  os relatórios seguem o interruptor.
+- Conexão **Rede** ou **USB**. Só a de rede, com endereço preenchido, pode ser monitorada.
+- **Monitoramento SNMP** feito pelo servidor a cada 15 min:
+  - online/offline;
+  - estado (sem papel, atolada...);
+  - nível de toner/tinta;
+  - contador de páginas;
+  - **páginas no período**, para conferir a franquia da locação;
+  - botão **Ler agora**.
+- Alertas **impressora parou de responder** (2 falhas seguidas) e **suprimento baixo** (≤ 15%) no
+  detalhe. "Tratar" pede a permissão de cadastrar dispositivos.
+- A auditoria registra as alterações de aluguel, conexão e dados da impressora.
+
+---
+
 ## v1.11.0 — 24/09/2026 · Agente Windows · Agente Android (versionCode 5)
 
 Correções da revisão completa do código (24/09/2026).
