@@ -227,7 +227,7 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   para outra data, então ela nunca foi data de compra de verdade. `CriadoEm` é UTC e o SQL Server
   o devolve com `Kind=Unspecified` — marque como UTC antes de `ToLocalTime()`, senão cadastro da
   noite sai com a data do dia seguinte. (Pendente: trocar por `FusoBrasil.ParaBrasilia` — item 29.)
-  **`termos` é só de NOTEBOOK** e tem dados/resumo próprios (`TermosComputadoresAsync` →
+  **`termos` cobre todo tipo de detentor nominal (Notebook, Mobile, Periférico — sem Impressora)** e tem dados/resumo próprios (`TermosAsync` →
   `LinhaTermoDto`/`ResumoTermosDto`, fora do `ResumoRelatoriosDto`; o controller trata antes do
   `switch`). "Com termo" = existe `TermoDeUso` do **detentor ATUAL** (`UsuarioId == UsuarioAtualId`,
   e só se `PertenceAUsuario`) — termo de detentor anterior NÃO conta (sai "Sem termo" com o nome

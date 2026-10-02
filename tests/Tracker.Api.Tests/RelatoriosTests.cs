@@ -134,11 +134,11 @@ public class RelatoriosTests
     {
         var linhas = new[]
         {
-            new LinhaTermoDto("NHD-0031", "SN-1", "PAT-1", "Matriz", "Fulano", "Em uso",
+            new LinhaTermoDto("NHD-0031", "Notebook", "SN-1", "PAT-1", "Matriz", "Fulano", "Em uso",
                 SituacaoTermo.SemTermo, null, null, "Ciclano"),
-            new LinhaTermoDto("NHD-0032", "SN-2", null, "Matriz", "Beltrano", "Em uso",
+            new LinhaTermoDto("CEL-0032", "Mobile", "SN-2", null, "Matriz", "Beltrano", "Em uso",
                 SituacaoTermo.ComTermo, "2.0", new DateTime(2026, 9, 1), null),
-            new LinhaTermoDto("NHD-0033", "SN-3", null, null, null, "Em estoque",
+            new LinhaTermoDto("MON-0033", "Periférico", "SN-3", null, null, null, "Em estoque",
                 SituacaoTermo.NaoSeAplica, null, null, null),
         };
         var resumo = new ResumoTermosDto(3, 1, 1, 1, new DateTime(2026, 10, 2, 9, 0, 0));

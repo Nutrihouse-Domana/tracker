@@ -43,12 +43,12 @@ public class RelatoriosController : ControllerBase
 
         var geradoPor = User.AdmNome();
 
-        // Termos tem dados e resumo próprios (só computadores), fora do resumo do parque.
+        // Termos tem dados e resumo próprios (equipamentos de detentor, sem impressoras), fora do resumo do parque.
         if (tipo == TipoRelatorio.Termos)
         {
-            var (linhasTermo, resumoTermo) = await _dados.TermosComputadoresAsync(ct);
+            var (linhasTermo, resumoTermo) = await _dados.TermosAsync(ct);
             var bytes = emPdf ? _pdf.Termos(linhasTermo, resumoTermo, geradoPor) : _excel.Termos(linhasTermo, resumoTermo);
-            var nomeTermo = $"tracker-termos-computadores-{resumoTermo.GeradoEm:yyyy-MM-dd-HHmm}.{(emPdf ? "pdf" : "xlsx")}";
+            var nomeTermo = $"tracker-termos-de-uso-{resumoTermo.GeradoEm:yyyy-MM-dd-HHmm}.{(emPdf ? "pdf" : "xlsx")}";
             return File(bytes, emPdf ? "application/pdf" : TipoConteudoXlsx, nomeTermo);
         }
 
