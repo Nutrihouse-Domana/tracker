@@ -11,7 +11,7 @@ public interface IRelatorioInventarioService
     Task<ResumoRelatoriosDto> ResumoAsync(CancellationToken ct = default);
     Task<IReadOnlyList<LinhaInventarioDto>> InventarioAsync(bool somenteAlugados, CancellationToken ct = default);
     Task<IReadOnlyList<LinhaUnidadeDto>> PorUnidadeAsync(CancellationToken ct = default);
-    Task<(IReadOnlyList<LinhaTermoDto> Linhas, ResumoTermosDto Resumo)> TermosComputadoresAsync(CancellationToken ct = default);
+    Task<(IReadOnlyList<LinhaTermoDto> Linhas, ResumoTermosDto Resumo)> TermosAsync(CancellationToken ct = default);
 }
 
 /// <summary>
@@ -50,15 +50,25 @@ public class RelatorioInventarioService : IRelatorioInventarioService
     /// <c>OfType&lt;DispositivoComAgente&gt;()</c> não traduz para SQL (classe intermediária sem
     /// discriminador, ver CLAUDE.md) — por isso a projeção o busca por tipo concreto.
     /// </summary>
+    /// <summary>
+    /// Hostname por dispositivo, só dos tipos COM agente. Buscado por tipo concreto porque
+    /// <c>OfType&lt;DispositivoComAgente&gt;()</c> não traduz para SQL.
+    /// </summary>
+    private async Task<Dictionary<Guid, string?>> HostnamesAsync(CancellationToken ct)
+    {
+        var notebooks = await _db.Set<Domain.Entities.Notebook>().AsNoTracking()
+            .Select(n => new { n.Id, n.Hostname })
+            .ToListAsync(ct);
+        var mobiles = await _db.Set<Domain.Entities.Mobile>().AsNoTracking()
+            .Select(m => new { m.Id, m.Hostname })
+            .ToListAsync(ct);
+
+        return notebooks.Concat(mobiles).ToDictionary(x => x.Id, x => x.Hostname);
+    }
+
     private async Task<List<LinhaInventarioDto>> CarregarAsync(CancellationToken ct)
     {
-        var hostnamesNotebook = await _db.Set<Domain.Entities.Notebook>().AsNoTracking()
-            .Select(n => new { n.Id, n.Hostname })
-            .ToDictionaryAsync(x => x.Id, x => x.Hostname, ct);
-
-        var hostnamesMobile = await _db.Set<Domain.Entities.Mobile>().AsNoTracking()
-            .Select(m => new { m.Id, m.Hostname })
-            .ToDictionaryAsync(x => x.Id, x => x.Hostname, ct);
+        var hostnames = await HostnamesAsync(ct);
 
         // Impressora não segue o prefixo "MAQ": o aluguel dela é o interruptor Alugada.
         var impressorasAlugadas = await _db.Set<Domain.Entities.Impressora>().AsNoTracking()
@@ -84,9 +94,7 @@ public class RelatorioInventarioService : IRelatorioInventarioService
 
         return brutos.Select(d =>
         {
-            var hostname = hostnamesNotebook.TryGetValue(d.Id, out var hn) ? hn
-                : hostnamesMobile.TryGetValue(d.Id, out var hm) ? hm
-                : null;
+            var hostname = hostnames.GetValueOrDefault(d.Id);
             var identificacao = ClassificacaoAluguel.IdentificacaoExibida(d.IdentificacaoInterna, hostname, d.NumeroSerie);
             bool? impressoraAlugada = impressorasAlugadas.TryGetValue(d.Id, out var alugada) ? alugada : null;
 
@@ -158,33 +166,38 @@ public class RelatorioInventarioService : IRelatorioInventarioService
     }
 
     /// <summary>
-    /// Computadores (notebooks) com a situação do termo de uso. Vale só o termo do detentor ATUAL:
-    /// o termo de quem usou o aparelho antes não cobre quem está com ele agora. Um termo só existe
-    /// depois do upload do PDF assinado (gerar o PDF não grava nada), então "com termo" é sempre
-    /// documento assinado anexado. Ordem: sem termo primeiro, que é o que pede ação da TI.
+    /// Equipamentos de detentor nominal (notebooks, mobiles e periféricos) com a situação do termo
+    /// de uso. Impressora fica de fora: é sempre do local e não aceita termo. Vale só o termo do
+    /// detentor ATUAL: o de quem usou o equipamento antes não cobre quem está com ele agora. Um termo
+    /// só existe depois do upload do PDF assinado (gerar o PDF não grava nada), então "com termo" é
+    /// sempre documento assinado anexado. Ordem: sem termo primeiro, que é o que pede ação da TI.
     /// </summary>
-    public async Task<(IReadOnlyList<LinhaTermoDto> Linhas, ResumoTermosDto Resumo)> TermosComputadoresAsync(
+    public async Task<(IReadOnlyList<LinhaTermoDto> Linhas, ResumoTermosDto Resumo)> TermosAsync(
         CancellationToken ct = default)
     {
-        var computadores = await _db.Set<Domain.Entities.Notebook>().AsNoTracking()
-            .Select(n => new
+        var hostnames = await HostnamesAsync(ct);
+
+        var equipamentos = await _db.Dispositivos.AsNoTracking()
+            .Where(d => d.Tipo != TipoDispositivo.Impressora)
+            .Select(d => new
             {
-                n.Id,
-                n.IdentificacaoInterna,
-                n.Hostname,
-                n.NumeroSerie,
-                n.AssetTag,
-                n.Status,
-                n.PertenceAUsuario,
-                n.UsuarioAtualId,
-                UnidadeNome = n.Unidade != null ? n.Unidade.Nome : null,
-                UsuarioNome = n.UsuarioAtual != null ? n.UsuarioAtual.Nome : null,
+                d.Id,
+                d.Tipo,
+                d.IdentificacaoInterna,
+                d.NumeroSerie,
+                d.AssetTag,
+                d.Status,
+                d.PertenceAUsuario,
+                d.UsuarioAtualId,
+                UnidadeNome = d.Unidade != null ? d.Unidade.Nome : null,
+                UsuarioNome = d.UsuarioAtual != null ? d.UsuarioAtual.Nome : null,
             })
             .ToListAsync(ct);
 
-        // Filtra pelo tipo no banco (join) em vez de um Contains com milhares de ids.
+        // Filtra pelo tipo no banco (join) em vez de um Contains com milhares de ids. O join também
+        // aplica o filtro de arquivados do Dispositivo.
         var termos = await _db.TermosDeUso.AsNoTracking()
-            .Where(t => t.Dispositivo!.Tipo == TipoDispositivo.Notebook)
+            .Where(t => t.Dispositivo!.Tipo != TipoDispositivo.Impressora)
             .Select(t => new
             {
                 t.DispositivoId,
@@ -194,33 +207,35 @@ public class RelatorioInventarioService : IRelatorioInventarioService
                 t.DataAceite,
             })
             .ToListAsync(ct);
-        var termosPorComputador = termos
+        var termosPorEquipamento = termos
             .GroupBy(t => t.DispositivoId)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(t => t.DataAceite).ToList());
 
-        var linhas = computadores.Select(c =>
+        var linhas = equipamentos.Select(e =>
         {
-            var doAparelho = termosPorComputador.GetValueOrDefault(c.Id) ?? new();
+            var doEquipamento = termosPorEquipamento.GetValueOrDefault(e.Id) ?? new();
             // Ativo do local não tem detentor nominal, mesmo que sobre um UsuarioAtualId antigo.
-            var detentorId = c.PertenceAUsuario ? c.UsuarioAtualId : null;
-            var doDetentor = detentorId is null ? null : doAparelho.FirstOrDefault(t => t.UsuarioId == detentorId);
+            var detentorId = e.PertenceAUsuario ? e.UsuarioAtualId : null;
+            var doDetentor = detentorId is null ? null : doEquipamento.FirstOrDefault(t => t.UsuarioId == detentorId);
 
             var situacao = detentorId is null ? SituacaoTermo.NaoSeAplica
                 : doDetentor is not null ? SituacaoTermo.ComTermo
                 : SituacaoTermo.SemTermo;
 
             return new LinhaTermoDto(
-                Identificacao: ClassificacaoAluguel.IdentificacaoExibida(c.IdentificacaoInterna, c.Hostname, c.NumeroSerie),
-                NumeroSerie: c.NumeroSerie,
-                Patrimonio: c.AssetTag,
-                Unidade: c.UnidadeNome,
-                Detentor: detentorId is null ? null : c.UsuarioNome,
-                Status: RotuloStatus[c.Status],
+                Identificacao: ClassificacaoAluguel.IdentificacaoExibida(
+                    e.IdentificacaoInterna, hostnames.GetValueOrDefault(e.Id), e.NumeroSerie),
+                Tipo: RotuloTipo.TryGetValue(e.Tipo, out var rotuloTipo) ? rotuloTipo : e.Tipo.ToString(),
+                NumeroSerie: e.NumeroSerie,
+                Patrimonio: e.AssetTag,
+                Unidade: e.UnidadeNome,
+                Detentor: detentorId is null ? null : e.UsuarioNome,
+                Status: RotuloStatus[e.Status],
                 Situacao: situacao,
                 VersaoTermo: doDetentor?.VersaoTermo,
                 DataAceite: doDetentor is null ? null : FusoBrasil.ParaBrasilia(doDetentor.DataAceite),
                 TermoAnteriorDe: situacao == SituacaoTermo.SemTermo
-                    ? doAparelho.FirstOrDefault(t => t.UsuarioId != detentorId)?.UsuarioNome
+                    ? doEquipamento.FirstOrDefault(t => t.UsuarioId != detentorId)?.UsuarioNome
                     : null);
         })
         .OrderBy(l => l.Situacao switch
@@ -229,11 +244,12 @@ public class RelatorioInventarioService : IRelatorioInventarioService
             SituacaoTermo.ComTermo => 1,
             _ => 2,
         })
+        .ThenBy(l => l.Tipo, StringComparer.CurrentCultureIgnoreCase)
         .ThenBy(l => l.Identificacao, StringComparer.CurrentCultureIgnoreCase)
         .ToList();
 
         var resumo = new ResumoTermosDto(
-            Computadores: linhas.Count,
+            Equipamentos: linhas.Count,
             ComTermo: linhas.Count(l => l.Situacao == SituacaoTermo.ComTermo),
             SemTermo: linhas.Count(l => l.Situacao == SituacaoTermo.SemTermo),
             SemDetentor: linhas.Count(l => l.Situacao == SituacaoTermo.NaoSeAplica),

@@ -18,6 +18,20 @@ marcações e escreva do ponto de vista de quem usa ou opera, não do código.
 
 ---
 
+## v1.13.1 — 02/10/2026
+
+Relatório de termos estendido a todos os equipamentos com detentor.
+
+- **Banco / Agente Windows / Agente Android:** sem mudança.
+
+**Relatórios**
+
+- O relatório **Termo de uso dos equipamentos** (antes "dos computadores") passa a incluir
+  celulares/tablets e periféricos, além dos notebooks, com uma coluna **Tipo**. Impressoras ficam
+  de fora (não têm termo).
+
+---
+
 ## v1.13.0 — 02/10/2026
 
 Relatório de termo de uso dos computadores e menu de relatórios reorganizado.

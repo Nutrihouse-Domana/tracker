@@ -132,27 +132,28 @@ public class RelatorioExcelService : IRelatorioExcelService
         using var livro = new XLWorkbook();
 
         var aba = livro.Worksheets.Add("Termos");
-        var cabecalhos = new[] { "Identificação", "Nº de série", "Patrimônio", "Unidade", "Detentor", "Status", "Termo", "Versão", "Data do termo", "Termo anterior de" };
+        var cabecalhos = new[] { "Identificação", "Tipo", "Nº de série", "Patrimônio", "Unidade", "Detentor", "Status", "Termo", "Versão", "Data do termo", "Termo anterior de" };
         EscreverCabecalho(aba, cabecalhos);
 
         var linha = 2;
         foreach (var l in linhas)
         {
             aba.Cell(linha, 1).Value = l.Identificacao;
-            aba.Cell(linha, 2).Value = l.NumeroSerie;
-            aba.Cell(linha, 3).Value = l.Patrimonio ?? string.Empty;
-            aba.Cell(linha, 4).Value = l.Unidade ?? string.Empty;
-            aba.Cell(linha, 5).Value = l.Detentor ?? string.Empty;
-            aba.Cell(linha, 6).Value = l.Status;
-            aba.Cell(linha, 7).Value = l.Situacao.Rotulo();
-            if (l.Situacao == SituacaoTermo.SemTermo) aba.Cell(linha, 7).Style.Font.FontColor = XLColor.Red;
-            aba.Cell(linha, 8).Value = l.VersaoTermo ?? string.Empty;
+            aba.Cell(linha, 2).Value = l.Tipo;
+            aba.Cell(linha, 3).Value = l.NumeroSerie;
+            aba.Cell(linha, 4).Value = l.Patrimonio ?? string.Empty;
+            aba.Cell(linha, 5).Value = l.Unidade ?? string.Empty;
+            aba.Cell(linha, 6).Value = l.Detentor ?? string.Empty;
+            aba.Cell(linha, 7).Value = l.Status;
+            aba.Cell(linha, 8).Value = l.Situacao.Rotulo();
+            if (l.Situacao == SituacaoTermo.SemTermo) aba.Cell(linha, 8).Style.Font.FontColor = XLColor.Red;
+            aba.Cell(linha, 9).Value = l.VersaoTermo ?? string.Empty;
             if (l.DataAceite is { } data)
             {
-                aba.Cell(linha, 9).Value = data;
-                aba.Cell(linha, 9).Style.DateFormat.Format = "dd/mm/yyyy";
+                aba.Cell(linha, 10).Value = data;
+                aba.Cell(linha, 10).Style.DateFormat.Format = "dd/mm/yyyy";
             }
-            aba.Cell(linha, 10).Value = l.TermoAnteriorDe ?? string.Empty;
+            aba.Cell(linha, 11).Value = l.TermoAnteriorDe ?? string.Empty;
             linha++;
         }
 
@@ -162,7 +163,7 @@ public class RelatorioExcelService : IRelatorioExcelService
         EscreverCabecalho(totais, new[] { "Indicador", "Valor" });
         var dados = new (string, int)[]
         {
-            ("Computadores", resumo.Computadores),
+            ("Equipamentos", resumo.Equipamentos),
             ("Com termo do detentor atual", resumo.ComTermo),
             ("Com detentor e sem termo", resumo.SemTermo),
             ("Sem detentor (não se aplica)", resumo.SemDetentor),

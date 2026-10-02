@@ -11,7 +11,7 @@ const relatorios: { tipo: TipoRelatorio; titulo: string }[] = [
   { tipo: 'inventario', titulo: 'Inventário de ativos' },
   { tipo: 'aluguel', titulo: 'Alugados x próprios' },
   { tipo: 'unidades', titulo: 'Parque por unidade' },
-  { tipo: 'termos', titulo: 'Termo de uso dos computadores' },
+  { tipo: 'termos', titulo: 'Termo de uso dos equipamentos' },
 ]
 
 const formatos: { formato: FormatoRelatorio; rotulo: string }[] = [

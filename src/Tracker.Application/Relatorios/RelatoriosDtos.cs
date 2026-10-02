@@ -9,7 +9,7 @@ public enum TipoRelatorio
     Aluguel,
     /// <summary>Distribuição do parque por unidade, com quebra por status.</summary>
     Unidades,
-    /// <summary>Computadores (notebooks) com a situação do termo de uso do detentor atual.</summary>
+    /// <summary>Notebooks, mobiles e periféricos com a situação do termo de uso do detentor atual.</summary>
     Termos,
 }
 
@@ -50,12 +50,12 @@ public record ResumoRelatoriosDto(
     IReadOnlyList<ContagemDto> PorStatus,
     DateTime GeradoEm);
 
-/// <summary>Situação do termo de uso de um computador em relação ao detentor ATUAL.</summary>
+/// <summary>Situação do termo de uso de um equipamento em relação ao detentor ATUAL.</summary>
 public enum SituacaoTermo
 {
-    /// <summary>O detentor atual tem termo assinado registrado para este aparelho.</summary>
+    /// <summary>O detentor atual tem termo assinado registrado para este equipamento.</summary>
     ComTermo,
-    /// <summary>Tem detentor, mas nenhum termo dele foi registrado para este aparelho.</summary>
+    /// <summary>Tem detentor, mas nenhum termo dele foi registrado para este equipamento.</summary>
     SemTermo,
     /// <summary>Sem detentor (estoque ou ativo do local): termo não se aplica.</summary>
     NaoSeAplica,
@@ -72,14 +72,15 @@ public static class SituacaoTermoExtensions
     };
 }
 
-/// <summary>Um computador no relatório de termos de uso.</summary>
+/// <summary>Um equipamento no relatório de termos de uso.</summary>
 /// <param name="DataAceite">Data do termo do detentor atual, já no horário de Brasília; nulo sem termo.</param>
 /// <param name="TermoAnteriorDe">
-/// Quando o detentor atual NÃO tem termo mas o aparelho tem termo de outra pessoa (detentor
-/// anterior), o nome dela — sinal de que o aparelho trocou de mão sem termo novo.
+/// Quando o detentor atual NÃO tem termo mas o equipamento tem termo de outra pessoa (detentor
+/// anterior), o nome dela — sinal de que o equipamento trocou de mão sem termo novo.
 /// </param>
 public record LinhaTermoDto(
     string Identificacao,
+    string Tipo,
     string NumeroSerie,
     string? Patrimonio,
     string? Unidade,
@@ -90,5 +91,5 @@ public record LinhaTermoDto(
     DateTime? DataAceite,
     string? TermoAnteriorDe);
 
-/// <summary>Totais do relatório de termos (só computadores).</summary>
-public record ResumoTermosDto(int Computadores, int ComTermo, int SemTermo, int SemDetentor, DateTime GeradoEm);
+/// <summary>Totais do relatório de termos (equipamentos de detentor nominal, sem impressoras).</summary>
+public record ResumoTermosDto(int Equipamentos, int ComTermo, int SemTermo, int SemDetentor, DateTime GeradoEm);

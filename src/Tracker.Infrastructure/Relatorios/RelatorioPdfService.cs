@@ -116,30 +116,30 @@ public class RelatorioPdfService : IRelatorioPdfService
 
     public byte[] Termos(IReadOnlyList<LinhaTermoDto> linhas, ResumoTermosDto resumo, string geradoPor)
     {
-        var (documento, section) = Abrir("Termo de uso dos computadores", resumo.GeradoEm, geradoPor);
+        var (documento, section) = Abrir("Termo de uso dos equipamentos", resumo.GeradoEm, geradoPor);
 
         Resumo(section, new[]
         {
-            ($"{resumo.Computadores}", "computadores"),
+            ($"{resumo.Equipamentos}", "equipamentos"),
             ($"{resumo.ComTermo}", "com termo do detentor atual"),
             ($"{resumo.SemTermo}", "com detentor e SEM termo"),
             ($"{resumo.SemDetentor}", "sem detentor (não se aplica)"),
         });
 
         var criterio = section.AddParagraph(
-            "Critério: vale só o termo assinado (PDF anexado) do detentor ATUAL. Termo de quem usou o "
-            + "computador antes não cobre quem está com ele agora — esses casos aparecem como \"Sem termo\" "
-            + "com o nome do detentor anterior. Computadores em estoque ou do local não têm detentor nominal.");
+            "Critério: notebooks, celulares/tablets e periféricos (impressoras não têm termo). Vale só o termo "
+            + "assinado (PDF anexado) do detentor ATUAL. Termo de quem usou o equipamento antes não cobre quem está com ele agora — esses casos aparecem como \"Sem termo\" "
+            + "com o nome do detentor anterior. Equipamentos em estoque ou do local não têm detentor nominal.");
         criterio.Format.Font.Size = 8;
         criterio.Format.Font.Italic = true;
         criterio.Format.SpaceAfter = "0.5cm";
 
         Tabela(section,
-            cabecalhos: new[] { "Identificação", "Nº de série", "Patrimônio", "Unidade", "Detentor", "Status", "Termo", "Observação" },
-            larguras: new[] { 3.8, 3.4, 2.6, 3.2, 4.2, 2.4, 2.0, 5.0 },
+            cabecalhos: new[] { "Identificação", "Tipo", "Nº de série", "Patrimônio", "Unidade", "Detentor", "Status", "Termo", "Observação" },
+            larguras: new[] { 3.4, 2.0, 3.2, 2.4, 3.0, 3.8, 2.3, 2.0, 4.5 },
             linhas: linhas.Select(l => new[]
             {
-                l.Identificacao, l.NumeroSerie, l.Patrimonio ?? "—", l.Unidade ?? "—",
+                l.Identificacao, l.Tipo, l.NumeroSerie, l.Patrimonio ?? "—", l.Unidade ?? "—",
                 l.Detentor ?? "—", l.Status, l.Situacao.Rotulo(), ObservacaoTermo(l),
             }).ToList());
 
