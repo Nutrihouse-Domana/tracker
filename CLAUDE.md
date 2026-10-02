@@ -217,7 +217,7 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   use `<`). Os filtros `de`/`ate` da auditoria são `DateOnly` interpretados assim. Não use
   `ToLocalTime()` (depende do fuso da máquina) nem `DateTime.Date` sobre UTC.
 - **Relatórios do inventário** (`RelatoriosController`, `GET /api/relatorios/{tipo}/{pdf|xlsx}` com
-  tipo = `inventario`/`aluguel`/`unidades`): dados em `Tracker.Infrastructure/Relatorios`
+  tipo = `inventario`/`aluguel`/`unidades`/`termos`): dados em `Tracker.Infrastructure/Relatorios`
   (`RelatorioInventarioService` monta as linhas; `RelatorioPdfService` e `RelatorioExcelService`
   renderizam). São LEITURA do parque ativo → pedem só `dispositivos.ver` e **não** registram
   auditoria (que é para escrita). No site ficam no **menu da conta** (`MenuRelatorios`, aberto ao
@@ -227,6 +227,12 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   para outra data, então ela nunca foi data de compra de verdade. `CriadoEm` é UTC e o SQL Server
   o devolve com `Kind=Unspecified` — marque como UTC antes de `ToLocalTime()`, senão cadastro da
   noite sai com a data do dia seguinte. (Pendente: trocar por `FusoBrasil.ParaBrasilia` — item 29.)
+  **`termos` é só de NOTEBOOK** e tem dados/resumo próprios (`TermosComputadoresAsync` →
+  `LinhaTermoDto`/`ResumoTermosDto`, fora do `ResumoRelatoriosDto`; o controller trata antes do
+  `switch`). "Com termo" = existe `TermoDeUso` do **detentor ATUAL** (`UsuarioId == UsuarioAtualId`,
+  e só se `PertenceAUsuario`) — termo de detentor anterior NÃO conta (sai "Sem termo" com o nome
+  dele). `TermoDeUso` só nasce no upload do PDF assinado; gerar o PDF não grava nada. Data do termo
+  já usa `FusoBrasil.ParaBrasilia`.
 - **XLSX é gerado com ClosedXML** (0.102.3, em `Tracker.Infrastructure`). `AdjustToContents` NÃO
   aceita `maxWidth:` nesta versão (erro de compilação) — ajuste e depois limite `coluna.Width` à
   mão. Escreva data/número com o TIPO nativo da célula: como texto, o filtro e a ordenação do

@@ -18,7 +18,7 @@ async function erroLegivel(erro: unknown): Promise<unknown> {
 }
 
 /** Relatórios oferecidos no menu da conta. O valor é o segmento da rota da API. */
-export type TipoRelatorio = 'inventario' | 'aluguel' | 'unidades'
+export type TipoRelatorio = 'inventario' | 'aluguel' | 'unidades' | 'termos'
 export type FormatoRelatorio = 'pdf' | 'xlsx'
 
 export const relatoriosApi = {

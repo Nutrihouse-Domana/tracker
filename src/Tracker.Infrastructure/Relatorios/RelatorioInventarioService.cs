@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Tracker.Application.Common;
 using Tracker.Application.Relatorios;
 using Tracker.Domain.Enums;
 using Tracker.Infrastructure.Data;
@@ -10,6 +11,7 @@ public interface IRelatorioInventarioService
     Task<ResumoRelatoriosDto> ResumoAsync(CancellationToken ct = default);
     Task<IReadOnlyList<LinhaInventarioDto>> InventarioAsync(bool somenteAlugados, CancellationToken ct = default);
     Task<IReadOnlyList<LinhaUnidadeDto>> PorUnidadeAsync(CancellationToken ct = default);
+    Task<(IReadOnlyList<LinhaTermoDto> Linhas, ResumoTermosDto Resumo)> TermosComputadoresAsync(CancellationToken ct = default);
 }
 
 /// <summary>
@@ -153,5 +155,90 @@ public class RelatorioInventarioService : IRelatorioInventarioService
             .OrderByDescending(u => u.Total)
             .ThenBy(u => u.Unidade, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
+    }
+
+    /// <summary>
+    /// Computadores (notebooks) com a situação do termo de uso. Vale só o termo do detentor ATUAL:
+    /// o termo de quem usou o aparelho antes não cobre quem está com ele agora. Um termo só existe
+    /// depois do upload do PDF assinado (gerar o PDF não grava nada), então "com termo" é sempre
+    /// documento assinado anexado. Ordem: sem termo primeiro, que é o que pede ação da TI.
+    /// </summary>
+    public async Task<(IReadOnlyList<LinhaTermoDto> Linhas, ResumoTermosDto Resumo)> TermosComputadoresAsync(
+        CancellationToken ct = default)
+    {
+        var computadores = await _db.Set<Domain.Entities.Notebook>().AsNoTracking()
+            .Select(n => new
+            {
+                n.Id,
+                n.IdentificacaoInterna,
+                n.Hostname,
+                n.NumeroSerie,
+                n.AssetTag,
+                n.Status,
+                n.PertenceAUsuario,
+                n.UsuarioAtualId,
+                UnidadeNome = n.Unidade != null ? n.Unidade.Nome : null,
+                UsuarioNome = n.UsuarioAtual != null ? n.UsuarioAtual.Nome : null,
+            })
+            .ToListAsync(ct);
+
+        // Filtra pelo tipo no banco (join) em vez de um Contains com milhares de ids.
+        var termos = await _db.TermosDeUso.AsNoTracking()
+            .Where(t => t.Dispositivo!.Tipo == TipoDispositivo.Notebook)
+            .Select(t => new
+            {
+                t.DispositivoId,
+                t.UsuarioId,
+                UsuarioNome = t.Usuario != null ? t.Usuario.Nome : null,
+                t.VersaoTermo,
+                t.DataAceite,
+            })
+            .ToListAsync(ct);
+        var termosPorComputador = termos
+            .GroupBy(t => t.DispositivoId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(t => t.DataAceite).ToList());
+
+        var linhas = computadores.Select(c =>
+        {
+            var doAparelho = termosPorComputador.GetValueOrDefault(c.Id) ?? new();
+            // Ativo do local não tem detentor nominal, mesmo que sobre um UsuarioAtualId antigo.
+            var detentorId = c.PertenceAUsuario ? c.UsuarioAtualId : null;
+            var doDetentor = detentorId is null ? null : doAparelho.FirstOrDefault(t => t.UsuarioId == detentorId);
+
+            var situacao = detentorId is null ? SituacaoTermo.NaoSeAplica
+                : doDetentor is not null ? SituacaoTermo.ComTermo
+                : SituacaoTermo.SemTermo;
+
+            return new LinhaTermoDto(
+                Identificacao: ClassificacaoAluguel.IdentificacaoExibida(c.IdentificacaoInterna, c.Hostname, c.NumeroSerie),
+                NumeroSerie: c.NumeroSerie,
+                Patrimonio: c.AssetTag,
+                Unidade: c.UnidadeNome,
+                Detentor: detentorId is null ? null : c.UsuarioNome,
+                Status: RotuloStatus[c.Status],
+                Situacao: situacao,
+                VersaoTermo: doDetentor?.VersaoTermo,
+                DataAceite: doDetentor is null ? null : FusoBrasil.ParaBrasilia(doDetentor.DataAceite),
+                TermoAnteriorDe: situacao == SituacaoTermo.SemTermo
+                    ? doAparelho.FirstOrDefault(t => t.UsuarioId != detentorId)?.UsuarioNome
+                    : null);
+        })
+        .OrderBy(l => l.Situacao switch
+        {
+            SituacaoTermo.SemTermo => 0,
+            SituacaoTermo.ComTermo => 1,
+            _ => 2,
+        })
+        .ThenBy(l => l.Identificacao, StringComparer.CurrentCultureIgnoreCase)
+        .ToList();
+
+        var resumo = new ResumoTermosDto(
+            Computadores: linhas.Count,
+            ComTermo: linhas.Count(l => l.Situacao == SituacaoTermo.ComTermo),
+            SemTermo: linhas.Count(l => l.Situacao == SituacaoTermo.SemTermo),
+            SemDetentor: linhas.Count(l => l.Situacao == SituacaoTermo.NaoSeAplica),
+            GeradoEm: FusoBrasil.ParaBrasilia(DateTime.UtcNow));
+
+        return (linhas, resumo);
     }
 }

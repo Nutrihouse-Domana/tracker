@@ -11,6 +11,7 @@ public interface IRelatorioPdfService
     byte[] Inventario(IReadOnlyList<LinhaInventarioDto> linhas, ResumoRelatoriosDto resumo, string geradoPor);
     byte[] Aluguel(IReadOnlyList<LinhaInventarioDto> alugados, ResumoRelatoriosDto resumo, string geradoPor);
     byte[] Unidades(IReadOnlyList<LinhaUnidadeDto> unidades, ResumoRelatoriosDto resumo, string geradoPor);
+    byte[] Termos(IReadOnlyList<LinhaTermoDto> linhas, ResumoTermosDto resumo, string geradoPor);
 }
 
 /// <summary>
@@ -113,8 +114,51 @@ public class RelatorioPdfService : IRelatorioPdfService
         return Renderizar(documento);
     }
 
+    public byte[] Termos(IReadOnlyList<LinhaTermoDto> linhas, ResumoTermosDto resumo, string geradoPor)
+    {
+        var (documento, section) = Abrir("Termo de uso dos computadores", resumo.GeradoEm, geradoPor);
+
+        Resumo(section, new[]
+        {
+            ($"{resumo.Computadores}", "computadores"),
+            ($"{resumo.ComTermo}", "com termo do detentor atual"),
+            ($"{resumo.SemTermo}", "com detentor e SEM termo"),
+            ($"{resumo.SemDetentor}", "sem detentor (não se aplica)"),
+        });
+
+        var criterio = section.AddParagraph(
+            "Critério: vale só o termo assinado (PDF anexado) do detentor ATUAL. Termo de quem usou o "
+            + "computador antes não cobre quem está com ele agora — esses casos aparecem como \"Sem termo\" "
+            + "com o nome do detentor anterior. Computadores em estoque ou do local não têm detentor nominal.");
+        criterio.Format.Font.Size = 8;
+        criterio.Format.Font.Italic = true;
+        criterio.Format.SpaceAfter = "0.5cm";
+
+        Tabela(section,
+            cabecalhos: new[] { "Identificação", "Nº de série", "Patrimônio", "Unidade", "Detentor", "Status", "Termo", "Observação" },
+            larguras: new[] { 3.8, 3.4, 2.6, 3.2, 4.2, 2.4, 2.0, 5.0 },
+            linhas: linhas.Select(l => new[]
+            {
+                l.Identificacao, l.NumeroSerie, l.Patrimonio ?? "—", l.Unidade ?? "—",
+                l.Detentor ?? "—", l.Status, l.Situacao.Rotulo(), ObservacaoTermo(l),
+            }).ToList());
+
+        return Renderizar(documento);
+    }
+
+    private static string ObservacaoTermo(LinhaTermoDto l) => l.Situacao switch
+    {
+        SituacaoTermo.ComTermo => $"v{l.VersaoTermo} de {l.DataAceite:dd/MM/yyyy}",
+        SituacaoTermo.SemTermo when l.TermoAnteriorDe is not null => $"Há termo só de {l.TermoAnteriorDe} (anterior)",
+        SituacaoTermo.SemTermo => "Nenhum termo registrado",
+        _ => "Sem detentor",
+    };
+
+    private static (Document, Section) Abrir(string titulo, ResumoRelatoriosDto resumo, string geradoPor) =>
+        Abrir(titulo, resumo.GeradoEm, geradoPor);
+
     /// <summary>Documento novo já com cabeçalho, título e rodapé com paginação.</summary>
-    private static (Document, Section) Abrir(string titulo, ResumoRelatoriosDto resumo, string geradoPor)
+    private static (Document, Section) Abrir(string titulo, DateTime geradoEm, string geradoPor)
     {
         PdfFontes.Garantir();
 
@@ -145,7 +189,7 @@ public class RelatorioPdfService : IRelatorioPdfService
         linhaTitulo.Format.SpaceAfter = "0.1cm";
 
         var subtitulo = section.AddParagraph(
-            $"Gerado em {resumo.GeradoEm:dd/MM/yyyy 'às' HH:mm} por {geradoPor}");
+            $"Gerado em {geradoEm:dd/MM/yyyy 'às' HH:mm} por {geradoPor}");
         subtitulo.Format.Font.Size = 8.5;
         subtitulo.Format.Font.Color = Colors.Gray;
         subtitulo.Format.SpaceAfter = "0.5cm";

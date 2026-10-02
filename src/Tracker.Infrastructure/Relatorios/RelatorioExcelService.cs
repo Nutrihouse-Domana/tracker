@@ -8,6 +8,7 @@ public interface IRelatorioExcelService
     byte[] Inventario(IReadOnlyList<LinhaInventarioDto> linhas, ResumoRelatoriosDto resumo);
     byte[] Aluguel(IReadOnlyList<LinhaInventarioDto> alugados, ResumoRelatoriosDto resumo);
     byte[] Unidades(IReadOnlyList<LinhaUnidadeDto> unidades, ResumoRelatoriosDto resumo);
+    byte[] Termos(IReadOnlyList<LinhaTermoDto> linhas, ResumoTermosDto resumo);
 }
 
 /// <summary>
@@ -123,6 +124,59 @@ public class RelatorioExcelService : IRelatorioExcelService
 
         Finalizar(aba, cabecalhos.Length, linha - 1);
         AbaResumo(livro, resumo);
+        return Salvar(livro);
+    }
+
+    public byte[] Termos(IReadOnlyList<LinhaTermoDto> linhas, ResumoTermosDto resumo)
+    {
+        using var livro = new XLWorkbook();
+
+        var aba = livro.Worksheets.Add("Termos");
+        var cabecalhos = new[] { "Identificação", "Nº de série", "Patrimônio", "Unidade", "Detentor", "Status", "Termo", "Versão", "Data do termo", "Termo anterior de" };
+        EscreverCabecalho(aba, cabecalhos);
+
+        var linha = 2;
+        foreach (var l in linhas)
+        {
+            aba.Cell(linha, 1).Value = l.Identificacao;
+            aba.Cell(linha, 2).Value = l.NumeroSerie;
+            aba.Cell(linha, 3).Value = l.Patrimonio ?? string.Empty;
+            aba.Cell(linha, 4).Value = l.Unidade ?? string.Empty;
+            aba.Cell(linha, 5).Value = l.Detentor ?? string.Empty;
+            aba.Cell(linha, 6).Value = l.Status;
+            aba.Cell(linha, 7).Value = l.Situacao.Rotulo();
+            if (l.Situacao == SituacaoTermo.SemTermo) aba.Cell(linha, 7).Style.Font.FontColor = XLColor.Red;
+            aba.Cell(linha, 8).Value = l.VersaoTermo ?? string.Empty;
+            if (l.DataAceite is { } data)
+            {
+                aba.Cell(linha, 9).Value = data;
+                aba.Cell(linha, 9).Style.DateFormat.Format = "dd/mm/yyyy";
+            }
+            aba.Cell(linha, 10).Value = l.TermoAnteriorDe ?? string.Empty;
+            linha++;
+        }
+
+        Finalizar(aba, cabecalhos.Length, linha - 1);
+
+        var totais = livro.Worksheets.Add("Resumo");
+        EscreverCabecalho(totais, new[] { "Indicador", "Valor" });
+        var dados = new (string, int)[]
+        {
+            ("Computadores", resumo.Computadores),
+            ("Com termo do detentor atual", resumo.ComTermo),
+            ("Com detentor e sem termo", resumo.SemTermo),
+            ("Sem detentor (não se aplica)", resumo.SemDetentor),
+        };
+        for (var i = 0; i < dados.Length; i++)
+        {
+            totais.Cell(i + 2, 1).Value = dados[i].Item1;
+            totais.Cell(i + 2, 2).Value = dados[i].Item2;
+        }
+        totais.Cell(dados.Length + 3, 1).Value = "Gerado em";
+        totais.Cell(dados.Length + 3, 2).Value = resumo.GeradoEm;
+        totais.Cell(dados.Length + 3, 2).Style.DateFormat.Format = "dd/mm/yyyy hh:mm";
+        totais.Columns(1, 2).AdjustToContents();
+
         return Salvar(livro);
     }
 

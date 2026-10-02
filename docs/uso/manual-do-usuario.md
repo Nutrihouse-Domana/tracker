@@ -315,10 +315,14 @@ Menu da conta → **Relatórios** → escolha o tipo e o formato (PDF ou Excel):
 | Inventário de ativos | Todos os ativos: identificação, tipo, origem, série, patrimônio, unidade, responsável, status, data de cadastro |
 | Alugados x próprios | O mesmo + vencimento e dias restantes, e o resumo alugados x próprios (critério `MAQ`; impressoras pelo interruptor **Alugada**) |
 | Parque por unidade | Totais por unidade, alugados, próprios e distribuição por status |
+| Termo de uso dos computadores | Só notebooks: detentor e se ele tem termo (**Com termo** / **Sem termo** / **Não se aplica**), versão e data do termo. Os sem termo vêm primeiro |
 
 - Arquivados não entram. A coluna de data é a **data de cadastro no Tracker**, não a de compra.
 - Se a geração falhar, a mensagem de erro aparece dentro do próprio submenu de relatórios.
 - O Excel traz uma aba **Resumo** e colunas de data/número de verdade (filtram e ordenam certo).
+- No relatório de termos, vale só o termo **do detentor atual** com o PDF assinado anexado (gerar o
+  PDF para imprimir não conta). Computador que trocou de mão sem termo novo sai como **Sem termo**,
+  com o nome de quem assinou antes. Estoque e ativo do local saem como **Não se aplica**.
 
 ---
 
