@@ -18,6 +18,23 @@ marcações e escreva do ponto de vista de quem usa ou opera, não do código.
 
 ---
 
+## v1.13.0 — 02/10/2026
+
+Relatório de termo de uso dos computadores e menu de relatórios reorganizado.
+
+- **Banco / Agente Windows / Agente Android:** sem mudança.
+
+**Relatórios**
+
+- Novo relatório **Termo de uso dos computadores** (PDF e Excel): lista os notebooks com o detentor
+  e se ele tem termo assinado (**Com termo** / **Sem termo** / **Não se aplica**), com versão e data.
+  Os sem termo vêm primeiro. Vale só o termo do detentor **atual**: computador que trocou de mão sem
+  termo novo aparece como "Sem termo", com o nome de quem assinou antes.
+- Menu da conta → **Relatórios** agora mostra só a lista de relatórios; ao clicar num deles, abre a
+  escolha entre **PDF** e **Excel**.
+
+---
+
 ## v1.12.0 — 01/10/2026 · Banco
 
 Impressoras no inventário, com monitoramento opcional por SNMP.

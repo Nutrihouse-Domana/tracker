@@ -9,6 +9,8 @@ public enum TipoRelatorio
     Aluguel,
     /// <summary>Distribuição do parque por unidade, com quebra por status.</summary>
     Unidades,
+    /// <summary>Computadores (notebooks) com a situação do termo de uso do detentor atual.</summary>
+    Termos,
 }
 
 /// <summary>Uma linha de ativo no relatório — já resolvida (sem navegações do EF).</summary>
@@ -47,3 +49,46 @@ public record ResumoRelatoriosDto(
     IReadOnlyList<ContagemDto> PorTipo,
     IReadOnlyList<ContagemDto> PorStatus,
     DateTime GeradoEm);
+
+/// <summary>Situação do termo de uso de um computador em relação ao detentor ATUAL.</summary>
+public enum SituacaoTermo
+{
+    /// <summary>O detentor atual tem termo assinado registrado para este aparelho.</summary>
+    ComTermo,
+    /// <summary>Tem detentor, mas nenhum termo dele foi registrado para este aparelho.</summary>
+    SemTermo,
+    /// <summary>Sem detentor (estoque ou ativo do local): termo não se aplica.</summary>
+    NaoSeAplica,
+}
+
+/// <summary>Rótulo da situação do termo — o mesmo no PDF e no Excel.</summary>
+public static class SituacaoTermoExtensions
+{
+    public static string Rotulo(this SituacaoTermo situacao) => situacao switch
+    {
+        SituacaoTermo.ComTermo => "Com termo",
+        SituacaoTermo.SemTermo => "Sem termo",
+        _ => "Não se aplica",
+    };
+}
+
+/// <summary>Um computador no relatório de termos de uso.</summary>
+/// <param name="DataAceite">Data do termo do detentor atual, já no horário de Brasília; nulo sem termo.</param>
+/// <param name="TermoAnteriorDe">
+/// Quando o detentor atual NÃO tem termo mas o aparelho tem termo de outra pessoa (detentor
+/// anterior), o nome dela — sinal de que o aparelho trocou de mão sem termo novo.
+/// </param>
+public record LinhaTermoDto(
+    string Identificacao,
+    string NumeroSerie,
+    string? Patrimonio,
+    string? Unidade,
+    string? Detentor,
+    string Status,
+    SituacaoTermo Situacao,
+    string? VersaoTermo,
+    DateTime? DataAceite,
+    string? TermoAnteriorDe);
+
+/// <summary>Totais do relatório de termos (só computadores).</summary>
+public record ResumoTermosDto(int Computadores, int ComTermo, int SemTermo, int SemDetentor, DateTime GeradoEm);

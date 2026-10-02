@@ -41,8 +41,18 @@ public class RelatoriosController : ControllerBase
         if (!emPdf && !formato.Equals("xlsx", StringComparison.OrdinalIgnoreCase))
             return BadRequest(new { erro = "Formato inválido. Use 'pdf' ou 'xlsx'." });
 
-        var resumo = await _dados.ResumoAsync(ct);
         var geradoPor = User.AdmNome();
+
+        // Termos tem dados e resumo próprios (só computadores), fora do resumo do parque.
+        if (tipo == TipoRelatorio.Termos)
+        {
+            var (linhasTermo, resumoTermo) = await _dados.TermosComputadoresAsync(ct);
+            var bytes = emPdf ? _pdf.Termos(linhasTermo, resumoTermo, geradoPor) : _excel.Termos(linhasTermo, resumoTermo);
+            var nomeTermo = $"tracker-termos-computadores-{resumoTermo.GeradoEm:yyyy-MM-dd-HHmm}.{(emPdf ? "pdf" : "xlsx")}";
+            return File(bytes, emPdf ? "application/pdf" : TipoConteudoXlsx, nomeTermo);
+        }
+
+        var resumo = await _dados.ResumoAsync(ct);
 
         var (conteudo, nome) = tipo switch
         {

@@ -127,4 +127,26 @@ public class RelatoriosTests
 
         Assert.Equal(new byte[] { 0x50, 0x4B, 0x03, 0x04 }, bytes.Take(4).ToArray());
     }
+
+    /// <summary>As três situações do termo (com, sem, sem detentor) saem nos dois formatos.</summary>
+    [Fact]
+    public void RelatorioTermos_GeraOsDoisFormatos()
+    {
+        var linhas = new[]
+        {
+            new LinhaTermoDto("NHD-0031", "SN-1", "PAT-1", "Matriz", "Fulano", "Em uso",
+                SituacaoTermo.SemTermo, null, null, "Ciclano"),
+            new LinhaTermoDto("NHD-0032", "SN-2", null, "Matriz", "Beltrano", "Em uso",
+                SituacaoTermo.ComTermo, "2.0", new DateTime(2026, 9, 1), null),
+            new LinhaTermoDto("NHD-0033", "SN-3", null, null, null, "Em estoque",
+                SituacaoTermo.NaoSeAplica, null, null, null),
+        };
+        var resumo = new ResumoTermosDto(3, 1, 1, 1, new DateTime(2026, 10, 2, 9, 0, 0));
+
+        var pdf = new RelatorioPdfService().Termos(linhas, resumo, "Tester");
+        var excel = new RelatorioExcelService().Termos(linhas, resumo);
+
+        Assert.Equal("%PDF", Encoding.ASCII.GetString(pdf, 0, 4));
+        Assert.Equal(new byte[] { 0x50, 0x4B, 0x03, 0x04 }, excel.Take(4).ToArray());
+    }
 }
