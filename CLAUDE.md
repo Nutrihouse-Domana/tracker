@@ -34,8 +34,8 @@ docs/                      Documentação por assunto (índice: docs/COMECE-AQUI
 ```
 
 **Guia novo vai na subpasta do assunto em `docs/` e entra nos DOIS índices** — a tabela "Documentação" do `README.md` e a
-"Guias que você tem" do `docs/COMECE-AQUI.md`. Os dois já ficaram defasados (sem Android, CI,
-pendrive, ambiente-dev). Ao mudar um fluxo (ex.: instalação do agente, deploy), atualize também o
+"Guias que você tem" do `docs/COMECE-AQUI.md`. Já ficaram defasados uma vez (faltavam Android,
+CI, pendrive e ambiente-dev) — confira os dois ao acrescentar um guia. Ao mudar um fluxo (ex.: instalação do agente, deploy), atualize também o
 guia que o descreve: o `deploy-automatico-cicd.md` chegou a afirmar que o CI baixava .NET/Node
 via `setup-*`, o que o egress impede. **Mudou o comportamento de uma tela** (botão, regra,
 confirmação, permissão)? Atualize `docs/uso/manual-do-usuario.md` — inclusive a seção "Limitações

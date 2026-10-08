@@ -1,7 +1,8 @@
 # Melhorias pendentes
 
-Backlog de limitações conhecidas do Tracker, levantado em 23/09/2026 na revisão da documentação
-e atualizado em 24/09/2026 na revisão completa do código (itens 26 a 32).
+Backlog de limitações conhecidas do Tracker, levantado em 23/09/2026 na revisão da documentação,
+atualizado em 24/09/2026 na revisão completa do código (itens 26 a 32) e conferido de novo
+contra o código em 08/10/2026 (itens 34 e 35 novos).
 Cada item diz o problema, onde está no código, a correção sugerida e como conferir.
 
 **Ao corrigir um item:**
@@ -28,14 +29,14 @@ As regras do projeto continuam valendo em toda correção:
 | 4 | ["Excluir definitivamente" visível sem a permissão](#4-excluir-definitivamente-visível-sem-a-permissão) — ✅ Resolvido em 24/09/2026 | Média | Pequeno |
 | 5 | [Atribuir e Alterar status escondem o motivo do erro](#5-atribuir-e-alterar-status-escondem-o-motivo-do-erro) — ✅ Resolvido em 24/09/2026 | Média | Pequeno |
 | 6 | [Login não distingue desativado/bloqueado](#6-login-não-distingue-desativado-ou-bloqueado) — **Parcial** (desativado ok; falta lockout) | Baixa | Pequeno |
-| 7 | [Rótulos técnicos sem tradução](#7-rótulos-técnicos-sem-tradução) | Baixa | Pequeno |
+| 7 | [Rótulos técnicos sem tradução](#7-rótulos-técnicos-sem-tradução) — **Parcial** (auditoria ok; faltam reparo, comandos e origem) | Baixa | Pequeno |
 | 8 | [Busca global ignora a identificação interna](#8-busca-global-ignora-a-identificação-interna) | Média | Pequeno |
-| 9 | [Relatórios ausentes no menu do celular](#9-relatórios-ausentes-no-menu-do-celular) | Baixa | Pequeno |
+| 9 | [Relatórios ausentes no menu do celular](#9-relatórios-ausentes-no-menu-do-celular) | Baixa | Pequeno/Médio |
 | 10 | [Detalhe de arquivado mostra "não encontrado"](#10-detalhe-de-arquivado-mostra-não-encontrado) | Baixa | Médio |
 | 11 | [Status de comando "Falhou" nunca é gravado](#11-status-de-comando-falhou-nunca-é-gravado) | Média | Médio |
 | 12 | [Cancelar reparo deixa o aparelho em manutenção](#12-cancelar-reparo-deixa-o-aparelho-em-manutenção) | Baixa | Pequeno |
 | 13 | [Chave do CPF sem rotação](#13-chave-do-cpf-sem-rotação) | Média | Grande |
-| 14 | [Comentários desatualizados sobre relatórios no Perfil](#14-comentários-desatualizados-sobre-relatórios-no-perfil) | Baixa | Trivial |
+| 14 | [Comentários desatualizados sobre relatórios no Perfil](#14-comentários-desatualizados-sobre-relatórios-no-perfil) — **Parcial** (faltam `App.tsx` e `AppShell.tsx`) | Baixa | Trivial |
 | 15 | [Localização gravada a cada minuto, para sempre](#15-localização-gravada-a-cada-minuto-para-sempre) | **Alta** | Médio |
 | 16 | [CPF completo para quem só vê o inventário](#16-cpf-completo-para-quem-só-vê-o-inventário) | **Alta** | Pequeno |
 | 17 | [Geolocalização do Windows por HTTP em serviço gratuito](#17-geolocalização-do-windows-por-http-em-serviço-gratuito) | Média | Pequeno |
@@ -46,15 +47,17 @@ As regras do projeto continuam valendo em toda correção:
 | 22 | [Agente Windows ignora "deve estar bloqueado"](#22-agente-windows-ignora-deve-estar-bloqueado) | Média | Pequeno |
 | 23 | [Agente Android não se recadastra sozinho](#23-agente-android-não-se-recadastra-sozinho) | Média | Médio |
 | 24 | [Agente Windows informa sempre a versão 1.0.0](#24-agente-windows-informa-sempre-a-versão-100) | Média | Trivial |
-| 25 | [Inconsistências menores nos agentes](#25-inconsistências-menores-nos-agentes) — **Parcial** (comentário "Telefone" ok) | Baixa | Trivial |
+| 25 | [Inconsistências menores nos agentes](#25-inconsistências-menores-nos-agentes) — **Parcial** (comentários "Telefone" e "2 min" ok) | Baixa | Trivial |
 | 26 | [Trocar o código de instalação vazado no histórico do Git](#26-trocar-o-código-de-instalação-vazado-no-histórico-do-git) | **Alta** | Pequeno |
 | 27 | [Android bloqueado com token revogado fica preso](#27-android-bloqueado-com-token-revogado-fica-preso) | Média | Médio |
 | 28 | [Máquinas Windows com serial genérico duplicam ao recadastrar](#28-máquinas-windows-com-serial-genérico-duplicam-ao-recadastrar) | Baixa | Pequeno |
-| 29 | [Relatórios convertem a data pelo fuso do servidor](#29-relatórios-convertem-a-data-pelo-fuso-do-servidor) | Baixa | Trivial |
+| 29 | [Relatórios convertem a data pelo fuso do servidor](#29-relatórios-convertem-a-data-pelo-fuso-do-servidor) — **Parcial** (relatório de termos ok) | Baixa | Trivial |
 | 30 | [Heartbeat sem a data da leitura da localização](#30-heartbeat-sem-a-data-da-leitura-da-localização) | Baixa | Médio |
 | 31 | [DisableTaskMgr removido em todo logon](#31-disabletaskmgr-removido-em-todo-logon) | Baixa | Pequeno |
 | 32 | [Atribuir aparelho Bloqueado: só o site recusa](#32-atribuir-aparelho-bloqueado-só-o-site-recusa) | Baixa | Trivial |
 | 33 | [Aparelho perdido fica Bloqueado para sempre](#33-aparelho-perdido-fica-bloqueado-para-sempre) — ✅ Resolvido em 24/09/2026 | Média | Pequeno |
+| 34 | [Agente pode postar alerta de impressora](#34-agente-pode-postar-alerta-de-impressora) | Baixa | Trivial |
+| 35 | [`@microsoft/signalr` instalado no site sem uso](#35-microsoftsignalr-instalado-no-site-sem-uso) | Baixa | Trivial |
 
 **Sugestão de ordem:**
 
@@ -249,6 +252,10 @@ certa dá a mensagem específica.
 
 ## 7. Rótulos técnicos sem tradução
 
+> **Parcial — 08/10/2026 (conferência da documentação).** **Resolvido:** a auditoria lê os rótulos
+> das ações da API (`AuditoriaController`), inclusive o do vencimento de aluguel. **Pendente:**
+> reparo, comandos e origem da localização.
+
 **Problema:** alguns valores de enum aparecem crus na tela.
 
 | Onde aparece | Valores |
@@ -256,12 +263,10 @@ certa dá a mensagem específica.
 | Status do reparo (`ReparosSection.tsx`) | `EmAndamento`, `Concluido` |
 | Histórico de comandos (`AgenteSection.tsx`) | `Bloquear`, `Desbloquear`, `Pendente`, `Enviado`, `Confirmado` |
 | Origem da localização (`LocalizacaoSection.tsx`) | `GpsAndroid`, `IpGeolocationWindows`, `WifiConhecida`, `ManualTI` |
-| Auditoria (`AuditoriaPage.tsx`) | a ação de vencimento de aluguel (`DispositivoVencimentoAluguelDefinido`) aparece pelo nome técnico, no filtro e no chip |
 
-**Correção sugerida:** mapas de rótulo, como os que já existem para o status do dispositivo. Na
-auditoria, basta acrescentar a ação ao mapa de rótulos da página. Vale criar um teste ou uma
+**Correção sugerida:** mapas de rótulo, como os que já existem para o status do dispositivo. Vale criar um teste ou uma
 checagem de tipo que falhe quando um valor novo de enum ficar sem rótulo, porque foi exatamente
-assim que a ação do vencimento escapou.
+assim que a ação do vencimento escapou da auditoria.
 
 ---
 
@@ -282,6 +287,7 @@ na barra não traz nada, justo o jeito mais natural de procurar.
 - Incluir `EF.Functions.Like(d.IdentificacaoInterna, padrao, "\\")` no filtro da base.
   `IdentificacaoInterna` fica em `Dispositivo`, então vale para todos os tipos.
 - Devolver o campo no DTO do resultado e exibir com `identificacaoExibida`.
+- A impressora entrou na busca (com consulta própria) e também está sem o campo: inclua-o lá.
 
 **Verificar:** um teste em `Tracker.Api.Tests` que busca por um rótulo `MAQ-*` e encontra.
 
@@ -296,6 +302,9 @@ celular não tem.
 `src/Tracker.Web/src/features/relatorios/MenuRelatorios.tsx`.
 
 **Correção sugerida:** acrescentar os relatórios na gaveta, gateados por `dispositivos.ver`.
+O `MenuRelatorios` agora tem **dois níveis** (relatório → formato, com 4 relatórios, incluindo
+o de termo de uso): submenus ancorados não funcionam bem dentro de um `Drawer`, então a gaveta
+precisa de uma lista própria (ex.: `Collapse` por relatório) ou de uma página de relatórios.
 Também dá para aceitar como limitação: o XLSX é pouco útil no celular. Nesse caso, registre a
 decisão aqui e remova o item.
 
@@ -384,8 +393,11 @@ deixa todos os CPFs gravados ilegíveis, e as telas que carregam detentores queb
 
 ## 14. Comentários desatualizados sobre relatórios no Perfil
 
+> **Parcial — 08/10/2026.** **Resolvido:** os comentários de `MenuRelatorios.tsx` e `PerfilPage.tsx`.
+> **Pendente:** `App.tsx` (rota de Perfil) e `AppShell.tsx` (menu da conta).
+
 **Problema:** comentários em `src/Tracker.Web/src/App.tsx` e
-`src/Tracker.Web/src/features/relatorios/MenuRelatorios.tsx` dizem que os relatórios também estão
+`src/Tracker.Web/src/layout/AppShell.tsx` dizem que os relatórios também estão
 na página de Perfil. Não estão: ficam só no menu da conta.
 
 **Correção:** ajustar os comentários. É trivial e pode entrar em qualquer PR.
@@ -600,15 +612,15 @@ não tem OTA).
 ## 25. Inconsistências menores nos agentes
 
 > **Parcial — 24/09/2026 (revisão completa do código).** **Resolvido:** o comentário de
-> `AgenteOptions.cs` não sugere mais `"Telefone"`. **Pendente:** o default `Simular = true` no
-> código e os três pontos do Android abaixo.
+> `AgenteOptions.cs` não sugere mais `"Telefone"` e (conferido em 08/10/2026) os comentários de
+> 2 min do `AgenteService.kt`. **Pendente:** o default `Simular = true` no código, o token sem
+> URL-encode e a origem fixa `GpsAndroid`.
 
 Nenhuma afeta o funcionamento. Corrija quando mexer nos arquivos.
 
-- `agents/Tracker.Agent.Windows/AgenteOptions.cs`: o comentário sugere o tipo `"Telefone"`, que não
-  existe mais (é `Mobile`). E o default de `Simular` é **true** no código e **false** no
-  `appsettings.json`: se o arquivo perder a chave, o agente para de bloquear de verdade sem avisar.
-- Android `servico/AgenteService.kt`: os comentários falam em heartbeat de 2 min, mas a constante é 60 s.
+- `agents/Tracker.Agent.Windows/AgenteOptions.cs`: o default de `Simular` é **true** no código e
+  **false** no `appsettings.json`: se o arquivo perder a chave, o agente para de bloquear de verdade
+  sem avisar.
 - Android: o token vai na URL do hub sem URL-encode. É inofensivo com base64url, mas vale
   codificar por consistência com o Windows.
 - Android: a origem da localização é sempre `GpsAndroid`, mesmo quando a posição veio da rede.
@@ -707,6 +719,9 @@ ou valores genéricos) e, depois, procurar hostnames repetidos na lista de dispo
 
 ## 29. Relatórios convertem a data pelo fuso do servidor
 
+> **Parcial — 08/10/2026.** O relatório de **termos** (novo) já usa `FusoBrasil`. Falta o
+> "Cadastrado em" dos outros três.
+
 **Problema:** o "Cadastrado em" dos relatórios usa `ToLocalTime()`, que depende do fuso
 configurado na máquina. O termo de uso e o filtro da auditoria já usam o helper `FusoBrasil`
 (`src/Tracker.Application/Common/FusoBrasil.cs`), fixo em Brasília.
@@ -803,3 +818,32 @@ não sumir com o único botão de Desbloquear).
 
 **Verificar:** teste que bloqueia (comando confirmado), dá baixa e confere que o heartbeat
 seguinte ainda responde `deveEstarBloqueado = true`.
+
+---
+
+## 34. Agente pode postar alerta de impressora
+
+**Problema:** o validador de `POST /api/agente/alertas` só confere `IsInEnum`. Os tipos
+`ImpressoraOffline` e `SuprimentoBaixo` são gerados pelo servidor (SNMP), mas um agente consegue
+postá-los num notebook/celular, e o alerta aparece com rótulo de impressora.
+
+**Onde:** `src/Tracker.Application/Validators/AgenteValidators.cs` (validador do alerta).
+
+**Correção sugerida:** recusar (400) os tipos de impressora nesse endpoint — os tipos aceitos do
+agente são `AdminDesativado`, `LocalizacaoNegada` e `BloqueioReaplicado`. Atualizar a tabela do
+§5 de [protocolo-agente.md](../agentes/protocolo-agente.md).
+
+**Verificar:** teste que posta `ImpressoraOffline` com token de agente e espera 400.
+
+---
+
+## 35. `@microsoft/signalr` instalado no site sem uso
+
+**Problema:** o `package.json` do `Tracker.Web` traz `@microsoft/signalr`, mas nada em
+`src/Tracker.Web/src` o importa. O site não ouve o hub (só os agentes ouvem). É dependência a
+mais para instalar, atualizar e auditar.
+
+**Correção sugerida:** remover a dependência (e o `package-lock.json` muda, o que invalida o
+cache de `node_modules` do CI uma vez). Se um dia o painel for atualizar em tempo real, ela volta.
+
+**Verificar:** `npm --prefix src/Tracker.Web run build` passa sem ela.

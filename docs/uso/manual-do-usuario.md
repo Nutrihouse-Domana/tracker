@@ -214,7 +214,8 @@ próxima falta não avisa. Impressora USB ou sem o monitoramento ligado não ger
 
 ## Bloqueio remoto
 
-Aba **Agente & Bloqueio** (Notebook/Mobile), com permissão de bloquear.
+Aba **Agente & Bloqueio** (Notebook/Mobile). Os botões **Bloquear** e **Desbloquear** exigem a
+permissão *Bloquear/desbloquear*; **Gerar token** exige *Cadastrar/editar*.
 
 > ⚠️ **Os botões Bloquear e Desbloquear agem na hora — sem confirmação e sem senha.** Confira
 > que está no aparelho certo antes de clicar.
@@ -348,7 +349,8 @@ Menu da conta → **Acessos**.
 ### Auditoria
 
 Menu da conta → **Auditoria**. Registro somente-leitura de toda ação de escrita: quem, quando,
-o quê, motivo e IP — inclusive logins efetuados e recusados.
+o quê, motivo e IP — inclusive logins efetuados e recusados (a recusa só é registrada quando o
+e-mail existe).
 
 - Filtre por texto (usuário ou descrição), tipo de ação e período. O período é o **dia de
   Brasília**: "até 10/01" inclui tudo o que aconteceu até 23:59 de 10/01 no horário de Brasília.
@@ -384,11 +386,11 @@ pessoa: peça a um gestor de Acessos para **Redefinir senha**.
 | Permissão | Libera |
 |---|---|
 | Ver dispositivos | Dashboard, busca, lista, detalhe e relatórios |
-| Cadastrar/editar | Criar dispositivos, unidade atendida, identificação interna, vencimento do aluguel, gerar token do agente |
+| Cadastrar/editar | Criar dispositivos, unidade atendida, identificação interna, vencimento do aluguel, gerar token do agente; na impressora: alugada, dados, conexão, **Ler agora** e tratar alertas |
 | Movimentar | Atribuir, status, posse, reparos, comentários, termos de uso |
 | Arquivar | Arquivar e restaurar |
 | Excluir definitivo | Apagar de vez (irreversível) |
-| Bloquear/desbloquear | Bloqueio remoto e tratar alertas do aparelho |
+| Bloquear/desbloquear | Bloqueio remoto e tratar alertas do agente (os de impressora pedem *Cadastrar/editar*) |
 | Publicar APK do agente | Página Agente |
 | Gerir usuários (detentores) | Cadastros → Usuários (junto com **Ver dispositivos**) |
 | Gerir unidades | Cadastros → Unidades (junto com **Ver dispositivos**) |
@@ -411,10 +413,15 @@ cada um: [melhorias-pendentes.md](../desenvolvimento/melhorias-pendentes.md).
 - Notebook Windows sem número de série de fábrica (placas genéricas) pode **aparecer duplicado**
   no inventário depois de se recadastrar. Arquive o registro que sobrar.
 - Alguns rótulos aparecem em forma técnica: status do reparo (`EmAndamento`, `Concluido`),
-  comandos (`Bloquear`, `Pendente`), origem da localização (`GpsAndroid`, `IpGeolocationWindows`)
-  e, na auditoria, a ação de vencimento de aluguel.
+  comandos (`Bloquear`, `Pendente`) e origem da localização (`GpsAndroid`, `IpGeolocationWindows`).
 - A busca global não encontra pela identificação interna (use Enter para buscar na lista).
 - Relatórios não estão disponíveis no menu do celular.
 - A versão do agente Windows aparece sempre como **1.0.0**, seja qual for o instalador usado.
 - Celular/tablet que perde o token (token regenerado, servidor restaurado) **não volta sozinho**:
   é preciso refazer o registro no app.
+- Abrir um dispositivo **arquivado** mostra "não encontrado": restaure-o para ver o detalhe.
+- Comando remoto que o aparelho não conseguiu aplicar **nunca aparece como "Falhou"**: fica
+  Pendente/Enviado.
+- **Cancelar** um reparo não tira o aparelho de **Em manutenção**: mude o status à mão.
+- Notebook Windows **não volta a se travar sozinho** se o sinal local de bloqueio sumir (o painel
+  continua mostrando Bloqueado). Reenvie o **Bloquear** se desconfiar.

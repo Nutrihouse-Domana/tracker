@@ -45,17 +45,18 @@ Isso gera `C:\publish\Tracker` com o site + API juntos. **Copie essa pasta para 
 - **Se o servidor `192.168.0.254` já tem SQL Server** (é provável, se o FOOD-ACADEMY usa): **reaproveite
   a instância existente** — não precisa instalar outro. Só criará um banco novo (`TrackerDb`) e um login.
 - Se não tiver: instale SQL Server Express (grátis) ou Standard. Anote a instância (ex.: `SQLEXPRESS`).
-- Crie um login para a aplicação (recomendado, em vez de usar `sa`):
+- Crie o banco **vazio** e um login para a aplicação (recomendado, em vez de usar `sa`), **antes**
+  do primeiro start:
   ```sql
+  CREATE DATABASE TrackerDb;
   CREATE LOGIN tracker_app WITH PASSWORD = 'SENHA_FORTE_AQUI';
-  ```
-  (O banco `TrackerDb` é criado automaticamente pela aplicação no primeiro start.)
-  Após o primeiro start, dê acesso do login ao banco:
-  ```sql
   USE TrackerDb;
   CREATE USER tracker_app FOR LOGIN tracker_app;
   ALTER ROLE db_owner ADD MEMBER tracker_app;
   ```
+  No start a aplicação cria as tabelas (migrações) com esse login. O `tracker_app` não tem
+  permissão de `CREATE DATABASE`: sem o banco criado antes, a migração falha e o erro **não derruba
+  o site** — aparece só um aviso no log e as telas dão erro de banco.
 
 ### 2.2 IIS + o .NET 8 Hosting Bundle
 - O IIS **já está instalado** (roda o FOOD-ACADEMY). Só falta o runtime do .NET:
@@ -64,7 +65,8 @@ Isso gera `C:\publish\Tracker` com o site + API juntos. **Copie essa pasta para 
 2. Reinicie o IIS: no PowerShell (Admin) `net stop was /y` e `net start w3svc`.
    > Isso reinicia o IIS inteiro (afeta o FOOD-ACADEMY por alguns segundos) — faça em horário de baixo uso.
 
-> O servidor **não precisa** de SDK nem Node.js — só o Hosting Bundle.
+> Para o deploy **manual** basta o Hosting Bundle. Com o **CI** (o runner roda neste servidor),
+> instale também o .NET 8 SDK e o Node.js LTS — ver [deploy-automatico-cicd.md](deploy-automatico-cicd.md).
 
 ---
 
@@ -96,6 +98,10 @@ $bytes = New-Object byte[] 32; (New-Object System.Security.Cryptography.RNGCrypt
 # Onde guardar os APKs do agente Android publicados para OTA. OBRIGATORIO ficar fora de
 # C:\Tracker: o deploy apaga a pasta do site inteira a cada release.
 [Environment]::SetEnvironmentVariable("Storage__PacotesAgentePath", "C:\TrackerDados\pacotes-agente", "Machine")
+
+# Community SNMP das impressoras (a mesma configurada nelas). Sem ela vale "public".
+# Detalhes: monitoramento-impressoras-snmp.md
+[Environment]::SetEnvironmentVariable("Snmp__Community", "<CODIGO-DO-COFRE>", "Machine")
 ```
 
 > ⚠️ **Anote a `Encryption__CpfKeyBase64`** num cofre de senhas. Se ela for perdida/trocada, os
@@ -145,6 +151,8 @@ Depois, no site, mantenha a vinculação **https 443** com o host `tracker.foods
 2. **Roteador/Firewall da empresa:** encaminhe a porta **443 (TCP)** da internet para o **IP interno
    do servidor**.
 3. **Firewall do Windows** no servidor: permita a porta 443 de entrada.
+4. **Impressoras (SNMP):** o servidor precisa alcançar as impressoras na **UDP 161** de saída,
+   inclusive nas filiais. Ver [monitoramento-impressoras-snmp.md](monitoramento-impressoras-snmp.md).
 
 ---
 
@@ -159,14 +167,17 @@ Depois, no site, mantenha a vinculação **https 443** com o host `tracker.foods
 ## Parte 8 — Apontar os agentes para o domínio
 
 O endereço de produção com **https** e a chave da empresa (Parte 3) vão **embutidos** no
-instalador do agente Windows — não se edita `appsettings.json` à mão em cada notebook:
+instalador do agente Windows — não se edita `appsettings.json` à mão em cada notebook.
+
+Com o CI configurado, use o `.exe` que ele regera sozinho em `C:\TrackerAgentDist` sempre que uma
+release altera o agente. Para gerar à mão, passe a chave de **produção** (do cofre):
 
 ```powershell
-.\deploy\gerar-pendrive.ps1 -Destino E:\TrackerAgent -BackendUrl https://tracker.foodsacademy.com.br
+.\deploy\gerar-pendrive.ps1 -Destino E:\TrackerAgent -BackendUrl https://tracker.foodsacademy.com.br -EnrollmentKey "<CODIGO-DO-COFRE>"
 ```
 
-Com o CI configurado, esse `.exe` é regerado sozinho em `C:\TrackerAgentDist` sempre que uma
-release altera o agente. Instalação nos notebooks: `docs/agentes/instalacao-agente-pendrive.md`.
+Sem `-EnrollmentKey`, o script lê a chave do user-secrets da máquina — numa máquina de dev, é a
+chave de **dev**, e o instalador sairia recusado (401) pela produção. Instalação nos notebooks: `docs/agentes/instalacao-agente-pendrive.md`.
 Agente Android: a URL de produção vem do `gradle.properties` no build de release
 (`docs/agentes/agente-android.md`).
 

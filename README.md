@@ -1,8 +1,9 @@
 # Tracker — Rastreabilidade de Ativos de TI (Nutrihouse)
 
-Plataforma para rastrear notebooks, celulares, tablets e periféricos corporativos: quem está com
-cada equipamento, onde está, histórico de movimentação/reparos, termo de uso, controle de
-equipamentos alugados, relatórios e **bloqueio remoto** dos dispositivos (via agente instalado).
+Plataforma para rastrear notebooks, celulares, tablets, periféricos e impressoras corporativos:
+quem está com cada equipamento, onde está, histórico de movimentação/reparos, termo de uso,
+controle de equipamentos alugados, relatórios, **monitoramento das impressoras por SNMP** e
+**bloqueio remoto** dos dispositivos (via agente instalado).
 
 Produção: `https://tracker.foodsacademy.com.br` (on-premises, Windows + IIS).
 
@@ -12,7 +13,7 @@ Produção: `https://tracker.foodsacademy.com.br` (on-premises, Windows + IIS).
 src/
   Tracker.Domain/          Entidades e regras de domínio
   Tracker.Application/     DTOs, validações, casos de uso
-  Tracker.Infrastructure/  EF Core (SQL Server), Identity, PDF/XLSX, criptografia, storage
+  Tracker.Infrastructure/  EF Core (SQL Server), Identity, PDF/XLSX, criptografia, storage, SNMP
   Tracker.Api/             API ASP.NET Core + SignalR (serve também o site em produção)
   Tracker.Web/             Front-end React + TypeScript (Vite, MUI)
 agents/
