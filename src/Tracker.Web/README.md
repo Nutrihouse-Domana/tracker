@@ -1,6 +1,6 @@
 # Tracker.Web — site do Tracker
 
-Front-end React + TypeScript (Vite, MUI v9, TanStack Query, react-leaflet, SignalR). Em
+Front-end React + TypeScript (Vite, MUI v9, TanStack Query, react-leaflet). Em
 produção é compilado para `src/Tracker.Api/wwwroot` e servido pela própria API, no mesmo
 endereço — não existe servidor web separado.
 

@@ -270,8 +270,16 @@ Pendente ──(heartbeat entrega)──► Enviado ──(POST .../confirmar)�
 | `LocalizacaoNegada` | Agente | Permissão de localização negada ou revogada (uma vez por execução do serviço) |
 | `BloqueioReaplicado` | Agente | `deveEstarBloqueado` veio `true`, mas o sinal local tinha sumido |
 | `ProtecaoRebaixada` | **Servidor** | O heartbeat trouxe um `nivelProtecao` menor que o anterior |
+| `ImpressoraOffline` | **Servidor (SNMP)** | Impressora monitorada deixou de responder (não é de agente) |
+| `SuprimentoBaixo` | **Servidor (SNMP)** | Toner/tinta/cilindro abaixo do limite (não é de agente) |
 
-O painel mostra os alertas em *Agente & Bloqueio*, e **Tratar** os marca como reconhecidos.
+O painel mostra os alertas em *Agente & Bloqueio* (e, na impressora, na aba dela), e **Tratar**
+os marca como reconhecidos. Tratar alerta de agente pede `dispositivos.bloquear`; de impressora,
+`dispositivos.cadastrar`.
+
+> O validador de `POST /api/agente/alertas` só confere se o tipo existe no enum: hoje um agente
+> consegue postar `ImpressoraOffline`/`SuprimentoBaixo` (item 34 de
+> [melhorias-pendentes.md](../desenvolvimento/melhorias-pendentes.md)). Agente novo não deve usá-los.
 
 ---
 

@@ -76,7 +76,7 @@ com Device Owner), número de série, **nível de bateria** (Android), nível de
 | Movimentação | Detentor de origem e destino, motivo (texto livre) |
 | Comentários | Texto livre da TI (pode conter qualquer coisa) |
 | Comandos remotos | Quem bloqueou/desbloqueou e quando |
-| **Auditoria** | Nome do ADM, ação, descrição (pode citar o nome do detentor), **endereço IP**, e-mail em tentativas de login |
+| **Auditoria** | Nome do ADM, ação, descrição (pode citar o nome do detentor), **endereço IP**, e-mail em tentativas de login (só quando o e-mail existe) |
 | Logins ADM | Nome, e-mail, hash da senha, último login |
 
 ---
@@ -90,7 +90,9 @@ com Device Owner), número de série, **nível de bateria** (Android), nível de
 | **OpenStreetMap** (tile.openstreetmap.org) | O **navegador do ADM** ao abrir a aba Localização | O IP do ADM e a região do mapa exibido (revela a área aproximada da última posição) | |
 
 Não há geocodificação reversa (endereço a partir de coordenadas) nem outro envio a terceiros. Os
-**relatórios PDF/Excel não contêm CPF nem localização**.
+**relatórios PDF/Excel não contêm CPF nem localização**, mas **contêm o nome dos detentores** (o
+de termo de uso, também o de quem assinou antes). Qualquer login com "Ver dispositivos" os baixa,
+e o download **não é registrado na auditoria** — é um canal de saída de nomes para fora do sistema.
 
 ---
 
@@ -98,7 +100,7 @@ Não há geocodificação reversa (endereço a partir de coordenadas) nem outro 
 
 | Dado | Quem vê |
 |---|---|
-| **CPF completo do detentor** | **Qualquer login com "Ver dispositivos"**. A API de detentores devolve o CPF inteiro, e a tela *Usuários* o mostra formatado, sem máscara |
+| **CPF completo do detentor** | **Qualquer login com "Ver dispositivos"**: a API de detentores devolve o CPF inteiro. A tela *Usuários* (que exige também "Gerir usuários") o mostra formatado, sem máscara |
 | Histórico de localização | Qualquer login com "Ver dispositivos" |
 | PDF do termo assinado | Qualquer login com "Ver dispositivos" |
 | Auditoria (com IPs) | "Ver auditoria" |
@@ -111,7 +113,8 @@ CPF e a trilha de localização de todos.
 
 ## Retenção e eliminação
 
-**Não existe rotina automática de expurgo.** Tudo fica guardado até alguém agir.
+**Não existe expurgo automático de dados pessoais.** Tudo fica guardado até alguém agir. (A única
+poda automática é a das leituras SNMP das impressoras, após 730 dias, que não contêm dado pessoal.)
 
 | Ação | Efeito nos dados pessoais |
 |---|---|

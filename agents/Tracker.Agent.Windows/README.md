@@ -1,9 +1,18 @@
 # Tracker Agent (Windows)
 
-Agente de rastreabilidade instalado nos notebooks/telefones Windows da Nutrihouse.
+Agente de rastreabilidade instalado nos notebooks Windows da Nutrihouse.
 Reporta heartbeat + localização (por IP) e executa comandos de bloqueio remoto.
 
-## Como instalar (auto-cadastro — recomendado)
+## Como instalar (recomendado: `Instalar-Agente.exe`)
+
+O caminho normal é o instalador autocontido, que já leva o endereço de produção e a chave da
+empresa embutidos — duplo clique no notebook, credencial de administrador e pronto. O CI o regera
+em `C:\TrackerAgentDist` quando o agente muda. Passo a passo:
+[docs/agentes/instalacao-agente-pendrive.md](../../docs/agentes/instalacao-agente-pendrive.md).
+
+As seções abaixo são a referência técnica (instalação manual e desenvolvimento).
+
+## Instalação manual (auto-cadastro)
 
 Com o auto-cadastro, você **não precisa cadastrar o notebook à mão** nem gerar token por
 aparelho: basta usar a **chave da empresa** (a mesma em todas as máquinas). Na primeira
@@ -21,17 +30,21 @@ execução o agente se registra sozinho no inventário e guarda seu token indivi
    ```json
    {
      "Agente": {
-       "BackendBaseUrl": "http://SEU-SERVIDOR:5171",
+       "BackendBaseUrl": "https://tracker.foodsacademy.com.br",
        "AgentToken": "",
-       "EnrollmentKey": "SUA-CHAVE-DA-EMPRESA",
+       "EnrollmentKey": "<CODIGO-DO-COFRE>",
        "Tipo": "Notebook",
        "HeartbeatIntervalSeconds": 60,
        "Simular": false
      }
    }
    ```
-   > A `EnrollmentKey` fica no backend em `Enrollment:CompanyKey` (user-secrets / variável de ambiente).
-   > `Simular: true` (padrão) apenas registra o bloqueio no log; defina `false` na máquina real.
+   > A `EnrollmentKey` é a mesma do backend em `Enrollment:CompanyKey` (variável de ambiente em
+   > produção, user-secrets em dev). Para testar contra a máquina de dev, use
+   > `http://<ip-da-maquina>:5171` e a chave do user-secrets dela.
+   > `Simular: true` apenas registra o bloqueio no log. **Atenção:** o default no código é `true`;
+   > se a chave sumir do arquivo, o agente para de bloquear sem avisar — mantenha `false` explícito
+   > na máquina real.
 
 3. **Instalar** como serviço (PowerShell **como Administrador**):
    ```powershell
@@ -40,7 +53,8 @@ execução o agente se registra sozinho no inventário e guarda seu token indivi
 
 O notebook aparece no inventário automaticamente (status "Em estoque", patrimônio provisório
 `AUTO-<série>` que a TI ajusta depois). O token individual fica salvo em `token.dat` ao lado do
-executável — execuções seguintes não recadastram.
+executável — execuções seguintes não recadastram. Se o servidor recusar o token (401), o agente
+apaga o `token.dat` e se recadastra sozinho.
 
 ### Alternativa: cadastro manual (token por aparelho)
 
@@ -59,8 +73,18 @@ dotnet run --project agents/Tracker.Agent.Windows
 Com `Simular: true`, o comando de bloqueio é apenas logado. Útil para validar heartbeat e
 recebimento de comandos sem travar a tela.
 
-## Limitação conhecida do bloqueio
+## Como o bloqueio funciona
 
-O bloqueio usa `LockWorkStation` (trava a sessão). O próprio usuário ainda consegue destravar
-com a senha dele do Windows. Um bloqueio que **só** a TI destrava exigiria um credential
-provider customizado (fora do escopo desta fase).
+- O serviço roda na sessão 0 e não consegue desenhar na tela do usuário. O bloqueio é uma
+  **tela cheia** (`LockOverlay`, uma janela por monitor) lançada na sessão do usuário pela
+  **tarefa agendada** `TrackerAgentLock`, criada pelo instalador.
+- É **persistente**: o sinal fica em `%ProgramData%\TrackerAgent\locked.flag`. O agente re-trava
+  sozinho (a cada 2 s) mesmo offline ou depois de reiniciar; só o **Desbloquear** da TI remove o
+  sinal.
+- A tela de bloqueio permite escolher uma rede Wi-Fi, para o notebook conseguir receber o
+  Desbloquear.
+
+**Limitações:** um administrador local do Windows (ou o modo de segurança) consegue contornar a
+trava; e o agente ainda não reaplica o bloqueio pelo `deveEstarBloqueado` do heartbeat se o
+`locked.flag` sumir (item 22 de
+[melhorias-pendentes.md](../../docs/desenvolvimento/melhorias-pendentes.md)).

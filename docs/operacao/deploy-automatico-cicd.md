@@ -30,6 +30,12 @@ Você cria a tag v1.2.0  ->  GitHub Actions (self-hosted runner on-prem)
 Arquivos: [`.github/workflows/deploy-producao.yml`](../../.github/workflows/deploy-producao.yml) e
 [`deploy/atualizar-servidor.ps1`](../../deploy/atualizar-servidor.ps1).
 
+> **Outro workflow no mesmo runner:** [`apk-agente-android.yml`](../../.github/workflows/apk-agente-android.yml)
+> gera o APK de release do agente Android. Disparo **manual** (Actions → *APK Agente Android* →
+> *Run workflow*), nunca por tag. Exige JDK 17 e Android SDK pré-instalados no servidor e os
+> secrets `ANDROID_*` da keystore. Detalhes em
+> [agente-android.md](../agentes/agente-android.md#gerar-o-apk-de-release-distribuição-na-frota).
+
 ---
 
 ## Por que tag em vez de "todo commit"?

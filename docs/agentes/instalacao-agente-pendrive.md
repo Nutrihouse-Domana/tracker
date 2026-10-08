@@ -84,16 +84,18 @@ justamente o caso que não dá para investigar por ali.
 Na raiz do repositório, com o `dotnet` disponível:
 
 ```powershell
-.\deploy\gerar-pendrive.ps1 -Destino E:\TrackerAgent -BackendUrl https://tracker.foodsacademy.com.br
+.\deploy\gerar-pendrive.ps1 -Destino E:\TrackerAgent -BackendUrl https://tracker.foodsacademy.com.br -EnrollmentKey "<CODIGO-DO-COFRE>"
 ```
 
 O script publica o agente, grava o `appsettings.json`, compacta em `payload.zip`, embute no
 executável e **apaga o zip em seguida** (ele contém a `EnrollmentKey`). A pasta
 `deploy/Instalador/Recursos/` é ignorada pelo git por isso mesmo.
 
-- A `EnrollmentKey` é lida do `dotnet user-secrets` do projeto `Tracker.Api`
-  (chave `Enrollment:CompanyKey`) e nunca aparece na tela. Use `-EnrollmentKey "<chave>"`
-  para informar outra explicitamente.
+- **Para produção, passe `-EnrollmentKey` com a chave do cofre** (a mesma de
+  `Enrollment__CompanyKey` no servidor). Sem o parâmetro, a chave é lida do `dotnet user-secrets`
+  do projeto `Tracker.Api` desta máquina — numa máquina de dev, é a chave de **dev**, e o
+  auto-cadastro na produção daria 401. A chave nunca aparece na tela. Mais simples: usar o
+  `.exe` que o CI gera em `C:\TrackerAgentDist`.
 - `-Tipo Notebook|Mobile` — tipo do dispositivo criado no auto-cadastro (padrão `Notebook`).
   `Telefone` não existe mais: celular e tablet são `Mobile`.
 - `-Simular` — kit de teste: o agente não trava a tela de verdade.

@@ -17,6 +17,7 @@ servidor que continua de pé, basta o [backup-e-chaves.md](backup-e-chaves.md#re
 | Último `.bak` do `TrackerDb` + zip do `C:\TrackerDados` | Cópia **fora do servidor** (compartilhamento de backup) |
 | `Encryption__CpfKeyBase64` | Cofre de senhas da TI |
 | `Enrollment__CompanyKey` | Cofre de senhas da TI |
+| `Snmp__Community` (se as impressoras usam community própria) | Cofre de senhas da TI |
 | Senha do login SQL `tracker_app` | Cofre (ou crie uma nova no passo 2) |
 | Certificado HTTPS (`.pfx` + senha) ou acesso ao win-acme | Cofre / equipe de infra |
 | Acesso de admin ao repositório no GitHub | Para registrar o runner de novo |
@@ -72,6 +73,8 @@ Com os valores **do cofre**, nunca com valores novos. O modelo dos comandos est�
 - `Enrollment__CompanyKey`
 - `Storage__TermosDeUsoPath` = `C:\TrackerDados\termos-de-uso`
 - `Storage__PacotesAgentePath` = `C:\TrackerDados\pacotes-agente`
+- `Snmp__Community`: a mesma configurada nas impressoras; sem ela, as que usam community própria
+  aparecem **offline**.
 - `Seed__*`: **dispensáveis**. O banco restaurado já tem os logins, e o seed só age quando não
   existe nenhum.
 
@@ -125,6 +128,7 @@ concluída. O servidor novo começa sem proteção nenhuma.
 - [ ] Um notebook e um celular voltam a mandar heartbeat (coluna **Último heartbeat** atualiza em
       até alguns minutos).
 - [ ] Um bloqueio e um desbloqueio de teste num aparelho de laboratório.
+- [ ] Uma impressora monitorada aparece **Online** (prova a `Snmp__Community` e a UDP 161).
 - [ ] Backup diário agendado e o primeiro `.bak` conferido.
 - [ ] O FOOD-ACADEMY continua no ar, se estiver no mesmo servidor.
 
