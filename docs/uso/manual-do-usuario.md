@@ -28,13 +28,13 @@ por tarefa: procure o que você quer fazer.
 
 ### Busca global
 
-Barra no topo: digite 2+ letras. Encontra **dispositivos** (série, patrimônio, hostname, IMEI,
-nome do detentor, unidade; nas impressoras, também o endereço de rede e o modelo) e **usuários** (nome, e-mail, telefone — o CPF não é pesquisável).
+Barra no topo: digite 2+ letras. Encontra **dispositivos** (identificação interna, como `MAQ-0123`,
+série, patrimônio, hostname, IMEI, nome do detentor, unidade; nas impressoras, também o endereço de rede e o modelo) e **usuários** (nome, e-mail, telefone — o CPF não é pesquisável).
 
 - ↑/↓ escolhe, Enter abre, Esc fecha.
-- Enter sem escolher nada abre a lista de Dispositivos filtrada pelo termo — essa busca da lista
-  é mais ampla e **também encontra a identificação interna** (ex.: `MAQ-0123`), que a barra não
-  encontra.
+- Cada dispositivo aparece pela identificação exibida (identificação interna; se vazia, hostname;
+  se vazio, série), igual à lista.
+- Enter sem escolher nada abre a lista de Dispositivos filtrada pelo termo.
 
 ---
 
@@ -226,6 +226,9 @@ permissão *Bloquear/desbloquear*; **Gerar token** exige *Cadastrar/editar*.
   comando como falho: um comando parado em Pendente/Enviado por muito tempo significa que o
   aparelho não recebeu — confira o **Último heartbeat** e a **Proteção do agente**.
 - O bloqueio é **persistente**: continua após reiniciar e sem internet. Só a TI desbloqueia.
+  Se o sinal de bloqueio for apagado no aparelho (celular, tablet ou notebook), o agente volta a
+  travar no próximo contato com o servidor e o painel mostra o alerta **Bloqueio reaplicado**.
+  No notebook isso vale a partir do instalador gerado em 13/10/2026.
 - **Desbloquear:** quando o agente confirma, o aparelho que estava **Bloqueado** volta para
   **Em uso** se tiver responsável (o detentor, ou a unidade no ativo do local) ou para **Em
   estoque**. O desbloqueio não mexe em outro status (Baixado e Em manutenção ficam como estão).
@@ -414,9 +417,11 @@ cada um: [melhorias-pendentes.md](../desenvolvimento/melhorias-pendentes.md).
   no inventário depois de se recadastrar. Arquive o registro que sobrar.
 - Alguns rótulos aparecem em forma técnica: status do reparo (`EmAndamento`, `Concluido`),
   comandos (`Bloquear`, `Pendente`) e origem da localização (`GpsAndroid`, `IpGeolocationWindows`).
-- A busca global não encontra pela identificação interna (use Enter para buscar na lista).
 - Relatórios não estão disponíveis no menu do celular.
-- A versão do agente Windows aparece sempre como **1.0.0**, seja qual for o instalador usado.
+- Notebooks com instalador anterior a 13/10/2026 continuam mostrando a versão **1.0.0** até
+  serem reinstalados com o `.exe` novo.
+- Notebooks recebem versão nova do agente **só ao reiniciar com a rede da empresa** (pela GPO).
+  Quem só hiberna ou trabalha fora sem VPN fica na versão antiga até reiniciar no escritório.
 - Celular/tablet que perde o token (token regenerado, servidor restaurado) **não volta sozinho**:
   é preciso refazer o registro no app.
 - Abrir um dispositivo **arquivado** mostra "não encontrado": restaure-o para ver o detalhe.

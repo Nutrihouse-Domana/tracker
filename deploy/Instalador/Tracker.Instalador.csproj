@@ -21,6 +21,11 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
 
+    <!-- Versao do pacote: o gerar-pendrive.ps1 carimba a tag da release (-p:InformationalVersion).
+         O instalador a grava em C:\TrackerAgent\versao.txt; o script da GPO compara com a da rede. -->
+    <InformationalVersion>0.0.0-dev</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+
     <AssemblyTitle>Instalador do Tracker Agent - Nutrihouse</AssemblyTitle>
     <Product>Tracker Agent</Product>
     <Company>Nutrihouse</Company>

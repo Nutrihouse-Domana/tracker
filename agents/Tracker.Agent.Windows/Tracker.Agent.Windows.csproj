@@ -6,6 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <OutputType>exe</OutputType>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- Versao enviada no heartbeat. O gerar-pendrive.ps1 sobrescreve com a tag da release
+         (-p:InformationalVersion=...). Sem o sufixo "+<commit>" que o SDK acrescentaria. -->
+    <InformationalVersion>0.0.0-dev</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <UserSecretsId>dotnet-Tracker.Agent.Windows-68e07416-0158-4183-9dda-56655d7f579e</UserSecretsId>
   </PropertyGroup>
 

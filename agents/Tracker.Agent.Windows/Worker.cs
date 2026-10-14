@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Options;
 
@@ -9,7 +10,15 @@ namespace Tracker.Agent.Windows;
 /// </summary>
 public class Worker : BackgroundService
 {
-    private const string Versao = "1.0.0";
+    /// <summary>
+    /// Versão informada no heartbeat: a <c>InformationalVersion</c> do assembly, que o
+    /// <c>gerar-pendrive.ps1</c> carimba com a tag da release (sem ela, o padrão do .csproj).
+    /// Era "1.0.0" fixo, e o painel não distinguia quem roda o instalador antigo.
+    /// </summary>
+    private static readonly string Versao =
+        typeof(Worker).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? typeof(Worker).Assembly.GetName().Version?.ToString(3)
+        ?? "desconhecida";
 
     /// <summary>Intervalo de conferência do hub quando está tudo bem (troca de token, queda).</summary>
     private static readonly TimeSpan ConferenciaHub = TimeSpan.FromSeconds(10);
@@ -88,6 +97,9 @@ public class Worker : BackgroundService
             try
             {
                 var loc = await _geo.ObterAsync(stoppingToken);
+                // Lida ANTES de enviar: se um comando for aplicado depois disto (neste ciclo ou pelo
+                // hub em paralelo), o deveEstarBloqueado desta resposta já está velho.
+                var geracaoNoInicio = _executor.GeracaoComandos;
                 var resp = await _backend.EnviarHeartbeatAsync(loc, Versao, stoppingToken);
 
                 if (resp?.ComandosPendentes is { Count: > 0 } pendentes)
@@ -96,6 +108,10 @@ public class Worker : BackgroundService
                     foreach (var c in pendentes)
                         await _executor.ProcessarAsync(c, stoppingToken);
                 }
+
+                // Estado desejado do servidor: recupera a trava se o locked.flag sumiu.
+                if (resp is not null)
+                    await _executor.SincronizarBloqueioAsync(resp.DeveEstarBloqueado, geracaoNoInicio, stoppingToken);
             }
             catch (OperationCanceledException) { break; }
             catch (TokenInvalidoException)

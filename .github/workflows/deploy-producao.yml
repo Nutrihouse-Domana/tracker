@@ -213,7 +213,7 @@ jobs:
           }
 
           # O gerar-pendrive.ps1 roda no mesmo processo e lanca excecao em qualquer falha.
-          .\deploy\gerar-pendrive.ps1 -Destino $destino -BackendUrl $backend -EnrollmentKey $chave -Tipo Notebook
+          .\deploy\gerar-pendrive.ps1 -Destino $destino -BackendUrl $backend -EnrollmentKey $chave -Tipo Notebook -Versao $tag
 
           # Mantem o 'Instalar-Agente.exe' (ultimo) e uma copia versionada pela tag.
           Copy-Item $exeAtual (Join-Path $destino ("Instalar-Agente-" + $tag + ".exe")) -Force
@@ -224,4 +224,37 @@ jobs:
 
           # O wrapper do Actions encerra com o $LASTEXITCODE do ultimo exe nativo (ex.: um
           # git cat-file que falhou acima): sem este exit, o passo falharia apos gerar certo.
+          exit 0
+
+      # ---------------------------------------------------------------------------
+      # Leva o instalador para a pasta de rede lida pela GPO "Deploy Tracker Agent": as maquinas
+      # se atualizam sozinhas no proximo boot (deploy\gpo\gpo_installer.cmd compara o versao.txt).
+      # A pasta fica NESTE servidor (.254): F:\AgentTracker, compartilhada para os notebooks. A
+      # variavel de MAQUINA TRACKER_AGENTE_GPO troca o caminho; sem ela e sem a pasta padrao, o
+      # passo so avisa. A conta do servico do runner precisa GRAVAR na pasta. Roda em
+      # todo deploy, nao so quando o agente foi regerado: publicar-agente-gpo.ps1 compara a versao
+      # e nao faz nada se a pasta ja esta em dia - assim uma falha aqui (pasta fora do ar) se
+      # corrige sozinha na release seguinte. continue-on-error: o site ja foi publicado.
+      # Guia: docs/agentes/atualizacao-agente-gpo.md
+      # ---------------------------------------------------------------------------
+      - name: Publicar agente Windows na pasta da GPO
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pastaGpo = if ($env:TRACKER_AGENTE_GPO) { $env:TRACKER_AGENTE_GPO } else { 'F:\AgentTracker' }
+          if (-not $env:TRACKER_AGENTE_GPO -and -not (Test-Path $pastaGpo)) {
+            Write-Host "Pasta padrao da GPO ($pastaGpo) nao existe neste servidor e TRACKER_AGENTE_GPO nao definida; publicacao na GPO desligada."
+            exit 0
+          }
+          $origem = if ($env:TRACKER_AGENTE_DIST) { $env:TRACKER_AGENTE_DIST } else { 'C:\TrackerAgentDist' }
+          try {
+            .\deploy\publicar-agente-gpo.ps1 -Origem $origem -PastaGpo $pastaGpo
+            $versao = (Get-Content (Join-Path $origem 'versao.txt') -TotalCount 1).Trim()
+            "### Agente Windows na GPO`nPasta ``$pastaGpo`` na versao **$versao**. As maquinas atualizam no proximo boot." |
+              Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          } catch {
+            "### Agente Windows NAO publicado na GPO`n$($_.Exception.Message)" |
+              Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+            throw
+          }
           exit 0

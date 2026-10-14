@@ -9,8 +9,8 @@ using Tracker.Infrastructure.Data;
 namespace Tracker.Api.Controllers;
 
 /// <summary>
-/// Busca global do topo do site: procura dispositivos (nº de série, asset tag, hostname, IMEI,
-/// nome do usuário atual) e usuários (nome, e-mail, telefone). CPF é criptografado em repouso,
+/// Busca global do topo do site: procura dispositivos (identificação interna, nº de série, asset
+/// tag, hostname, IMEI, nome do usuário atual) e usuários (nome, e-mail, telefone). CPF é criptografado em repouso,
 /// portanto não é pesquisável.
 /// </summary>
 [ApiController]
@@ -48,7 +48,8 @@ public class BuscaController : ControllerBase
     private async Task<List<BuscaDispositivoDto>> BuscarDispositivos(string padrao, int limite)
     {
         var idsBase = _db.Dispositivos
-            .Where(d => EF.Functions.Like(d.NumeroSerie, padrao, "\\")
+            .Where(d => EF.Functions.Like(d.IdentificacaoInterna, padrao, "\\")
+                        || EF.Functions.Like(d.NumeroSerie, padrao, "\\")
                         || EF.Functions.Like(d.AssetTag, padrao, "\\")
                         || (d.UsuarioAtual != null && EF.Functions.Like(d.UsuarioAtual.Nome, padrao, "\\"))
                         || (d.Unidade != null && EF.Functions.Like(d.Unidade.Nome, padrao, "\\")))
@@ -92,7 +93,8 @@ public class BuscaController : ControllerBase
             (d as Mobile)?.Imei,
             d.UsuarioAtual?.Nome,
             d.Unidade?.Nome,
-            d.PertenceAUsuario ? d.UsuarioAtual?.Nome : d.Unidade?.Nome)).ToList();
+            d.PertenceAUsuario ? d.UsuarioAtual?.Nome : d.Unidade?.Nome,
+            d.IdentificacaoInterna)).ToList();
     }
 
     private Task<List<BuscaUsuarioDto>> BuscarUsuarios(string padrao, int limite) =>

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Tracker.Api.Controllers;
 using Tracker.Application.Dtos;
+using Tracker.Domain.Entities;
 using Tracker.Infrastructure.Data;
 using Xunit;
 
@@ -80,6 +81,47 @@ public class BuscaTests : IClassFixture<WebApplicationFactory<Program>>
         var ok = Assert.IsType<OkObjectResult>(resultado.Result);
         var dto = Assert.IsType<BuscaGlobalDto>(ok.Value);
         Assert.Contains(dto.Dispositivos, d => d.Id == existente.Id);
+    }
+
+    /// <summary>
+    /// A TI procura os ativos pelo rótulo manual (ex.: MAQ-0123): ele precisa achar o aparelho e
+    /// voltar no resultado, inclusive na impressora, que tem consulta própria para os demais campos.
+    /// </summary>
+    [Fact]
+    public async Task Busca_PorIdentificacaoInterna_EncontraEDevolveORotulo()
+    {
+        var banco = AbrirBanco();
+        if (banco is null) return; // sem banco disponível (CI): nada a verificar
+        using var scope = banco.Value.Escopo;
+        var db = banco.Value.Db;
+
+        var sufixo = Guid.NewGuid().ToString("N")[..10];
+        var notebook = new Notebook
+        {
+            NumeroSerie = $"NB-{Guid.NewGuid():N}", IdentificacaoInterna = $"MAQ-{sufixo}",
+            Hostname = "nb-busca", SistemaOperacional = "Windows", DataAquisicao = DateTime.UtcNow,
+        };
+        var impressora = new Impressora
+        {
+            NumeroSerie = $"IMP-{Guid.NewGuid():N}", IdentificacaoInterna = $"IMP-{sufixo}",
+            PertenceAUsuario = false, DataAquisicao = DateTime.UtcNow,
+        };
+        db.Dispositivos.AddRange(notebook, impressora);
+        await db.SaveChangesAsync();
+
+        try
+        {
+            var dto = Assert.IsType<BuscaGlobalDto>(
+                Assert.IsType<OkObjectResult>((await new BuscaController(db).Buscar(sufixo)).Result).Value);
+
+            Assert.Contains(dto.Dispositivos, d => d.Id == notebook.Id && d.IdentificacaoInterna == $"MAQ-{sufixo}");
+            Assert.Contains(dto.Dispositivos, d => d.Id == impressora.Id && d.IdentificacaoInterna == $"IMP-{sufixo}");
+        }
+        finally
+        {
+            db.Dispositivos.RemoveRange(notebook, impressora);
+            await db.SaveChangesAsync();
+        }
     }
 
     [Fact]

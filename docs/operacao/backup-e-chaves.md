@@ -198,7 +198,10 @@ Registre a data e o resultado de cada teste.
 - É o "código da empresa" que autoriza um agente novo a se cadastrar sozinho. Os agentes já
   cadastrados usam token próprio e **não dependem dela** depois do cadastro.
 - **Está em dois lugares:** na variável de ambiente do servidor (a API e o runner do CI) e
-  **embutida no `Instalar-Agente.exe`** do agente Windows. No Android, o técnico digita o código
+  **embutida no `Instalar-Agente.exe`** do agente Windows, que por isso **nunca** fica numa pasta
+  que qualquer usuário lê: nem `wwwroot`, nem NETLOGON/SYSVOL (até 14/10/2026 ficou em
+  `\\NHNTAPP001\netlogon\agentTracker`, legível por todo o domínio: item 36 de
+  [melhorias-pendentes.md](../desenvolvimento/melhorias-pendentes.md)). No Android, o técnico digita o código
   na tela de registro.
 - **Trocar (se vazar, ou por rotina):**
   1. Defina o valor novo no servidor:
@@ -208,8 +211,9 @@ Registre a data e o resultado de cada teste.
   3. Regere o instalador Windows: `.\deploy\gerar-pendrive.ps1` com `-EnrollmentKey`, ou apague
      `C:\TrackerAgentDist\ultima-geracao.txt` e crie a próxima tag (o CI só regera quando o agente
      mudou desde a última geração, ou quando o marcador falta — trocar a chave não muda código).
-     **Descarte os `.exe` antigos** de pendrives e de `C:\TrackerAgentDist`: eles contêm a chave
-     velha e vão falhar no cadastro.
+     **Descarte os `.exe` antigos** de pendrives, de `C:\TrackerAgentDist` e da pasta da GPO
+     (`\\192.168.0.254\AgentTracker`, e o antigo `\\NHNTAPP001\netlogon\agentTracker`): eles contêm
+     a chave velha e vão falhar no cadastro.
   4. Passe o código novo aos técnicos que registram aparelhos Android.
 - Use um valor longo (20+ caracteres). Não há motivo para ser curto: ninguém digita isso de
   memória, e no Android o técnico copia do cofre.

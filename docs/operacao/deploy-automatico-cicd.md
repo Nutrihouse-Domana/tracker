@@ -26,6 +26,9 @@ Você cria a tag v1.2.0  ->  GitHub Actions (self-hosted runner on-prem)
 - **Instalador do agente Windows:** regerado em `C:\TrackerAgentDist` **só se o agente mudou**
   desde a **última geração bem-sucedida** (roda depois do deploy; falha aqui não desfaz o site).
   Detalhes em [Instalador do agente Windows](#instalador-do-agente-windows).
+- **Agente na GPO:** o último passo leva o instalador para `F:\AgentTracker` (no próprio servidor,
+  compartilhada como `\\192.168.0.254\AgentTracker`), e os notebooks se atualizam no próximo boot. Ver
+  [atualizacao-agente-gpo.md](../agentes/atualizacao-agente-gpo.md).
 
 Arquivos: [`.github/workflows/deploy-producao.yml`](../../.github/workflows/deploy-producao.yml) e
 [`deploy/atualizar-servidor.ps1`](../../deploy/atualizar-servidor.ps1).
@@ -94,6 +97,7 @@ No servidor `192.168.0.254`, como **Administrador**:
   O passo do instalador do agente lê `Enrollment__CompanyKey` dessa mesma env da máquina.
   Opcionais: `TRACKER_BACKEND_URL` (padrão: URL de produção) e `TRACKER_AGENTE_DIST`
   (padrão: `C:\TrackerAgentDist` — fica **fora do `wwwroot`**, pois o `.exe` embute a chave).
+  `TRACKER_AGENTE_GPO` troca a pasta da GPO (padrão: `F:\AgentTracker`, usada se existir).
 
 ---
 
@@ -136,6 +140,18 @@ mudança o marcador ainda não existe, então o agente é regerado uma vez.**
 
 **Forçar a regeração** (ex.: depois de trocar o `Enrollment__CompanyKey`, que não muda código):
 apague `C:\TrackerAgentDist\ultima-geracao.txt` antes da próxima tag.
+
+O `gerar-pendrive.ps1` recebe `-Versao <tag>`: a versão vai para o agente (coluna de versão do
+painel), para o instalador e para o `C:\TrackerAgentDist\versao.txt`.
+
+### Publicação na pasta da GPO
+
+Passo **Publicar agente Windows na pasta da GPO**, depois da geração. Roda em **todo** deploy,
+não só quando o agente foi regerado: o `publicar-agente-gpo.ps1` compara o `versao.txt` da pasta
+com o de `C:\TrackerAgentDist` e não faz nada se já estiverem iguais. Assim, uma falha (pasta fora do ar,
+permissão) se corrige sozinha na release seguinte. Tem `continue-on-error`: o site já foi
+publicado. O resultado aparece no resumo do run. Fica desligado se `F:\AgentTracker` não existir e `TRACKER_AGENTE_GPO` não estiver definida.
+Guia completo: [atualizacao-agente-gpo.md](../agentes/atualizacao-agente-gpo.md).
 
 ---
 

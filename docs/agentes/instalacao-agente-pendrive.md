@@ -46,6 +46,11 @@ dispositivo não é duplicado no backend.
 Desinstalar: `Instalar-Agente.exe --desinstalar` (remove serviço, tarefa e o sinal de
 bloqueio, mantendo `C:\TrackerAgent` com log e token para diagnóstico).
 
+Sem ninguém na frente da máquina (GPO, instalação remota): `Instalar-Agente.exe --silencioso`
+termina sem o "Pressione ENTER". Ao concluir com sucesso, o instalador grava
+`C:\TrackerAgent\versao.txt` com a versão do pacote. Na frota, quem instala e atualiza é a GPO:
+[atualizacao-agente-gpo.md](atualizacao-agente-gpo.md).
+
 ## Por que um `.exe` autocontido
 
 Três restrições do ambiente da Nutrihouse moldaram o desenho — vale conhecer antes de
