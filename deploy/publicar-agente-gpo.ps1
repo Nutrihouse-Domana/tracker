@@ -12,6 +12,8 @@
   em andamento), e um arquivo aberto na rede nao pode ser sobrescrito. Com um nome por versao a
   copia nunca briga com ninguem, e o versao.txt so aponta para o novo depois que ele chegou inteiro.
 
+  Tambem mantem o proprio deploy\gpo\gpo_installer.cmd na pasta (so quando o conteudo muda).
+
   Idempotente: se a pasta ja estiver nessa versao, nao faz nada. Rode a mao ou pelo CI
   (pasta padrao F:\AgentTracker no servidor do runner, ou a variavel TRACKER_AGENTE_GPO). Guia: docs\agentes\atualizacao-agente-gpo.md
 
@@ -46,6 +48,23 @@ if ($versao -notmatch '^[0-9A-Za-z.+-]+$') { throw "Versao invalida em ${versaoO
 
 if (-not (Test-Path $PastaGpo)) {
     throw "Pasta da GPO inacessivel: $PastaGpo. Confira o compartilhamento e se a conta deste processo ($env:USERDOMAIN\$env:USERNAME) pode gravar nele."
+}
+
+# Script da GPO (gpo_installer.cmd): copiado so quando o conteudo MUDOU, e trocado de uma vez
+# (copia temporaria + rename), nunca reescrito no lugar. O cmd.exe le o .bat linha a linha pela
+# rede enquanto roda: reescrever o arquivo no meio de um boot faria aquela maquina executar um
+# trecho errado. Como ele quase nunca muda, na pratica a troca so acontece na release que o alterar.
+$scriptOrigem = Join-Path $PSScriptRoot "gpo\gpo_installer.cmd"
+$scriptGpo = Join-Path $PastaGpo "gpo_installer.cmd"
+if (Test-Path $scriptOrigem) {
+    $mudou = -not (Test-Path $scriptGpo) -or
+        (Get-FileHash $scriptOrigem -Algorithm SHA256).Hash -ne (Get-FileHash $scriptGpo -Algorithm SHA256).Hash
+    if ($mudou) {
+        $scriptTemp = "$scriptGpo.novo"
+        Copy-Item $scriptOrigem $scriptTemp -Force
+        Move-Item $scriptTemp $scriptGpo -Force
+        Write-Host "gpo_installer.cmd atualizado em $PastaGpo."
+    }
 }
 
 $versaoGpo = Join-Path $PastaGpo "versao.txt"

@@ -723,8 +723,9 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
     `Computadores do domínio`. O `.cmd` fica na MESMA pasta e a GPO aponta para
     `\\192.168.0.254\AgentTracker\gpo_installer.cmd`. **A GPO não transfere arquivo**: cada
     notebook busca o caminho sozinho no boot — unidade mapeada no servidor da GPO ou `\\...\F$`
-    (compartilhamento administrativo) NÃO servem. O CI nunca reescreve o `.cmd` (batch em execução
-    lido pela rede quebra se o arquivo muda no meio).
+    (compartilhamento administrativo) NÃO servem. O CI copia o `.cmd` do repo para a pasta SÓ quando o
+    hash muda, via cópia temporária + rename (batch em execução é lido pela rede linha a linha e
+    quebra se reescrito no meio). `.gitattributes` força CRLF em `*.cmd`/`*.bat` no checkout do runner.
   - **`--silencioso` é obrigatório na GPO**: o instalador terminava em `Console.ReadLine()` e
     seguraria o boot até o tempo-limite dos scripts de GPO. `Encerrar` também pula com entrada redirecionada.
   - **`C:\TrackerAgent\versao.txt` é apagado no início e gravado só no FIM com sucesso** — falha no

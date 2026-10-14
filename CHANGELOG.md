@@ -18,6 +18,19 @@ marcações e escreva do ponto de vista de quem usa ou opera, não do código.
 
 ---
 
+## v1.14.1 — 14/10/2026
+
+O script da GPO passa a ser copiado pelo CI.
+
+- **Banco / Agente Windows / Agente Android:** sem mudança.
+
+**Implantação**
+
+- O CI coloca o `gpo_installer.cmd` em `F:\AgentTracker` sozinho, junto com o instalador. Só
+  copia quando o script muda, sem atrapalhar notebook que esteja ligando naquele momento.
+
+---
+
 ## v1.14.0 — 14/10/2026 · Agente Windows
 
 Atualização automática do agente Windows pela GPO, busca pela identificação interna e agente

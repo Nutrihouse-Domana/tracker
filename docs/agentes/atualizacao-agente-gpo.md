@@ -119,9 +119,11 @@ Sem a variável e sem `F:\AgentTracker`, o passo só avisa que está desligado.
 
 ### 3. Script da GPO
 
-1. Copie [`deploy/gpo/gpo_installer.cmd`](../../deploy/gpo/gpo_installer.cmd) para dentro de
-   `F:\AgentTracker` no `.254`. Ele já aponta para `\\192.168.0.254\AgentTracker` (linha `set "PASTA=..."`).
-   O CI não mexe nesse arquivo: só no `.exe` e no `versao.txt`.
+1. Nada a copiar: o CI coloca o [`deploy/gpo/gpo_installer.cmd`](../../deploy/gpo/gpo_installer.cmd)
+   em `F:\AgentTracker` a cada deploy (desde a v1.14.1), **só quando o conteúdo mudou** e
+   trocando o arquivo de uma vez. O `cmd.exe` lê o script pela rede linha a linha enquanto roda:
+   reescrevê-lo no lugar, no meio de um boot, faria a máquina executar um trecho errado. Para
+   mudar o script, edite-o no repositório (não na pasta: o CI sobrescreve a cópia da pasta).
 2. Na GPO **Deploy Tracker Agent**: *Configuração do Computador → Políticas → Configurações do
    Windows → Scripts → **Inicialização*** → remova o script antigo e adicione
    `\\192.168.0.254\AgentTracker\gpo_installer.cmd`. Precisa ser **Inicialização** (roda como SYSTEM). Como
