@@ -274,7 +274,7 @@ assim que a ação do vencimento escapou da auditoria.
 
 ## 8. Busca global ignora a identificação interna
 
-> ✅ **Resolvido em 13/10/2026 (branch `claude/review-checklist-e2d893`).** `BuscaController`
+> ✅ **Resolvido em 13/10/2026 (PR #48).** `BuscaController`
 > procura também em `IdentificacaoInterna` (na base, então vale para todos os tipos, impressora
 > inclusive) e devolve o campo no `BuscaDispositivoDto`; a `BarraDeBusca` exibe
 > `identificacaoExibida` e repete o hostname no texto secundário. Coberto por
@@ -563,7 +563,7 @@ Cuidado: o domínio `foodsacademy.com.br` é compartilhado. **Não** use `includ
 
 ## 22. Agente Windows ignora "deve estar bloqueado"
 
-> ✅ **Resolvido em 13/10/2026 (branch `claude/review-checklist-e2d893`).** `HeartbeatResposta`
+> ✅ **Resolvido em 13/10/2026 (PR #48).** `HeartbeatResposta`
 > lê `deveEstarBloqueado`; `ExecutorDeComandos.SincronizarBloqueioAsync` recria o `locked.flag` e
 > reporta `BloqueioReaplicado` (novo `BackendClient.ReportarAlertaAsync`) quando o servidor diz
 > bloqueado e o sinal sumiu, e remove a trava quando o servidor diz desbloqueado — mesma regra do
@@ -615,7 +615,7 @@ novo.
 
 ## 24. Agente Windows informa sempre a versão 1.0.0
 
-> ✅ **Resolvido em 13/10/2026 (branch `claude/review-checklist-e2d893`).** `Worker.Versao` lê a
+> ✅ **Resolvido em 13/10/2026 (PR #48).** `Worker.Versao` lê a
 > `AssemblyInformationalVersion`. O `gerar-pendrive.ps1` ganhou `-Versao` (o CI passa a tag;
 > sem ela, `git describe --tags`; sem git, `0.0.0-dev`) e publica com
 > `-p:InformationalVersion=...`. O `.csproj` desliga o sufixo `+<commit>` do SDK. Notebooks com
