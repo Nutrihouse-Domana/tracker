@@ -1,0 +1,4 @@
+# Scripts de lote do Windows sempre com CRLF na copia de trabalho, inclusive no runner do CI:
+# o gpo_installer.cmd vai dali direto para a pasta da GPO, e o cmd.exe tem falhas com LF puro.
+*.cmd text eol=crlf
+*.bat text eol=crlf
