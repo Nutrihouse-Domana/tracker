@@ -14,7 +14,9 @@ public record BuscaDispositivoDto(
     string? UsuarioAtualNome,
     string? UnidadeNome = null,
     // Quem responde pelo ativo: o usuário nominal ou, se for do local, a unidade.
-    string? ResponsavelNome = null);
+    string? ResponsavelNome = null,
+    // Rótulo manual da TI; o site exibe identificacaoExibida (rótulo → hostname → série).
+    string? IdentificacaoInterna = null);
 
 /// <summary>Item de usuário no resultado da busca global.</summary>
 public record BuscaUsuarioDto(

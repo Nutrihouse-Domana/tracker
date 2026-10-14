@@ -43,7 +43,11 @@ public sealed class TipoComandoTolerante : JsonConverter<string>
     public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) =>
         writer.WriteStringValue(value);
 }
-public record HeartbeatResposta(List<ComandoPendente> ComandosPendentes);
+/// <summary>
+/// Resposta do heartbeat. <see cref="DeveEstarBloqueado"/> é o estado desejado segundo o servidor
+/// (último comando vigente, senão o status): o agente o usa para recuperar o sinal local perdido.
+/// </summary>
+public record HeartbeatResposta(List<ComandoPendente> ComandosPendentes, bool DeveEstarBloqueado = false);
 
 /// <summary>O backend rejeitou o token (401). Sinaliza ao Worker que é hora de re-cadastrar.</summary>
 public class TokenInvalidoException : Exception;
@@ -90,6 +94,18 @@ public class BackendClient
         if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized) throw new TokenInvalidoException();
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<HeartbeatResposta>(cancellationToken: ct);
+    }
+
+    /// <summary>
+    /// Reporta um alerta ao painel. <paramref name="tipo"/> é o nome do enum
+    /// <c>TipoAlertaDispositivo</c> do backend (ex.: "BloqueioReaplicado"), que o aceita como texto.
+    /// </summary>
+    public async Task ReportarAlertaAsync(string tipo, string? detalhe, CancellationToken ct)
+    {
+        var http = _factory.CreateClient("backend");
+        var resp = await http.SendAsync(Requisicao(HttpMethod.Post, "/api/agente/alertas", new { tipo, detalhe }), ct);
+        if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized) throw new TokenInvalidoException();
+        resp.EnsureSuccessStatusCode();
     }
 
     public async Task ConfirmarComandoAsync(Guid comandoId, CancellationToken ct)

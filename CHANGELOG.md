@@ -8,13 +8,47 @@ Mudanças de cada versão do Tracker publicadas em produção. Cada tag `v*` é 
 - **Banco:** a versão aplica uma migração no start. Rollback só de arquivos **não** desfaz a
   migração; é preciso restaurar o backup do banco ([docs/operacao/backup-e-chaves.md](docs/operacao/backup-e-chaves.md)).
 - **Agente Windows:** o instalador (`Instalar-Agente.exe`) mudou. O CI o regera em
-  `C:\TrackerAgentDist`. A frota Windows **não se atualiza sozinha**: reinstale nos notebooks
-  quando a mudança importar para eles.
+  `C:\TrackerAgentDist` e, a partir da v1.14.0, o publica em `F:\AgentTracker`: os notebooks se
+  atualizam pela GPO no próximo boot ([docs/agentes/atualizacao-agente-gpo.md](docs/agentes/atualizacao-agente-gpo.md)).
 - **Agente Android:** saiu um APK novo (`versionCode`). Ele chega à frota por OTA **depois de
   publicado na página Agente do painel**.
 
 **Ao criar uma tag:** acrescente a seção da versão no topo, antes do `git tag`. Use as mesmas
 marcações e escreva do ponto de vista de quem usa ou opera, não do código.
+
+---
+
+## v1.14.0 — 14/10/2026 · Agente Windows
+
+Atualização automática do agente Windows pela GPO, busca pela identificação interna e agente
+Windows que recupera a trava sozinho.
+
+- **Banco / Agente Android:** sem mudança.
+- **Agente Windows:** instalador novo. Só chega aos notebooks depois de configurar a GPO (abaixo)
+  ou reinstalando à mão.
+
+**Busca**
+
+- A barra de busca do topo encontra pela **identificação interna** (ex.: `MAQ-0123`) e mostra cada
+  dispositivo pela identificação exibida, igual à lista.
+
+**Agente Windows**
+
+- Se o sinal de bloqueio for apagado no notebook, o agente volta a travar no próximo contato com
+  o servidor e o painel mostra o alerta **Bloqueio reaplicado**. Se o servidor já não o considera
+  bloqueado, a trava local é removida.
+- A coluna de versão do agente mostra a versão real (a tag da release). Instaladores antigos
+  continuam aparecendo como `1.0.0` até serem trocados.
+
+**Implantação**
+
+- O CI publica o instalador em `F:\AgentTracker` do servidor (`\\192.168.0.254\AgentTracker`). A
+  GPO **Deploy Tracker Agent** passa a apontar para `\\192.168.0.254\AgentTracker\gpo_installer.cmd`,
+  que só reinstala quando a versão publicada muda. Passo a passo em
+  [docs/agentes/atualizacao-agente-gpo.md](docs/agentes/atualizacao-agente-gpo.md).
+- Na primeira vez, todos os notebooks se reinstalam uma vez (sem duplicar o inventário).
+- O instalador sai da NETLOGON, que qualquer usuário do domínio lê: o `.exe` embute o código de
+  instalação. A troca desse código continua pendente.
 
 ---
 

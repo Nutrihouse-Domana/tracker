@@ -30,7 +30,7 @@ As regras do projeto continuam valendo em toda correção:
 | 5 | [Atribuir e Alterar status escondem o motivo do erro](#5-atribuir-e-alterar-status-escondem-o-motivo-do-erro) — ✅ Resolvido em 24/09/2026 | Média | Pequeno |
 | 6 | [Login não distingue desativado/bloqueado](#6-login-não-distingue-desativado-ou-bloqueado) — **Parcial** (desativado ok; falta lockout) | Baixa | Pequeno |
 | 7 | [Rótulos técnicos sem tradução](#7-rótulos-técnicos-sem-tradução) — **Parcial** (auditoria ok; faltam reparo, comandos e origem) | Baixa | Pequeno |
-| 8 | [Busca global ignora a identificação interna](#8-busca-global-ignora-a-identificação-interna) | Média | Pequeno |
+| 8 | [Busca global ignora a identificação interna](#8-busca-global-ignora-a-identificação-interna) — ✅ Resolvido em 13/10/2026 | Média | Pequeno |
 | 9 | [Relatórios ausentes no menu do celular](#9-relatórios-ausentes-no-menu-do-celular) | Baixa | Pequeno/Médio |
 | 10 | [Detalhe de arquivado mostra "não encontrado"](#10-detalhe-de-arquivado-mostra-não-encontrado) | Baixa | Médio |
 | 11 | [Status de comando "Falhou" nunca é gravado](#11-status-de-comando-falhou-nunca-é-gravado) | Média | Médio |
@@ -44,9 +44,9 @@ As regras do projeto continuam valendo em toda correção:
 | 19 | [Token do agente na URL e em texto puro](#19-token-do-agente-na-url-e-em-texto-puro) | Média | Médio |
 | 20 | [Conferir o IP gravado na auditoria](#20-conferir-o-ip-gravado-na-auditoria) | Baixa | Pequeno |
 | 21 | [HSTS não configurado na aplicação](#21-hsts-não-configurado-na-aplicação) | Baixa | Trivial |
-| 22 | [Agente Windows ignora "deve estar bloqueado"](#22-agente-windows-ignora-deve-estar-bloqueado) | Média | Pequeno |
+| 22 | [Agente Windows ignora "deve estar bloqueado"](#22-agente-windows-ignora-deve-estar-bloqueado) — ✅ Resolvido em 13/10/2026 | Média | Pequeno |
 | 23 | [Agente Android não se recadastra sozinho](#23-agente-android-não-se-recadastra-sozinho) | Média | Médio |
-| 24 | [Agente Windows informa sempre a versão 1.0.0](#24-agente-windows-informa-sempre-a-versão-100) | Média | Trivial |
+| 24 | [Agente Windows informa sempre a versão 1.0.0](#24-agente-windows-informa-sempre-a-versão-100) — ✅ Resolvido em 13/10/2026 | Média | Trivial |
 | 25 | [Inconsistências menores nos agentes](#25-inconsistências-menores-nos-agentes) — **Parcial** (comentários "Telefone" e "2 min" ok) | Baixa | Trivial |
 | 26 | [Trocar o código de instalação vazado no histórico do Git](#26-trocar-o-código-de-instalação-vazado-no-histórico-do-git) | **Alta** | Pequeno |
 | 27 | [Android bloqueado com token revogado fica preso](#27-android-bloqueado-com-token-revogado-fica-preso) | Média | Médio |
@@ -58,13 +58,15 @@ As regras do projeto continuam valendo em toda correção:
 | 33 | [Aparelho perdido fica Bloqueado para sempre](#33-aparelho-perdido-fica-bloqueado-para-sempre) — ✅ Resolvido em 24/09/2026 | Média | Pequeno |
 | 34 | [Agente pode postar alerta de impressora](#34-agente-pode-postar-alerta-de-impressora) | Baixa | Trivial |
 | 35 | [`@microsoft/signalr` instalado no site sem uso](#35-microsoftsignalr-instalado-no-site-sem-uso) | Baixa | Trivial |
+| 36 | [Instalador do agente na NETLOGON expõe o código de instalação](#36-instalador-do-agente-na-netlogon-expõe-o-código-de-instalação) | **Alta** | Pequeno |
+| 37 | [Agente Windows sem atualização automática própria](#37-agente-windows-sem-atualização-automática-própria) | Média | Grande |
 
 **Sugestão de ordem:**
 
-0. Item **26** antes de tudo: é segurança e não depende de código (só da troca da chave).
+0. Itens **26 e 36** antes de tudo: são segurança e não dependem de código (pasta nova da GPO + troca da chave).
 1. Item **1**: é o que mais afeta o dia a dia (o 3 já foi resolvido).
 2. O que sobrou do item **2** (confirmação no Restaurar) e o **6** (mensagem de lockout).
-3. Itens **8, 11, 22 e 24** (os dois últimos são pequenos e melhoram o diagnóstico da frota).
+3. Item **11** (8, 22 e 24 resolvidos em 13/10/2026) — antes, decida a política: ver o risco descrito nele.
 4. Itens **15 a 19** (privacidade): vários dependem de decisão do jurídico/DPO — ver
    [privacidade-lgpd.md](../privacidade/privacidade-lgpd.md#para-o-jurídico-decidir). O **16** não depende e pode
    ir já.
@@ -272,6 +274,12 @@ assim que a ação do vencimento escapou da auditoria.
 
 ## 8. Busca global ignora a identificação interna
 
+> ✅ **Resolvido em 13/10/2026 (branch `claude/review-checklist-e2d893`).** `BuscaController`
+> procura também em `IdentificacaoInterna` (na base, então vale para todos os tipos, impressora
+> inclusive) e devolve o campo no `BuscaDispositivoDto`; a `BarraDeBusca` exibe
+> `identificacaoExibida` e repete o hostname no texto secundário. Coberto por
+> `BuscaTests.Busca_PorIdentificacaoInterna_EncontraEDevolveORotulo`.
+
 **Problema:** a barra de busca do topo procura por série, patrimônio, detentor, unidade, hostname
 e IMEI, mas **não** por `IdentificacaoInterna`. Os resultados também exibem hostname/série em vez
 da identificação exibida. A busca da lista (Enter) procura nela.
@@ -346,6 +354,12 @@ bloquear" indefinidamente, o que é perigoso num caso de roubo.
   recebidos depois do envio sem confirmação. Não use prazo fixo: um aparelho offline legitimamente
   não falhou.
 - Exibir alerta no detalhe quando o último comando falhou.
+
+**Risco a pesar antes de marcar `Falhou` por prazo (levantado em 13/10/2026):** comando `Falhou`
+sai da reentrega do heartbeat **e** é ignorado por `UltimoComandoVigenteAsync`. Um Bloquear
+marcado assim deixaria de chegar ao aparelho e o `deveEstarBloqueado` voltaria ao comando
+anterior/status — num roubo, o aparelho ficaria livre. Alternativa mais segura: só gerar um
+**alerta** "comando sem confirmação" após N heartbeats, mantendo o comando `Enviado`.
 
 **Decisão a tomar:** política de prazo e se o sistema reenvia automaticamente. Mexe no protocolo
 dos **dois** agentes (Windows e Android). O Android exige `versionCode` novo e OTA.
@@ -549,6 +563,14 @@ Cuidado: o domínio `foodsacademy.com.br` é compartilhado. **Não** use `includ
 
 ## 22. Agente Windows ignora "deve estar bloqueado"
 
+> ✅ **Resolvido em 13/10/2026 (branch `claude/review-checklist-e2d893`).** `HeartbeatResposta`
+> lê `deveEstarBloqueado`; `ExecutorDeComandos.SincronizarBloqueioAsync` recria o `locked.flag` e
+> reporta `BloqueioReaplicado` (novo `BackendClient.ReportarAlertaAsync`) quando o servidor diz
+> bloqueado e o sinal sumiu, e remove a trava quando o servidor diz desbloqueado — mesma regra do
+> Android, com o contador `_geracaoComandos` descartando resposta mais velha que o último comando
+> (senão um Desbloquear do hub seria desfeito por um heartbeat em voo). Com `Simular=true` só loga.
+> Chega à frota só **reinstalando** com o `.exe` novo (não há OTA no Windows).
+
 **Problema:** a resposta do heartbeat traz `deveEstarBloqueado`, e o Android reaplica o bloqueio
 quando ele vem verdadeiro (gera o alerta *Bloqueio reaplicado*). O agente Windows lê só a lista
 de comandos. Se o arquivo-sinal `locked.flag` sumir (limpeza, restauração, alguém com acesso de
@@ -592,6 +614,12 @@ novo.
 ---
 
 ## 24. Agente Windows informa sempre a versão 1.0.0
+
+> ✅ **Resolvido em 13/10/2026 (branch `claude/review-checklist-e2d893`).** `Worker.Versao` lê a
+> `AssemblyInformationalVersion`. O `gerar-pendrive.ps1` ganhou `-Versao` (o CI passa a tag;
+> sem ela, `git describe --tags`; sem git, `0.0.0-dev`) e publica com
+> `-p:InformationalVersion=...`. O `.csproj` desliga o sufixo `+<commit>` do SDK. Notebooks com
+> instalador antigo seguem mandando `1.0.0` até serem reinstalados.
 
 **Problema:** o agente Windows manda `agenteVersao = "1.0.0"` fixo no código, em qualquer release.
 
@@ -847,3 +875,47 @@ mais para instalar, atualizar e auditar.
 cache de `node_modules` do CI uma vez). Se um dia o painel for atualizar em tempo real, ela volta.
 
 **Verificar:** `npm --prefix src/Tracker.Web run build` passa sem ela.
+
+---
+
+## 36. Instalador do agente na NETLOGON expõe o código de instalação
+
+**Problema:** a GPO **Deploy Tracker Agent** distribuía o `Instalar-Agente.exe` a partir de
+`\\NHNTAPP001\netlogon\agentTracker`. A NETLOGON é legível por **qualquer usuário do domínio**, e
+o `.exe` traz o `Enrollment__CompanyKey` num `.zip` interno: qualquer pessoa o extrai com o 7-Zip.
+
+**Impacto:** com o código, dá para cadastrar aparelhos falsos no inventário e, sabendo a série ou o
+patrimônio de um aparelho real, gerar um token novo para ele pelo auto-cadastro (o agente real
+recebe 401 e se recadastra, mas o painel passa a receber dados de quem quiser).
+
+**Onde:** fora do código, na pasta da GPO. O fluxo novo está em
+[atualizacao-agente-gpo.md](../agentes/atualizacao-agente-gpo.md).
+
+**Correção sugerida:**
+
+1. Compartilhar `F:\AgentTracker` do servidor `.254` como `\\192.168.0.254\AgentTracker`, com
+   leitura só para `Computadores do domínio` (passo 1 do guia), e trocar o `gpo_installer.cmd`
+   da NETLOGON pelo do repositório.
+2. Apagar o `Instalar-Agente.exe` de `\\NHNTAPP001\netlogon\agentTracker`.
+3. **Trocar o `Enrollment__CompanyKey`** (o valor ficou exposto): junta com o item 26.
+
+**Verificar:** logado como colaborador comum, `dir \\192.168.0.254\AgentTracker` dá acesso negado e
+`\\NHNTAPP001\netlogon\agentTracker` não tem mais `.exe`.
+
+---
+
+## 37. Agente Windows sem atualização automática própria
+
+**Problema:** o Android se atualiza pelo heartbeat (OTA). O Windows depende da GPO, que só roda
+**no boot** e **com a rede da empresa** ([atualizacao-agente-gpo.md](../agentes/atualizacao-agente-gpo.md)).
+
+**Impacto:** notebook que só hiberna, ou que fica fora do escritório sem VPN antes do logon,
+demora ou nunca recebe a versão nova (correções de bloqueio inclusive).
+
+**Correção sugerida:** OTA como a do Android: a TI publica o instalador no painel, o heartbeat
+anuncia a versão (o agente já envia `agenteVersao`), o agente baixa com o próprio token, confere o
+SHA-256 e roda `Instalar-Agente.exe --silencioso` fora do próprio processo (o instalador para o
+serviço). O pacote embute o código de instalação: o download tem de exigir token de agente válido.
+
+**Verificar:** publicar versão nova no painel e ver um notebook fora da rede da empresa mudar de
+versão sem reiniciar.

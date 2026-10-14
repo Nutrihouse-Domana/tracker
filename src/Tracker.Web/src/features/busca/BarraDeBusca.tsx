@@ -20,15 +20,22 @@ import SearchIcon from '@mui/icons-material/SearchOutlined'
 import CloseIcon from '@mui/icons-material/CloseOutlined'
 import { useBuscaGlobal } from './hooks'
 import { corStatus, rotuloStatus } from '../dispositivos/status'
+import { identificacaoExibida } from '../dispositivos/aluguel'
 import type { BuscaDispositivo, BuscaUsuario } from '../../api/types'
 
 type Resultado =
   | { kind: 'dispositivo'; item: BuscaDispositivo }
   | { kind: 'usuario'; item: BuscaUsuario }
 
-/** Texto secundário do dispositivo: só os campos preenchidos, separados por • */
+/**
+ * Texto secundário do dispositivo: só os campos preenchidos, separados por •. O que já está no
+ * título (identificação exibida) não se repete; com rótulo manual, o hostname reaparece aqui.
+ */
 function detalheDispositivo(d: BuscaDispositivo) {
-  return [d.assetTag, d.numeroSerie, d.imei, d.usuarioAtualNome].filter(Boolean).join(' • ')
+  const titulo = identificacaoExibida(d)
+  return [d.hostname, d.assetTag, d.numeroSerie, d.imei, d.usuarioAtualNome]
+    .filter((v) => v && v !== titulo)
+    .join(' • ')
 }
 
 /**
@@ -186,7 +193,7 @@ export function BarraDeBusca() {
                     <ListItemText
                       primary={
                         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                          <span>{d.hostname ?? d.numeroSerie}</span>
+                          <span>{identificacaoExibida(d)}</span>
                           <Chip
                             size="small"
                             label={rotuloStatus[d.status] ?? d.status}

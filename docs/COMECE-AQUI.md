@@ -49,6 +49,8 @@ E confirmar que o FOOD-ACADEMY continua normal.
   **`Instalar-Agente.exe`**, que já vem com o endereço de produção e a chave da empresa embutidos.
   No notebook: duplo clique, credencial de administrador e pronto — o aparelho aparece no
   inventário em até 1 minuto.
+  Na frota, a GPO **Deploy Tracker Agent** instala e atualiza sozinha a cada release:
+  📖 [atualizacao-agente-gpo.md](agentes/atualizacao-agente-gpo.md).
   📖 [instalacao-agente-pendrive.md](agentes/instalacao-agente-pendrive.md). Roteiro de teste: [teste-agente-windows.md](agentes/teste-agente-windows.md).
   Referência técnica: [agents/Tracker.Agent.Windows/README.md](../agents/Tracker.Agent.Windows/README.md).
 - **Celulares e tablets Android:** APK de release gerado pelo CI e instalado como Device Admin
@@ -93,6 +95,7 @@ A documentação fica em `docs/`, separada por assunto. Este arquivo é o índic
 | Guia | Para quê |
 |---|---|
 | [instalacao-agente-pendrive.md](agentes/instalacao-agente-pendrive.md) | Instalar o agente Windows com o `Instalar-Agente.exe` |
+| [atualizacao-agente-gpo.md](agentes/atualizacao-agente-gpo.md) | Instalar e atualizar o agente Windows na frota pela GPO, sem passar de máquina em máquina |
 | [teste-agente-windows.md](agentes/teste-agente-windows.md) | Roteiro para os técnicos testarem o agente nos notebooks |
 | [agente-android.md](agentes/agente-android.md) | Agente Android: APK, Device Admin/Owner, OTA, keystore, diagnóstico |
 | [protocolo-agente.md](agentes/protocolo-agente.md) | Como servidor e agentes conversam (diagnóstico e agente novo) |

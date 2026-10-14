@@ -29,6 +29,11 @@
   Tipo do dispositivo criado no auto-cadastro: Notebook ou Mobile (valores de
   TipoDispositivo que o auto-cadastro aceita; Periferico nao tem agente). Padrao: Notebook.
 
+.PARAMETER Versao
+  Versao carimbada no agente e enviada no heartbeat (coluna de versao do painel), ex.: 1.4.0.
+  O CI passa a tag da release. Se omitida, usa "git describe --tags" (ex.: 1.4.0-3-gabc1234);
+  sem git/tag, fica "0.0.0-dev". Um "v" inicial e removido.
+
 .PARAMETER Simular
   Se informado, o agente NAO trava a tela de verdade (modo de teste).
 
@@ -40,10 +45,25 @@ param(
     [Parameter(Mandatory = $true)][string]$BackendUrl,
     [string]$EnrollmentKey,
     [ValidateSet("Notebook", "Mobile")][string]$Tipo = "Notebook",
+    [string]$Versao,
     [switch]$Simular
 )
 
 $ErrorActionPreference = "Stop"
+
+# Sem -Versao: tenta a tag mais proxima. O stderr do git (sem tag, fora de repo) viraria erro
+# terminante com "Stop" quando a saida esta redirecionada, entao o preference baixa so aqui.
+if ([string]::IsNullOrWhiteSpace($Versao)) {
+    $anterior = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { $Versao = (& git -C $PSScriptRoot describe --tags 2>$null | Out-String).Trim() } catch { $Versao = $null }
+    if ($LASTEXITCODE -ne 0) { $Versao = $null }
+    $ErrorActionPreference = $anterior
+}
+if ([string]::IsNullOrWhiteSpace($Versao)) { $Versao = "0.0.0-dev" }
+$Versao = $Versao.Trim() -replace '^[vV]', ''
+if ($Versao -notmatch '^[0-9A-Za-z.+-]+$') { throw "Versao invalida: '$Versao' (use algo como 1.4.0)." }
+Write-Host "Versao do agente: $Versao" -ForegroundColor Cyan
 
 $raiz = Split-Path -Parent $PSScriptRoot
 $projetoAgente = Join-Path $raiz "agents\Tracker.Agent.Windows"
@@ -70,7 +90,7 @@ try {
     if (Test-Path $tempPayload) { Remove-Item $tempPayload -Recurse -Force }
     New-Item -ItemType Directory -Path $tempPayload -Force | Out-Null
 
-    & dotnet publish $projetoAgente -c Release -r win-x64 --self-contained true -o $tempPayload | Out-Null
+    & dotnet publish $projetoAgente -c Release -r win-x64 --self-contained true -o $tempPayload "-p:InformationalVersion=$Versao" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Falha ao publicar o agente (dotnet publish retornou $LASTEXITCODE)." }
 
     # Nunca leve segredos/estado de runtime de outra maquina.
@@ -103,7 +123,7 @@ try {
     Compress-Archive -Path (Join-Path $tempPayload "*") -DestinationPath $zip -CompressionLevel Optimal
 
     if (Test-Path $tempPublish) { Remove-Item $tempPublish -Recurse -Force }
-    & dotnet publish $projetoInstalador -c Release -o $tempPublish | Out-Null
+    & dotnet publish $projetoInstalador -c Release -o $tempPublish "-p:InformationalVersion=$Versao" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar o instalador (dotnet publish retornou $LASTEXITCODE)." }
 
     Write-Host "4/4 Entregando o instalador..." -ForegroundColor Cyan
@@ -113,6 +133,8 @@ try {
     # LEIA-ME e instrucao para a TI; Diagnostico-UAC.cmd so serve se a elevacao falhar.
     Copy-Item (Join-Path $PSScriptRoot "pendrive\LEIA-ME.txt") $Destino -Force
     Copy-Item (Join-Path $PSScriptRoot "pendrive\Diagnostico-UAC.cmd") $Destino -Force
+    # Mesma versao carimbada no .exe: e o que o publicar-agente-gpo.ps1 leva para a pasta da GPO.
+    Set-Content -Path (Join-Path $Destino "versao.txt") -Value $Versao -Encoding ASCII -NoNewline
 
     $exe = Join-Path $Destino "Instalar-Agente.exe"
     $mb = [math]::Round((Get-Item $exe).Length / 1MB, 1)

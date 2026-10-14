@@ -66,7 +66,7 @@ Tudo fica em [`docs/`](docs/), separado por assunto. Comece pelo índice
 |---|---|
 | [`docs/uso/`](docs/uso/) | [Manual do usuário](docs/uso/manual-do-usuario.md) do painel |
 | [`docs/operacao/`](docs/operacao/) | [Servidor on-premises](docs/operacao/deploy-servidor-onpremises.md), [deploy por tag (CI/CD)](docs/operacao/deploy-automatico-cicd.md), [backup e chaves](docs/operacao/backup-e-chaves.md), [recuperação de desastre](docs/operacao/recuperacao-de-desastre.md), [monitoramento de impressoras (SNMP)](docs/operacao/monitoramento-impressoras-snmp.md) |
-| [`docs/agentes/`](docs/agentes/) | [Instalação por pendrive](docs/agentes/instalacao-agente-pendrive.md), [teste do agente Windows](docs/agentes/teste-agente-windows.md), [agente Android](docs/agentes/agente-android.md), [protocolo servidor ↔ agente](docs/agentes/protocolo-agente.md) |
+| [`docs/agentes/`](docs/agentes/) | [Instalação por pendrive](docs/agentes/instalacao-agente-pendrive.md), [teste do agente Windows](docs/agentes/teste-agente-windows.md), [atualização pela GPO](docs/agentes/atualizacao-agente-gpo.md), [agente Android](docs/agentes/agente-android.md), [protocolo servidor ↔ agente](docs/agentes/protocolo-agente.md) |
 | [`docs/desenvolvimento/`](docs/desenvolvimento/) | [Ambiente de dev](docs/desenvolvimento/ambiente-dev.md), [melhorias pendentes](docs/desenvolvimento/melhorias-pendentes.md) |
 | [`docs/privacidade/`](docs/privacidade/) | [Dados pessoais e LGPD](docs/privacidade/privacidade-lgpd.md) (para o jurídico/DPO) |
 

@@ -330,7 +330,8 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
 - **O estado DESEJADO de bloqueio vem do ÚLTIMO COMANDO, não do status.** `deveEstarBloqueado` do
   heartbeat = `RegrasDispositivo.DeveEstarBloqueado(status, ultimoComando)`, com o comando de
   `ConsultasComandoRemoto.UltimoComandoVigenteAsync` (mais recente por `DataEmissao`, exceto
-  `Falhou`); sem comando algum, vale o status. Pelo status sozinho, o heartbeat que ENTREGAVA um
+  `Falhou`); sem comando algum, vale o status. **Por isso marcar um Bloquear como `Falhou` o
+  DESLIGA** (sai da reentrega e do estado desejado) — pese isso no item 11 antes de criar prazo. Pelo status sozinho, o heartbeat que ENTREGAVA um
   Bloquear pendente respondia "desbloqueado" (o status só muda na confirmação) e o Android
   destravava logo depois de aplicar. Regras puras em `Tracker.Application/Dispositivos/
   RegrasDispositivo.cs`, cobertas por `RegrasDispositivoTests`/`BloqueioRemotoTests`.
@@ -378,6 +379,17 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
     valor do HKCU e sai — cobre o logon e o pós-desbloqueio (o serviço dispara a tarefa ao
     desbloquear); há limpeza também em `finally`/`ProcessExit`/`UnhandledException`. A remoção é
     incondicional e brigaria com GPO que defina o mesmo valor (item 31).
+  - **O Windows também obedece o `deveEstarBloqueado` do heartbeat** (desde 13/10/2026, item 22):
+    `ExecutorDeComandos.SincronizarBloqueioAsync` recria o `locked.flag` (+ alerta
+    `BloqueioReaplicado`) ou remove a trava quando diverge do servidor. Mesma proteção do Android
+    contra a corrida hub x heartbeat: `GeracaoComandos` é lida ANTES de enviar o heartbeat e, se
+    um comando foi aplicado nesse meio-tempo, a resposta é descartada — sem isso um Desbloquear
+    vindo pelo hub era desfeito pela resposta de um heartbeat em voo. Toda mudança do sinal passa
+    pelo lock `_travaBloqueio` do executor. Com `Simular=true` só loga.
+  - **Versão do agente = `InformationalVersion` do assembly**, carimbada pelo `gerar-pendrive.ps1`
+    (`-Versao`; o CI passa a tag) via `-p:InformationalVersion=...`. O `.csproj` põe
+    `IncludeSourceRevisionInInformationalVersion=false`, senão o SDK acrescenta `+<commit>` e o
+    painel mostra `1.4.0+abc123...`. Build local sai `0.0.0-dev`.
   - **Hub com reconexão PERPÉTUA.** `WithAutomaticReconnect` padrão desiste após 4 tentativas;
     o `Worker` usa `RecuoHub` (0/2/5/10/30/60s, para sempre) + laço que refaz `StartAsync` quando
     `Disconnected` (1º start falho, `Closed`). Um laço só é dono da `HubConnection` (sem conexões
@@ -461,7 +473,7 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   - **O cliente Java do SignalR não tem `withAutomaticReconnect`** (o .NET tem). Se a conexão cai,
     ela fica morta até alguém reconectar: `AgenteService.lacoDeConexaoHub` faz esse papel, com
     recuo progressivo até 60s.
-  - **Hub x heartbeat: o heartbeat em voo NÃO pode desfazer o comando do hub.** Contador
+  - **Hub x heartbeat: o heartbeat em voo NÃO pode desfazer o comando do hub** (o Windows tem o mesmo contador). Contador
     `geracaoComandos` (incrementado sob mutex a cada comando aplicado): resposta de heartbeat que
     saiu antes do último comando tem o `deveEstarBloqueado` ignorado. Dedup por `id` (últimos 50):
     reentrega do mesmo comando só é reconfirmada.
@@ -697,7 +709,33 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   `C:\TrackerAgentDist`). O checkout usa `fetch-depth: 0` para o diff enxergar o commit do marcador.
   As chamadas ao `git` no step baixam o `$ErrorActionPreference` em volta (stderr com `Stop` mata o
   passo no PS 5.1) e o step termina com `exit 0` explícito.
-  (Auto-update OTA da frota Windows ainda NÃO existe — a TI baixa o `.exe` e reinstala.)
+  (OTA própria do agente Windows ainda NÃO existe — item 37. A frota se atualiza pela GPO, abaixo.)
+- **Frota Windows se atualiza pela GPO "Deploy Tracker Agent"** (domínio `nutrihouse.intra`; guia
+  `docs/agentes/atualizacao-agente-gpo.md`). A GPO é configurada UMA vez: script de
+  **inicialização** (SYSTEM — como script de logon roda sem admin e falha) `deploy/gpo/gpo_installer.cmd`,
+  que compara `<pasta>\versao.txt` com `C:\TrackerAgent\versao.txt` e só então roda
+  `Instalar-Agente-<versao>.exe --silencioso`. O CI publica na pasta pelo passo "Publicar agente
+  Windows na pasta da GPO" (`deploy/publicar-agente-gpo.ps1`) em `F:\AgentTracker` do próprio `.254`
+  (padrão quando a pasta existe; `TRACKER_AGENTE_GPO` troca), lida pelos notebooks como `\\192.168.0.254\AgentTracker`. Pontos a não quebrar:
+  - **O pacote NÃO vai para NETLOGON/SYSVOL**: o `.exe` embute o `Enrollment__CompanyKey` e a
+    NETLOGON é legível por todo usuário do domínio (estava em `\\NHNTAPP001\netlogon\agentTracker`
+    até 14/10/2026 — item 36). Pasta própria (`\\192.168.0.254\AgentTracker`, exige o `.254` no domínio e a 445 fechada para a internet) com leitura só para
+    `Computadores do domínio`. O `.cmd` fica na MESMA pasta e a GPO aponta para
+    `\\192.168.0.254\AgentTracker\gpo_installer.cmd`. **A GPO não transfere arquivo**: cada
+    notebook busca o caminho sozinho no boot — unidade mapeada no servidor da GPO ou `\\...\F$`
+    (compartilhamento administrativo) NÃO servem. O CI nunca reescreve o `.cmd` (batch em execução
+    lido pela rede quebra se o arquivo muda no meio).
+  - **`--silencioso` é obrigatório na GPO**: o instalador terminava em `Console.ReadLine()` e
+    seguraria o boot até o tempo-limite dos scripts de GPO. `Encerrar` também pula com entrada redirecionada.
+  - **`C:\TrackerAgent\versao.txt` é apagado no início e gravado só no FIM com sucesso** — falha no
+    meio faz a máquina tentar de novo no próximo boot. Versão lida do ProductVersion do próprio
+    `.exe` (não por reflexão: o instalador é `PublishTrimmed`).
+  - **Nome do `.exe` com a versão + `versao.txt` gravado POR ÚLTIMO** (após conferir SHA-256): o `.exe`
+    anterior pode estar aberto por uma máquina em boot e não poderia ser sobrescrito na rede.
+  - Comparação é **igualdade**, não "maior": publicar o `.exe` antigo faz rollback. Na 1ª vez,
+    nenhuma máquina tem `versao.txt` → a frota inteira reinstala uma vez (token preservado).
+  - Script Node/JS que gere doc com `\\...\TrackerAgent$`: `String.replace` com string de
+    substituição interpreta `` $` `` e duplicou metade de um guia — use função (`() => novo`).
 - **`node_modules` vem de um cache LOCAL do servidor, não do `npm install`.** O `actions/checkout`
   roda `git clean -ffdx` e apaga `node_modules` a cada run, então o guard
   `if (-not (Test-Path node_modules))` do `publicar-servidor.ps1` NUNCA pegava: eram **9min15s de

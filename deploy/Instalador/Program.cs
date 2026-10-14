@@ -45,12 +45,27 @@ internal static class Program
 
     private const string ChaveServico = @"SYSTEM\CurrentControlSet\Services\";
 
+    /// <summary>
+    /// Versão do pacote instalado, gravada ao FIM de uma instalação bem-sucedida. O script da GPO
+    /// (deploy\gpo\gpo_installer.cmd) compara este arquivo com o <c>versao.txt</c> publicado na
+    /// pasta de rede e só reinstala quando diferem — sem ele, cada boot baixaria os ~80 MB.
+    /// </summary>
+    private const string ArquivoVersao = "versao.txt";
+
     private static string _caminhoLog = "";
+
+    /// <summary>
+    /// <c>--silencioso</c>: sem "Pressione ENTER" no fim. Obrigatório pela GPO (roda como SYSTEM,
+    /// sem ninguém para teclar): esperando o ENTER, o script de inicialização segurava o boot até
+    /// o tempo-limite dos scripts de GPO.
+    /// </summary>
+    private static bool _silencioso;
 
     private static int Main(string[] args)
     {
         var desinstalar = TemArgumento(args, "--desinstalar");
         var diagnostico = TemArgumento(args, "--diagnostico");
+        _silencioso = TemArgumento(args, "--silencioso");
 
         Console.Title = desinstalar ? "Desinstalacao do Tracker Agent" : "Instalacao do Tracker Agent";
         _caminhoLog = MontarCaminhoDeLog(desinstalar ? "desinstalacao" : diagnostico ? "diagnostico" : "instalacao");
@@ -78,6 +93,12 @@ internal static class Program
         Registrar($"Instalacao iniciada - maquina {Environment.MachineName}");
         Registrar($"Executando como: {Environment.UserDomainName}\\{Environment.UserName}");
         Registrar($"Administrador local: {(EhAdministrador() ? "SIM" : "NAO")}");
+        Registrar($"Versao do pacote: {VersaoDoPacote()}");
+
+        // Sai ANTES de mexer em qualquer coisa: se a instalação falhar no meio, a máquina fica sem
+        // marcador e o script da GPO tenta de novo no próximo boot, em vez de achar que está em dia.
+        var marcadorVersao = Path.Combine(PastaInstalacao, ArquivoVersao);
+        if (File.Exists(marcadorVersao)) File.Delete(marcadorVersao);
 
         var payload = LerRecurso(RecursoPayload);
         if (payload is null)
@@ -135,6 +156,9 @@ internal static class Program
             Registrar($"ERRO: o servico nao entrou em execucao. Veja {PastaInstalacao}\\agent.log.");
             return Encerrar(1);
         }
+
+        // Por último: só uma instalação completa marca a máquina como "em dia".
+        File.WriteAllText(marcadorVersao, VersaoDoPacote(), Encoding.ASCII);
 
         Registrar("");
         Registrar("================================================");
@@ -614,10 +638,28 @@ internal static class Program
             Console.WriteLine($"Detalhes no log: {_caminhoLog}");
         }
 
+        // Sem ninguém para teclar (GPO, entrada redirecionada), esperar o ENTER travaria o processo.
+        if (_silencioso || Console.IsInputRedirected) return codigo;
+
         Console.WriteLine();
         Console.WriteLine("Pressione ENTER para fechar.");
         Console.ReadLine();
         return codigo;
+    }
+
+    /// <summary>
+    /// Versão carimbada pelo gerar-pendrive.ps1 (<c>-p:InformationalVersion</c>), a mesma do agente
+    /// embutido e do <c>versao.txt</c> publicado na pasta da GPO.
+    /// </summary>
+    /// Lida do recurso de versão do próprio .exe (ProductVersion), que o SDK preenche com a
+    /// InformationalVersion: não depende de reflexão, que o PublishTrimmed poderia podar.
+    private static string VersaoDoPacote()
+    {
+        var doExe = Environment.ProcessPath is { } exe ? FileVersionInfo.GetVersionInfo(exe).ProductVersion : null;
+        return !string.IsNullOrWhiteSpace(doExe)
+            ? doExe.Trim()
+            : typeof(Program).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+              ?? "0.0.0-dev";
     }
 
     private static bool TemArgumento(string[] args, string nome) =>

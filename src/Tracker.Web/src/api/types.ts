@@ -436,6 +436,7 @@ export interface BuscaDispositivo {
   usuarioAtualNome: string | null
   unidadeNome: string | null
   responsavelNome: string | null
+  identificacaoInterna: string | null
 }
 
 export interface BuscaUsuario {

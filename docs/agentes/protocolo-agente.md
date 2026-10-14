@@ -19,7 +19,7 @@ Agente  ────────────────────────
    │      a cada 60 s  POST /api/agente/heartbeat     (X-Agent-Token)    -> comandos, bloqueio, OTA
    │      tempo real   WS  /hubs/comandos?token=...   <- "ExecutarComando"
    │      ao executar  POST /api/agente/comandos/{id}/confirmar
-   │      Android      POST /api/agente/alertas   ·   GET /api/agente/atualizacao/apk
+   │      quando há     POST /api/agente/alertas   ·   GET /api/agente/atualizacao/apk (só Android)
 ```
 
 - **Dois caminhos de entrega de comando:** SignalR (imediato) e heartbeat (rede de segurança).
@@ -141,7 +141,7 @@ fica em `SerialGenerico.EhGenerico` (`src/Tracker.Application/Common/SerialGener
 | Campo | Windows | Android | Efeito no servidor |
 |---|---|---|---|
 | `hostname` | sim | sim | **Sobrescreve** o hostname (por isso existe a Identificação interna) |
-| `agenteVersao` | `"1.0.0"` fixo | `versionName` | Atualiza a versão exibida |
+| `agenteVersao` | `InformationalVersion` do assembly (tag da release, carimbada pelo `gerar-pendrive.ps1`; `0.0.0-dev` em build local) | `versionName` | Atualiza a versão exibida |
 | `agenteVersaoCode` | — | `versionCode` | Atualiza a versão; **sem esse campo não há oferta OTA** |
 | `latitude`, `longitude` | por IP | GPS/rede | Com os dois, **insere uma linha** em `HistoricoLocalizacoes` |
 | `enderecoAproximado` | "cidade, região, país" | `null` | Gravado com o ponto |
@@ -183,7 +183,10 @@ a posição foi lida ([item 30](../desenvolvimento/melhorias-pendentes.md#30-hea
     `deveEstarBloqueado` de um heartbeat que **saiu antes** de um comando ser aplicado (contador
     `geracaoComandos` em `AgenteService`): a resposta já nasceu velha e desfaria o comando
     recém-chegado pelo hub. Comando entregue no próprio ciclo prevalece.
-  - **O Windows o ignora** ([melhorias-pendentes.md, item 22](../desenvolvimento/melhorias-pendentes.md#22-agente-windows-ignora-deve-estar-bloqueado)).
+  - O **Windows** faz o mesmo desde 13/10/2026 (`ExecutorDeComandos.SincronizarBloqueioAsync`,
+    contador `_geracaoComandos`): recria o `locked.flag` e reporta `BloqueioReaplicado` quando o
+    servidor diz bloqueado e o sinal sumiu; remove a trava quando o servidor diz desbloqueado e o
+    sinal ficou. Com `Simular=true` só registra no log. Antes ele ignorava o campo (item 22).
 - `atualizacaoAgente`: o pacote de maior `versaoCode`, quando ele é maior que o
   `agenteVersaoCode` enviado; senão `null`. **O Windows ignora esse campo** (não tem OTA).
 
@@ -259,7 +262,7 @@ Pendente ──(heartbeat entrega)──► Enviado ──(POST .../confirmar)�
 
 ---
 
-## 5. Alertas (só Android)
+## 5. Alertas
 
 `POST /api/agente/alertas` com `{ "tipo": "...", "detalhe": "..." }`. Tipos
 (`TipoAlertaDispositivo`):
@@ -268,7 +271,7 @@ Pendente ──(heartbeat entrega)──► Enviado ──(POST .../confirmar)�
 |---|---|---|
 | `AdminDesativado` | Agente | O usuário abriu ou concluiu a desativação do administrador do dispositivo. O servidor também grava `NivelProtecao = Nenhuma` |
 | `LocalizacaoNegada` | Agente | Permissão de localização negada ou revogada (uma vez por execução do serviço) |
-| `BloqueioReaplicado` | Agente | `deveEstarBloqueado` veio `true`, mas o sinal local tinha sumido |
+| `BloqueioReaplicado` | Agente (Android e Windows) | `deveEstarBloqueado` veio `true`, mas o sinal local tinha sumido |
 | `ProtecaoRebaixada` | **Servidor** | O heartbeat trouxe um `nivelProtecao` menor que o anterior |
 | `ImpressoraOffline` | **Servidor (SNMP)** | Impressora monitorada deixou de responder (não é de agente) |
 | `SuprimentoBaixo` | **Servidor (SNMP)** | Toner/tinta/cilindro abaixo do limite (não é de agente) |
@@ -352,13 +355,13 @@ Caminhos fixos:
 |---|---|---|
 | Recadastro automático no 401 | ✅ | ❌ (registro manual) |
 | Bloqueio sobrevive ao 401 (token apagado) | ✅ (`locked.flag`) | ✅ (sinal `bloqueado`), mas fica preso sem `adb` |
-| Reaplica bloqueio por `deveEstarBloqueado` | ❌ (só o sinal local) | ✅ (ignora resposta mais velha que o último comando) |
+| Reaplica bloqueio por `deveEstarBloqueado` | ✅ (ignora resposta mais velha que o último comando) | ✅ (idem) |
 | Deduplica comando por `id` | ✅ | ✅ (últimos 50) |
 | `tipoComando` numérico aceito | ✅ | ✅ |
 | Serial quando falta o de fábrica | `WIN-<UUID>` / `WIN-<MachineGuid>` / `HOST-<nome>` | série digitada / `ANDROID-<ANDROID_ID>` |
-| Alertas | ❌ | ✅ |
+| Alertas | só `BloqueioReaplicado` | ✅ |
 | OTA | ❌ (reinstalar com o `.exe`) | ✅ |
-| Versão real reportada | ❌ (`1.0.0` fixo) | ✅ |
+| Versão real reportada | ✅ (tag da release; instaladores anteriores a 13/10/2026 mandam `1.0.0`) | ✅ |
 | Bateria, modelo, proteção | ❌ | ✅ |
 | Reconexão do hub | perpétua (`RecuoHub` + laço de `StartAsync`) | laço próprio |
 
