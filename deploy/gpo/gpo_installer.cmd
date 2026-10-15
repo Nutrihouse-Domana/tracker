@@ -1,8 +1,9 @@
 @echo off
 rem ==========================================================================
-rem  Tracker Agent - script de INICIALIZACAO do computador (GPO "Deploy Tracker Agent")
+rem  Tracker Agent - instalacao/atualizacao pela GPO "Deploy Tracker Agent"
 rem
-rem  Roda como SYSTEM no boot (Configuracao do Computador > Scripts > Inicializacao).
+rem  Roda como SYSTEM pela tarefa agendada que a GPO cria (Preferencias > Tarefas
+rem  Agendadas): ao ligar, ao conectar numa rede e a cada 1 hora.
 rem  Instala o agente quando falta e ATUALIZA quando a versao publicada na rede
 rem  muda. Nao precisa editar a GPO a cada versao: o CI (ou o
 rem  deploy\publicar-agente-gpo.ps1) troca o instalador e o versao.txt na pasta.
