@@ -20,7 +20,17 @@ public class AgenteOptions
     /// TipoDispositivo aceitos pelo auto-cadastro; "Telefone" deixou de existir).</summary>
     public string Tipo { get; set; } = "Notebook";
 
-    public int HeartbeatIntervalSeconds { get; set; } = 60;
+    /// <summary>Intervalo do heartbeat (status, comandos pendentes, estado de bloqueio).</summary>
+    public int HeartbeatIntervalSeconds { get; set; } = 30;
+
+    /// <summary>
+    /// Intervalo mínimo entre consultas de localização. Fica separado do heartbeat de propósito:
+    /// o ip-api.com gratuito aceita 45 consultas/min POR IP, e os notebooks do escritório saem
+    /// pelo mesmo IP — consultar a cada heartbeat de 30 s estouraria com mais de 22 máquinas. Também
+    /// segura o histórico de localização gravado no servidor (LGPD). Entre consultas, o heartbeat
+    /// vai sem localização e o servidor não grava ponto novo.
+    /// </summary>
+    public int LocalizacaoIntervalSeconds { get; set; } = 300;
 
     /// <summary>
     /// Se true, não trava a tela de verdade — apenas registra no log o que faria.

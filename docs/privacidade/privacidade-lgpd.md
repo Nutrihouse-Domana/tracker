@@ -45,11 +45,11 @@ Esta é a coleta mais sensível.
 |---|---|---|
 | Como obtém | Geolocalização pelo **IP público** da rede em que está | **GPS/rede** pelo serviço de localização do Google (Fused Location) |
 | Precisão | Cidade/região (registrada como ~5 km) | Nível de rua (a precisão real é enviada) |
-| Quando | A cada heartbeat (**60 s**) | A cada heartbeat (**60 s**), **inclusive em segundo plano** (permissão "Permitir o tempo todo") |
+| Quando | No máximo a cada **5 min** (desde a v1.14.2; antes, a cada 60 s) | A cada heartbeat (**60 s**), **inclusive em segundo plano** (permissão "Permitir o tempo todo") |
 | O que grava | Latitude, longitude, "cidade, região, país" | Latitude, longitude, precisão |
 
-- **Cada heartbeat grava uma linha nova**, sem comparar com a anterior: **~1.440 pontos por
-  aparelho por dia**, sem limite de tempo.
+- **Cada leitura grava uma linha nova**, sem comparar com a anterior: **~1.440 pontos por
+  celular/tablet por dia** e **~288 por notebook** (desde a v1.14.2), sem limite de tempo.
 - A tela mostra só a posição mais recente; a API devolve até as 200 últimas.
 - O código prevê as origens "Wi-Fi conhecida" e "manual da TI", mas **nenhuma delas é gravada** hoje.
 - Geofence existe no modelo de dados, mas **não está em uso**.
