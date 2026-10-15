@@ -718,8 +718,13 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   passo no PS 5.1) e o step termina com `exit 0` explícito.
   (OTA própria do agente Windows ainda NÃO existe — item 37. A frota se atualiza pela GPO, abaixo.)
 - **Frota Windows se atualiza pela GPO "Deploy Tracker Agent"** (domínio `nutrihouse.intra`; guia
-  `docs/agentes/atualizacao-agente-gpo.md`). A GPO é configurada UMA vez: script de
-  **inicialização** (SYSTEM — como script de logon roda sem admin e falha) `deploy/gpo/gpo_installer.cmd`,
+  `docs/agentes/atualizacao-agente-gpo.md`). A GPO é configurada UMA vez: **tarefa agendada
+  das Preferências da GPO** (SYSTEM; disparos: inicialização, evento 10000 de
+  `Microsoft-Windows-NetworkProfile/Operational` = rede conectou, e a cada 1 h; "não iniciar nova
+  instância") que roda `cmd /c \\192.168.0.254\AgentTracker\gpo_installer.cmd`. Script de
+  **Inicialização** sozinho só roda no boot (notebook que hiberna nunca atualizava) e JUNTO com a
+  tarefa abriria dois instaladores em paralelo — use só a tarefa. Script de logon roda sem admin e
+  falha. O `deploy/gpo/gpo_installer.cmd`
   que compara `<pasta>\versao.txt` com `C:\TrackerAgent\versao.txt` e só então roda
   `Instalar-Agente-<versao>.exe --silencioso`. O CI publica na pasta pelo passo "Publicar agente
   Windows na pasta da GPO" (`deploy/publicar-agente-gpo.ps1`) em `F:\AgentTracker` do próprio `.254`

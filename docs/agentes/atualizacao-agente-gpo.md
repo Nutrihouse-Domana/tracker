@@ -19,7 +19,7 @@ tag v* ──► CI (servidor .254)
                                               versao.txt          (gravado POR ÚLTIMO)
                                               logs\
 
-boot do notebook ──► GPO (script de inicialização, como SYSTEM): gpo_installer.cmd
+notebook liga / conecta na rede / a cada 1 h ──► tarefa da GPO (como SYSTEM): gpo_installer.cmd
              versao.txt da rede == C:\TrackerAgent\versao.txt ?  ──► sim: sai (nada baixado)
                                                                 └► não: Instalar-Agente-<versao>.exe --silencioso
 ```
@@ -40,7 +40,7 @@ Arquivos no repositório:
 
 | Arquivo | Papel |
 |---|---|
-| [`deploy/gpo/gpo_installer.cmd`](../../deploy/gpo/gpo_installer.cmd) | Script de inicialização da GPO. Edite **só** a linha `set "PASTA=..."` |
+| [`deploy/gpo/gpo_installer.cmd`](../../deploy/gpo/gpo_installer.cmd) | Script que a tarefa agendada da GPO roda. Edite **só** a linha `set "PASTA=..."`, no repositório |
 | [`deploy/publicar-agente-gpo.ps1`](../../deploy/publicar-agente-gpo.ps1) | Leva o `.exe` e o `versao.txt` para a pasta da GPO. Idempotente |
 | [`deploy/gerar-pendrive.ps1`](../../deploy/gerar-pendrive.ps1) | Gera o `.exe` e o `versao.txt` com a versão (`-Versao`; o CI passa a tag) |
 
@@ -117,38 +117,82 @@ localmente. Para usar outro caminho, defina a variável de **máquina** `TRACKER
 
 Sem a variável e sem `F:\AgentTracker`, o passo só avisa que está desligado.
 
-### 3. Script da GPO
+### 3. Disparo: tarefa agendada criada pela GPO
 
-1. Nada a copiar: o CI coloca o [`deploy/gpo/gpo_installer.cmd`](../../deploy/gpo/gpo_installer.cmd)
-   em `F:\AgentTracker` a cada deploy (desde a v1.14.1), **só quando o conteúdo mudou** e
-   trocando o arquivo de uma vez. O `cmd.exe` lê o script pela rede linha a linha enquanto roda:
-   reescrevê-lo no lugar, no meio de um boot, faria a máquina executar um trecho errado. Para
-   mudar o script, edite-o no repositório (não na pasta: o CI sobrescreve a cópia da pasta).
-2. Na GPO **Deploy Tracker Agent**: *Configuração do Computador → Políticas → Configurações do
-   Windows → Scripts → **Inicialização*** → remova o script antigo e adicione
-   `\\192.168.0.254\AgentTracker\gpo_installer.cmd`. Precisa ser **Inicialização** (roda como SYSTEM). Como
-   script de **logon**, rodaria como o usuário, sem direito de administrador, e a instalação falharia.
-3. Mantenha *Modelos Administrativos → Sistema → Logon → **Sempre aguardar a rede na
-   inicialização e no logon do computador** = Habilitado*. Sem rede no boot, o script não acha a
-   pasta e só tenta de novo no boot seguinte.
-4. Teste de alcance: de um **notebook** (não do servidor), `Win + R` → `\\192.168.0.254\AgentTracker`. Se a pasta
-   abrir, a rede e o compartilhamento estão certos.
+O script de **Inicialização** só roda quando o notebook **liga**. Notebook que só hiberna, ou que
+liga fora do escritório, ficaria dias sem atualizar. Por isso o disparo é uma **tarefa agendada**,
+criada pela própria GPO, que roda **ao ligar, ao conectar numa rede e a cada hora**. Use **só** a
+tarefa: com o script de Inicialização junto, os dois podem rodar ao mesmo tempo no boot e abrir dois
+instaladores em paralelo.
 
-**Ordem:** faça esta troca **depois** da primeira release que publicar o pacote na pasta (o
-`versao.txt` precisa existir). Antes disso, o script sai sem fazer nada.
+O [`deploy/gpo/gpo_installer.cmd`](../../deploy/gpo/gpo_installer.cmd) já está em
+`F:\AgentTracker`: o CI o coloca lá a cada deploy (desde a v1.14.1), **só quando o conteúdo muda**,
+trocando o arquivo de uma vez (o `cmd.exe` lê o script pela rede linha a linha enquanto roda;
+reescrevê-lo no meio faria a máquina executar um trecho errado). Para mudar o script, edite-o no
+repositório, nunca na pasta.
 
-### 4. Testar numa OU piloto antes da frota
+Na GPO **Deploy Tracker Agent** (Editar):
 
-Vincule a GPO primeiro a uma OU com 2 ou 3 notebooks de teste:
+1. *Configuração do Computador → Políticas → Configurações do Windows → Scripts →
+   **Inicialização***: **remova** o script do Tracker.
+2. *Configuração do Computador → **Preferências** → Configurações do Painel de Controle →
+   **Tarefas Agendadas*** → botão direito → *Novo* → **Tarefa Agendada (Windows 7 ou posterior)**.
+3. Aba **Geral**:
+   - Ação: **Substituir**;
+   - Nome: `Tracker Agent - Atualizar`;
+   - Conta: `NT AUTHORITY\SYSTEM` (botão *Alterar usuário ou grupo* → digite `SYSTEM`);
+   - marque **Executar com privilégios mais altos**.
+4. Aba **Disparadores** → *Novo*, três vezes:
+   - **Na inicialização**, com *Atrasar a tarefa por*: 1 minuto;
+   - **Em um evento**: Log `Microsoft-Windows-NetworkProfile/Operational`, Origem
+     `NetworkProfile`, ID do evento `10000` (a rede conectou), com *Atrasar a tarefa por*:
+     1 minuto, para o DNS e a rota ficarem prontos;
+   - **Em uma agenda**: Diariamente, *Repetir a tarefa a cada*: 1 hora, *por um período de*:
+     Indefinidamente (pega quem ficou conectado sem reconectar).
+5. Aba **Ações** → *Novo* → *Iniciar um programa*:
+   - Programa: `cmd.exe`;
+   - Argumentos: `/c "\\192.168.0.254\AgentTracker\gpo_installer.cmd"`.
+6. Aba **Condições**: marque *Iniciar somente se a seguinte conexão de rede estiver disponível*:
+   **Qualquer conexão**. Desmarque *Iniciar a tarefa somente se o computador estiver ligado à
+   energia CA* (notebook na bateria também atualiza).
+7. Aba **Configurações**:
+   - *Se a tarefa já estiver em execução*: **Não iniciar uma nova instância**;
+   - *Parar a tarefa se ela for executada por mais de*: 1 hora.
+8. Mantenha *Modelos Administrativos → Sistema → Logon → **Sempre aguardar a rede na
+   inicialização e no logon do computador** = Habilitado*.
 
-1. `gpupdate /force` e reiniciar.
-2. Conferir `C:\TrackerAgent\versao.txt` com a versão publicada e o serviço `TrackerAgent` rodando.
-3. Ler `%ProgramData%\TrackerAgent\gpo-atualizacao.log` (o que o script decidiu) e
+Rodar a cada hora não pesa: com a versão igual, o script lê um arquivo de poucos bytes e sai, sem
+baixar o instalador. Fora da rede da empresa ele também sai na hora (pasta inacessível) e tenta de
+novo na próxima conexão.
+
+Teste de alcance: de um **notebook** (não do servidor), `Win + R` → `\\192.168.0.254\AgentTracker`.
+Se a pasta abrir, a rede e o compartilhamento estão certos.
+
+### 4. Testar num notebook antes da frota
+
+**Teste na hora, sem esperar a GPO:** num notebook de teste, abra o **Prompt de Comando como
+administrador** e rode o script **como SYSTEM** com o PsExec (da pasta PSTools). Assim ele acessa a
+pasta com a conta do computador, igual à GPO:
+
+```bat
+PsExec.exe -s cmd /c "\\192.168.0.254\AgentTracker\gpo_installer.cmd"
+```
+
+Depois confira:
+
+1. `C:\TrackerAgent\versao.txt` com a versão publicada (ex.: `1.14.2`).
+2. `C:\TrackerAgent\appsettings.json` com `"Versao"` igual e `"HeartbeatIntervalSeconds": 30`.
+3. Serviço `TrackerAgent` rodando (`sc query TrackerAgent`).
+4. No painel, a coluna de versão do agente mostra a versão nova.
+5. Se algo falhou: `%ProgramData%\TrackerAgent\gpo-atualizacao.log` (o que o script decidiu) e
    `\\192.168.0.254\AgentTracker\logs\<HOSTNAME>-instalacao.log` (o que o instalador fez).
-4. Reiniciar de novo: o log não deve ganhar linha nova de instalação (versão igual = sai na hora).
-5. No painel, a coluna de versão do agente mostra a versão nova.
+6. Rode o PsExec de novo: o `gpo-atualizacao.log` não ganha linha nova (versão igual = sai na hora).
 
-Só então vincule à OU da frota.
+**Teste da GPO:** deixe a GPO filtrada para 2 ou 3 notebooks de teste, rode `gpupdate /force` e
+confira a tarefa em `taskschd.msc` → *Tracker Agent - Atualizar*. Para disparar já, botão direito →
+**Executar**. Depois, desconecte e reconecte o Wi-Fi: a tarefa deve rodar sozinha em 1 minuto.
+
+Só então libere a GPO para a frota.
 
 ## Publicar sem o CI
 
@@ -164,10 +208,8 @@ sempre que a versão da rede for **diferente** da local, não só maior.
 
 ## Limitações
 
-- **Só no boot, e só com a rede da empresa.** Notebook que só hiberna, ou que liga fora do
-  escritório sem VPN antes do logon, demora ou nunca se atualiza. Para reduzir isso, crie na mesma
-  GPO uma tarefa agendada diária (*Preferências → Configurações do Painel de Controle → Tarefas
-  Agendadas*, conta `NT AUTHORITY\SYSTEM`) que chame o mesmo `.cmd`.
+- **Só com a rede da empresa.** A tarefa roda ao ligar, ao conectar e a cada hora, mas só acha a
+  pasta dentro da rede (ou VPN). Notebook que nunca volta ao escritório não se atualiza (item 37).
 - A atualização para o agente por alguns segundos: um bloqueio emitido nesse intervalo chega pelo
   heartbeat logo depois. O `locked.flag` não é tocado, então quem está bloqueado continua.
 - Instaladores gerados antes de 14/10/2026 não gravam `versao.txt` nem entendem `--silencioso`.
@@ -181,4 +223,5 @@ sempre que a versão da rede for **diferente** da local, não só maior.
 | Resumo do CI: "NAO publicado na GPO" | Runner sem permissão NTFS em `F:\AgentTracker` (passo 1) |
 | `gpo-atualizacao.log` com "Pasta ou versao.txt inacessivel" | Sem rede no boot (passo 3.3), `Computadores do domínio` sem leitura, porta 445 bloqueada até o `.254`, ou `.254` fora do domínio (passo 1) |
 | Reinstala a cada boot | O instalador falha e não grava `versao.txt`: veja o log de instalação |
-| Nada acontece e não há `gpo-atualizacao.log` | GPO não aplicada: `gpresult /r /scope computer` na máquina |
+| Nada acontece e não há `gpo-atualizacao.log` | GPO não aplicada (`gpresult /r /scope computer`) ou tarefa ausente em `taskschd.msc` |
+| `PsExec -s` dá acesso negado na pasta | `Computadores do domínio` sem Leitura no compartilhamento **e** no NTFS (passo 1) |
