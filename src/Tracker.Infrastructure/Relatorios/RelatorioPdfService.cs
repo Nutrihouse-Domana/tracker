@@ -38,12 +38,15 @@ public class RelatorioPdfService : IRelatorioPdfService
         });
 
         Tabela(section,
-            cabecalhos: new[] { "Identificação", "Tipo", "Origem", "Nº de série", "Patrimônio", "Unidade", "Responsável", "Status" },
-            larguras: new[] { 4.0, 2.2, 2.0, 3.6, 2.8, 3.6, 4.6, 2.6 },
+            cabecalhos: new[] { "Identificação", "Tipo", "Origem", "Nº de série", "Patrimônio", "Unidade", "Responsável", "Status", "Cadastrado em" },
+            // Soma 26,2 cm: cabe nos 26,7 cm úteis do A4 deitado com margens de 1,5 cm.
+            larguras: new[] { 3.8, 2.0, 1.8, 3.4, 2.6, 3.4, 4.2, 2.6, 2.4 },
             linhas: linhas.Select(l => new[]
             {
                 l.Identificacao, l.Tipo, l.Origem, l.NumeroSerie,
                 l.Patrimonio ?? "—", l.Unidade ?? "—", l.Responsavel ?? "—", l.Status,
+                // Quando o ativo entrou no Tracker (cadastro manual ou auto-cadastro do agente).
+                l.CadastradoEm.ToString("dd/MM/yyyy"),
             }).ToList());
 
         return Renderizar(documento);

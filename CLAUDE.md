@@ -223,7 +223,8 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
   auditoria (que é para escrita). No site ficam no **menu da conta** (`MenuRelatorios`, aberto ao
   clicar no próprio nome), não na página de Perfil — esta só mostra quem está logado e suas
   permissões. A coluna de data dos relatórios é **`CriadoEm` ("Cadastrado em")**, não
-  `DataAquisicao`: o formulário de cadastro grava `DataAquisicao = agora` e não há campo na tela
+  `DataAquisicao` — e sai no PDF **e** no XLSX do inventário (até 15/10/2026 o PDF não a tinha;
+  coluna nova no PDF exige rever as larguras, que somam no máximo ~26,7 cm no A4 deitado): o formulário de cadastro grava `DataAquisicao = agora` e não há campo na tela
   para outra data, então ela nunca foi data de compra de verdade. `CriadoEm` é UTC e o SQL Server
   o devolve com `Kind=Unspecified` — marque como UTC antes de `ToLocalTime()`, senão cadastro da
   noite sai com a data do dia seguinte. (Pendente: trocar por `FusoBrasil.ParaBrasilia` — item 29.)
