@@ -97,6 +97,25 @@ impede um colaborador de copiar o `.exe`. A pasta `logs` recebe o log de instala
 máquina (`<HOSTNAME>-instalacao.log`). Sem permissão de gravação, ele vai para
 `%ProgramData%\TrackerAgent` da própria máquina.
 
+**Permissões pela linha de comando** (CMD como administrador no `.254`), como ficou em produção em
+15/10/2026:
+
+```bat
+icacls F:\AgentTracker /inheritance:d
+icacls F:\AgentTracker /remove:g "BUILTIN\Users"
+icacls F:\AgentTracker /grant "NUTRIHOUSE\Domain Computers:(OI)(CI)RX"
+icacls F:\AgentTracker\logs /grant "NUTRIHOUSE\Domain Computers:(OI)(CI)M"
+powershell -Command "Grant-SmbShareAccess -Name AgentTracker -AccountName 'NUTRIHOUSE\Domain Computers' -AccessRight Read -Force"
+net share AgentTracker /cache:none
+```
+
+- A herança do disco `F:` dava a `BUILTIN\Users` leitura **e** criação de arquivos na pasta: todo
+  colaborador copiava o `.exe` e podia deixar arquivos numa pasta executada como SISTEMA.
+- `/cache:none`: sem cache offline, o notebook nunca lê um `versao.txt` velho.
+- O grupo `FG_AgentTracker` tem controle total: quem estiver nele executa código como SISTEMA na
+  frota. Mantenha só a TI.
+- Conferir: `net share AgentTracker` e `icacls F:\AgentTracker`.
+
 Requisitos:
 
 - **O `.254` precisa estar no domínio `nutrihouse.intra`**: é o que permite liberar a pasta só
@@ -225,3 +244,4 @@ sempre que a versão da rede for **diferente** da local, não só maior.
 | Reinstala a cada boot | O instalador falha e não grava `versao.txt`: veja o log de instalação |
 | Nada acontece e não há `gpo-atualizacao.log` | GPO não aplicada (`gpresult /r /scope computer`) ou tarefa ausente em `taskschd.msc` |
 | `PsExec -s` dá acesso negado na pasta | `Computadores do domínio` sem Leitura no compartilhamento **e** no NTFS (passo 1) |
+| Tarefa com **Último resultado = 1** e **sem** `gpo-atualizacao.log` | O `cmd` (como SISTEMA) nem abriu o script: falta `Domain Computers` nas permissões do **compartilhamento** (visto em 15/10/2026: só `Domain Admins` e `FG_AgentTracker`). Ver "Permissões pela linha de comando" |
