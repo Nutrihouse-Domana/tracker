@@ -356,6 +356,12 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
 - **Remover um valor de enum usado como discriminador exige migração de DADOS**, que o EF não gera
   sozinho (não é mudança de schema). Ver `UnificaTelefoneETabletEmMobile`: um `UPDATE` manual move
   os registros do valor extinto, senão o EF quebra ao materializá-los.
+- **Em produção o IIS serve `C:\publish\Tracker`, NÃO `C:\Tracker`.** Confirmado no log de todo
+  deploy ("Destino resolvido do IIS ... C:\publish\Tracker" — checado da v1.0.9 à v1.10.2). Vários
+  guias em `docs/` ainda citam `C:\Tracker`. O `atualizar-servidor.ps1` acerta
+  sozinho porque descobre a pasta pelo `PhysicalPath` do site — **nunca passe `-Destino` na mão** e
+  não confie no caminho citado nos guias. Um rollback copiando para `C:\Tracker` não faria efeito
+  nenhum e o site continuaria fora, com a impressão de que o rollback "não funcionou".
 - **Agente como Serviço do Windows:**
   - O `ContentRootPath` precisa ser `AppContext.BaseDirectory` (senão não acha `appsettings.json`
     — como serviço o diretório atual é System32).
