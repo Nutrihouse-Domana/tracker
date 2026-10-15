@@ -18,6 +18,25 @@ marcações e escreva do ponto de vista de quem usa ou opera, não do código.
 
 ---
 
+## v1.14.2 — 15/10/2026 · Agente Windows
+
+Agente Windows mais responsivo e com a versão visível na configuração.
+
+- **Banco / Agente Android:** sem mudança.
+- **Agente Windows:** instalador novo; chega aos notebooks pela GPO no próximo boot.
+
+**Agente Windows**
+
+- O heartbeat passa de 60 s para **30 s**: status e comandos pendentes chegam mais rápido quando o
+  aviso em tempo real falha.
+- A localização passa a ser enviada **no máximo a cada 5 minutos** (antes, a cada heartbeat). Evita
+  o bloqueio do serviço de localização gratuito, que limita consultas por rede, e reduz o
+  histórico guardado (de ~1.440 para ~288 pontos por notebook por dia). **Avisar o jurídico/DPO**
+  da mudança na frequência de coleta.
+- `C:\TrackerAgent\appsettings.json` mostra a versão instalada no topo (`"Versao"`).
+
+---
+
 ## v1.14.1 — 14/10/2026
 
 O script da GPO passa a ser copiado pelo CI.

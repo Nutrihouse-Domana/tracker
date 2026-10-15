@@ -99,7 +99,10 @@ try {
     }
 
     Write-Host "2/4 Gravando appsettings.json ja configurado..." -ForegroundColor Cyan
+    # "Versao" no topo e so informativa: a TI abre C:\TrackerAgent\appsettings.json e ve qual
+    # pacote esta instalado. O agente nao a le (usa a versao carimbada no proprio .exe, a mesma).
     $appsettings = [ordered]@{
+        Versao  = $Versao
         Logging = [ordered]@{
             LogLevel = [ordered]@{
                 Default                      = "Information"
@@ -111,8 +114,9 @@ try {
             AgentToken               = ""
             EnrollmentKey            = $EnrollmentKey
             Tipo                     = $Tipo
-            HeartbeatIntervalSeconds = 60
-            Simular                  = [bool]$Simular
+            HeartbeatIntervalSeconds   = 30
+            LocalizacaoIntervalSeconds = 300
+            Simular                    = [bool]$Simular
         }
     }
     $appsettings | ConvertTo-Json -Depth 5 | Out-File (Join-Path $tempPayload "appsettings.json") -Encoding utf8

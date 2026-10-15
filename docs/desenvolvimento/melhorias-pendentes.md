@@ -422,7 +422,8 @@ na página de Perfil. Não estão: ficam só no menu da conta.
 
 **Problema:** todo heartbeat com coordenadas insere uma linha em `HistoricoLocalizacoes`, sem
 comparar com a anterior e sem expurgo — **~1.440 linhas por aparelho por dia**, indefinidamente.
-A tela usa só a última.
+A tela usa só a última. (Desde a v1.14.2 o agente Windows manda localização no máximo a cada
+5 min: ~288 linhas por notebook por dia. O Android segue a cada heartbeat; o expurgo continua faltando.)
 
 **Impacto:** privacidade (trilha minuto a minuto do colaborador, inclusive fora do expediente, em
 aparelho que ele leva para casa) e crescimento do banco e do backup.
@@ -472,7 +473,7 @@ comercial. **Confirme nos termos atuais do serviço.**
 
 **Impacto:**
 
-- o IP de cada notebook trafega em claro para um terceiro a cada minuto;
+- o IP de cada notebook trafega em claro para um terceiro a cada 5 minutos (era a cada minuto até a v1.14.1);
 - a resposta pode ser adulterada no caminho;
 - há possível violação dos termos de uso do serviço.
 

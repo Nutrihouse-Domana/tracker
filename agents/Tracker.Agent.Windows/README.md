@@ -34,7 +34,8 @@ execução o agente se registra sozinho no inventário e guarda seu token indivi
        "AgentToken": "",
        "EnrollmentKey": "<CODIGO-DO-COFRE>",
        "Tipo": "Notebook",
-       "HeartbeatIntervalSeconds": 60,
+       "HeartbeatIntervalSeconds": 30,
+       "LocalizacaoIntervalSeconds": 300,
        "Simular": false
      }
    }

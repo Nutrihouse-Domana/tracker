@@ -390,6 +390,13 @@ C:\Android\Sdk\platform-tools\adb.exe install -r app/build/outputs/apk/release/a
     (`-Versao`; o CI passa a tag) via `-p:InformationalVersion=...`. O `.csproj` põe
     `IncludeSourceRevisionInInformationalVersion=false`, senão o SDK acrescenta `+<commit>` e o
     painel mostra `1.4.0+abc123...`. Build local sai `0.0.0-dev`.
+  - **Heartbeat 30 s, localização no máximo a cada 5 min** (`HeartbeatIntervalSeconds` /
+    `LocalizacaoIntervalSeconds`, desde a v1.14.2). NÃO volte a consultar o ip-api em todo
+    heartbeat: o gratuito aceita 45 consultas/min POR IP e o escritório sai por um IP só (com 30 s
+    estouraria com >22 notebooks e o serviço bloqueia o IP). A falha também espera o intervalo.
+    Heartbeat sem coordenadas não grava ponto (é o que segura o histórico — LGPD, item 15).
+    O `"Versao"` no topo do `appsettings.json` gerado é SÓ informativo para a TI (o agente usa a
+    do `.exe`); o instalador sobrescreve o `appsettings.json` a cada reinstalação.
   - **Hub com reconexão PERPÉTUA.** `WithAutomaticReconnect` padrão desiste após 4 tentativas;
     o `Worker` usa `RecuoHub` (0/2/5/10/30/60s, para sempre) + laço que refaz `StartAsync` quando
     `Disconnected` (1º start falho, `Closed`). Um laço só é dono da `HubConnection` (sem conexões

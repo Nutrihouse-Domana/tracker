@@ -16,7 +16,7 @@ o protocolo, **atualize este documento**.
 ```
                  1x  POST /api/agente/auto-enrollment  (X-Enrollment-Key)  -> token
 Agente  ───────────────────────────────────────────────────────────────────────────►  API
-   │      a cada 60 s  POST /api/agente/heartbeat     (X-Agent-Token)    -> comandos, bloqueio, OTA
+   │   30 s (Win) / 60 s (Android)  POST /api/agente/heartbeat     (X-Agent-Token)    -> comandos, bloqueio, OTA
    │      tempo real   WS  /hubs/comandos?token=...   <- "ExecutarComando"
    │      ao executar  POST /api/agente/comandos/{id}/confirmar
    │      quando há     POST /api/agente/alertas   ·   GET /api/agente/atualizacao/apk (só Android)
@@ -134,7 +134,7 @@ fica em `SerialGenerico.EhGenerico` (`src/Tracker.Application/Common/SerialGener
 
 ---
 
-## 2. Heartbeat (a cada 60 s)
+## 2. Heartbeat (Windows a cada 30 s, Android a cada 60 s)
 
 **Request** (`HeartbeatRequest`). Todos os campos são opcionais.
 
@@ -308,7 +308,11 @@ os marca como reconhecidos. Tratar alerta de agente pede `dispositivos.bloquear`
 | Windows | `http://ip-api.com/json/…` (IP público; ver [item 17](../desenvolvimento/melhorias-pendentes.md#17-geolocalização-do-windows-por-http-em-serviço-gratuito)) | cidade (fixa em 5000 m) | `IpGeolocationWindows` |
 | Android | Fused Location do Google (última posição de até 5 min; senão, leitura nova com timeout de 20 s) | real | `GpsAndroid` (mesmo quando a posição veio da rede) |
 
-Cada heartbeat com coordenadas **grava uma linha nova**, sem deduplicação e sem expurgo. Ver
+Cada heartbeat com coordenadas **grava uma linha nova**, sem deduplicação e sem expurgo. O
+**Windows** consulta o ip-api e manda coordenadas **no máximo a cada 5 min**
+(`LocalizacaoIntervalSeconds`, desde a v1.14.2); nos outros heartbeats vai sem localização. Motivo:
+o ip-api gratuito aceita 45 consultas/min por IP, e o escritório inteiro sai pelo mesmo IP. O
+Android manda em todo heartbeat. Ver
 [privacidade-lgpd.md](../privacidade/privacidade-lgpd.md) e o [item 15](../desenvolvimento/melhorias-pendentes.md#15-localização-gravada-a-cada-minuto-para-sempre).
 As origens `WifiConhecida` e `ManualTI` existem no enum, mas nada as grava.
 
@@ -317,6 +321,8 @@ As origens `WifiConhecida` e `ManualTI` existem no enum, mas nada as grava.
 ## 8. Configuração dos agentes
 
 **Windows**: seção `Agente` do `appsettings.json` (o instalador do pendrive já o gera preenchido).
+No topo do arquivo, `"Versao"` mostra qual pacote está instalado: é **só informativa** (o agente
+usa a versão do próprio `.exe`, que é a mesma).
 
 | Chave | Padrão | Observação |
 |---|---|---|
@@ -324,7 +330,8 @@ As origens `WifiConhecida` e `ManualTI` existem no enum, mas nada as grava.
 | `AgentToken` | `""` | Só para instalação manual com token do painel |
 | `EnrollmentKey` | `""` | A chave da empresa, para o auto-cadastro |
 | `Tipo` | `"Notebook"` | |
-| `HeartbeatIntervalSeconds` | `60` | |
+| `HeartbeatIntervalSeconds` | `30` | Era 60 até a v1.14.1 |
+| `LocalizacaoIntervalSeconds` | `300` | Intervalo mínimo entre consultas ao ip-api (mínimo aceito: 60) |
 | `Simular` | `false` no JSON (**`true` no código**) | `true` = não trava a tela de verdade (desenvolvimento) |
 
 Caminhos fixos:
