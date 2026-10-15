@@ -18,6 +18,30 @@ marcações e escreva do ponto de vista de quem usa ou opera, não do código.
 
 ---
 
+## v1.14.3 — 15/10/2026
+
+Data de cadastro no PDF do inventário e GPO do agente com disparo por tarefa agendada.
+
+- **Banco / Agente Windows / Agente Android:** sem mudança. O instalador do agente não é regerado;
+  o CI só recopia o `gpo_installer.cmd` (mudou o comentário) para `F:\AgentTracker`.
+
+**Relatórios**
+
+- O PDF do **Inventário de ativos** ganhou a coluna **"Cadastrado em"**: a data em que o ativo
+  entrou no Tracker (cadastro manual ou auto-cadastro do agente). O Excel já trazia.
+
+**GPO do agente Windows (configuração da TI, fora do deploy)**
+
+- O guia ([docs/agentes/atualizacao-agente-gpo.md](docs/agentes/atualizacao-agente-gpo.md)) troca o
+  script de Inicialização por uma **tarefa agendada das Preferências da GPO** (SYSTEM): roda ao
+  ligar, ao conectar numa rede e a cada 1 hora. Notebook que hiberna passa a se atualizar sem
+  precisar reiniciar. **Exige ajustar a GPO uma vez** e remover o script de Inicialização antigo
+  (os dois juntos abririam dois instaladores em paralelo).
+- O guia também cobre a permissão do compartilhamento para `Computadores do domínio` e o teste
+  imediato com PsExec.
+
+---
+
 ## v1.14.2 — 15/10/2026 · Agente Windows
 
 Agente Windows mais responsivo e com a versão visível na configuração.
